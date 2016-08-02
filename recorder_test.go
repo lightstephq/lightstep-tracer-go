@@ -6,6 +6,14 @@ import (
 	"github.com/opentracing/basictracer-go"
 )
 
+func makeSpanSlice(length int) []basictracer.RawSpan {
+	spans := make([]basictracer.RawSpan, length)
+	for i := range spans {
+		spans[i].SpanContext = &basictracer.SpanContext{}
+	}
+	return spans
+}
+
 func TestMaxBufferSize(t *testing.T) {
 	recorder := NewRecorder(Options{
 		AccessToken: "0987654321",
@@ -25,14 +33,14 @@ func TestMaxBufferSize(t *testing.T) {
 
 	checkCapSize(0, defaultMaxSpans)
 
-	spans := make([]basictracer.RawSpan, defaultMaxSpans)
+	spans := makeSpanSlice(defaultMaxSpans)
 	for _, span := range spans {
 		recorder.RecordSpan(span)
 	}
 
 	checkCapSize(defaultMaxSpans, defaultMaxSpans)
 
-	spans = append(spans, make([]basictracer.RawSpan, defaultMaxSpans)...)
+	spans = append(spans, makeSpanSlice(defaultMaxSpans)...)
 	for _, span := range spans {
 		recorder.RecordSpan(span)
 	}
@@ -47,7 +55,7 @@ func TestMaxBufferSize(t *testing.T) {
 
 	checkCapSize(0, maxBuffer)
 
-	spans = append(spans, make([]basictracer.RawSpan, 100*defaultMaxSpans)...)
+	spans = append(spans, makeSpanSlice(100*defaultMaxSpans)...)
 	for _, span := range spans {
 		recorder.RecordSpan(span)
 	}
