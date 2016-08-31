@@ -16,4 +16,4 @@ proto:
 	fi
 	docker run -v $(shell pwd)/lightstep-tracer-common:/input:ro -v $(shell pwd)/collectorpb:/output \
 	  lightstep/protoc:latest \
-	  protoc --go_out=plugins=grpc:. --go_out=/output --proto_path=/input /input/collector.proto
+	  protoc --go_out=plugins=grpc:/output --proto_path=/input /input/collector.proto

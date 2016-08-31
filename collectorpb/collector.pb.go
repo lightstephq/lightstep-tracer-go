@@ -29,6 +29,11 @@ import fmt "fmt"
 import math "math"
 import google_protobuf "github.com/golang/protobuf/ptypes/timestamp"
 
+import (
+	context "golang.org/x/net/context"
+	grpc "google.golang.org/grpc"
+)
+
 // Reference imports to suppress errors if they are not otherwise used.
 var _ = proto.Marshal
 var _ = fmt.Errorf
@@ -615,6 +620,78 @@ func init() {
 	proto.RegisterType((*Command)(nil), "lightstep.collector.Command")
 	proto.RegisterType((*ReportResponse)(nil), "lightstep.collector.ReportResponse")
 	proto.RegisterEnum("lightstep.collector.Reference_Relationship", Reference_Relationship_name, Reference_Relationship_value)
+}
+
+// Reference imports to suppress errors if they are not otherwise used.
+var _ context.Context
+var _ grpc.ClientConn
+
+// This is a compile-time assertion to ensure that this generated file
+// is compatible with the grpc package it is being compiled against.
+const _ = grpc.SupportPackageIsVersion3
+
+// Client API for CollectorService service
+
+type CollectorServiceClient interface {
+	Report(ctx context.Context, in *ReportRequest, opts ...grpc.CallOption) (*ReportResponse, error)
+}
+
+type collectorServiceClient struct {
+	cc *grpc.ClientConn
+}
+
+func NewCollectorServiceClient(cc *grpc.ClientConn) CollectorServiceClient {
+	return &collectorServiceClient{cc}
+}
+
+func (c *collectorServiceClient) Report(ctx context.Context, in *ReportRequest, opts ...grpc.CallOption) (*ReportResponse, error) {
+	out := new(ReportResponse)
+	err := grpc.Invoke(ctx, "/lightstep.collector.CollectorService/Report", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// Server API for CollectorService service
+
+type CollectorServiceServer interface {
+	Report(context.Context, *ReportRequest) (*ReportResponse, error)
+}
+
+func RegisterCollectorServiceServer(s *grpc.Server, srv CollectorServiceServer) {
+	s.RegisterService(&_CollectorService_serviceDesc, srv)
+}
+
+func _CollectorService_Report_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ReportRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CollectorServiceServer).Report(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/lightstep.collector.CollectorService/Report",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CollectorServiceServer).Report(ctx, req.(*ReportRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+var _CollectorService_serviceDesc = grpc.ServiceDesc{
+	ServiceName: "lightstep.collector.CollectorService",
+	HandlerType: (*CollectorServiceServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "Report",
+			Handler:    _CollectorService_Report_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: fileDescriptor0,
 }
 
 func init() { proto.RegisterFile("collector.proto", fileDescriptor0) }
