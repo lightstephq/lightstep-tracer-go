@@ -1,26 +1,30 @@
 package lightstep
 
 import (
-	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
 	"path"
 	"reflect"
 	"runtime"
-	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	"github.com/lightstep/lightstep-tracer-go/lightstep_thrift"
-	"github.com/lightstep/lightstep-tracer-go/thrift_0_9_2/lib/go/thrift"
+	"golang.org/x/net/context"
+
+	"google.golang.org/grpc"
+
+	"github.com/golang/glog"
+	google_protobuf "github.com/golang/protobuf/ptypes/timestamp"
+	cpb "github.com/lightstep/lightstep-tracer-go/collectorpb"
 	"github.com/opentracing/basictracer-go"
 	ot "github.com/opentracing/opentracing-go"
 )
 
 const (
+	spansDropped  = "spans.dropped"
 	collectorPath = "/_rpc/v1/reports/binary"
 
 	defaultPlainPort  = 80
@@ -58,6 +62,11 @@ var (
 	flagMaxPayloadFieldBytes = flag.Int("lightstep_max_log_payload_field_bytes", 1024, "the maximum number of bytes exported in a single payload field")
 	flagMaxPayloadTotalBytes = flag.Int("lightstep_max_log_payload_max_total_bytes", 4096, "the maximum number of bytes exported in an entire payload")
 )
+
+// A set of counter values for a given time window
+type counterSet struct {
+	droppedSpans int64
+}
 
 // Endpoint describes a collection or web API host/port and whether or
 // not to use plaintext communicatation.
@@ -132,7 +141,6 @@ type Recorder struct {
 	lock sync.Mutex
 
 	// auth and runtime information
-	auth       *lightstep_thrift.Auth
 	attributes map[string]string
 	startTime  time.Time
 
@@ -147,8 +155,9 @@ type Recorder struct {
 	lastReportAttempt  time.Time
 	maxReportingPeriod time.Duration
 	reportInFlight     bool
+
 	// Remote service that will receive reports
-	backend lightstep_thrift.ReportingService
+	backend cpb.CollectorServiceClient
 
 	// apiURL is the base URL of the LightStep web API, used for
 	// explicit trace collection requests.
@@ -157,6 +166,8 @@ type Recorder struct {
 	// accessToken is the access token used for explicit trace
 	// collection requests.
 	accessToken string
+
+	tracerID uint64
 
 	verbose bool
 
@@ -178,8 +189,8 @@ func NewRecorder(opts Options) basictracer.SpanRecorder {
 	if _, found := opts.Tags[ComponentNameKey]; !found {
 		opts.Tags[ComponentNameKey] = path.Base(os.Args[0])
 	}
-	if _, found := opts.Tags[GUIDKey]; !found {
-		opts.Tags[GUIDKey] = genSeededGUID()
+	if _, found := opts.Tags[GUIDKey]; found {
+		panic(fmt.Sprintf("Passing in your own %v is no longer supported", GUIDKey))
 	}
 	if _, found := opts.Tags[HostnameKey]; !found {
 		hostname, _ := os.Hostname()
@@ -200,9 +211,7 @@ func NewRecorder(opts Options) basictracer.SpanRecorder {
 
 	now := time.Now()
 	rec := &Recorder{
-		auth: &lightstep_thrift.Auth{
-			AccessToken: thrift.StringPtr(opts.AccessToken),
-		},
+		accessToken:        opts.AccessToken,
 		attributes:         attributes,
 		startTime:          now,
 		reportOldest:       now,
@@ -210,7 +219,7 @@ func NewRecorder(opts Options) basictracer.SpanRecorder {
 		maxReportingPeriod: defaultMaxReportingPeriod,
 		verbose:            opts.Verbose,
 		apiURL:             getAPIURL(opts),
-		accessToken:        opts.AccessToken,
+		tracerID:           genSeededGUID(),
 	}
 	rec.buffer.setDefaults()
 
@@ -218,17 +227,26 @@ func NewRecorder(opts Options) basictracer.SpanRecorder {
 		rec.buffer.setMaxBufferSize(opts.MaxBufferedSpans)
 	}
 
-	timeout := 60 * time.Second
-	if opts.ReportTimeout > 0 {
-		timeout = opts.ReportTimeout
-	}
-	transport, err := thrift.NewTHttpPostClient(getCollectorURL(opts), timeout)
+	// TODO: not using opts.ReportTimeout, use please
+	//if opts.ReportTimeout > 0 {
+	//	timeout = opts.ReportTimeout
+	//}
+
+	// (alice) possibly the grpc dial here?
+	conn, err := grpc.Dial(getCollectorURL(opts))
 	if err != nil {
 		rec.maybeLogError(err)
 		return nil
 	}
-	rec.backend = lightstep_thrift.NewReportingServiceClientFactory(
-		transport, thrift.NewTBinaryProtocolFactoryDefault())
+	defer conn.Close()
+	rec.backend = cpb.NewCollectorServiceClient(conn)
+	// transport, err := thrift.NewTHttpPostClient(getCollectorURL(opts), timeout)
+	// if err != nil {
+	// 	rec.maybeLogError(err)
+	// 	return nil
+	// }
+	// rec.backend = lightstep_thrift.NewReportingServiceClientFactory(
+	// 	transport, thrift.NewTBinaryProtocolFactoryDefault())
 
 	go rec.reportLoop()
 
@@ -245,6 +263,134 @@ func (r *Recorder) RecordSpan(raw basictracer.RawSpan) {
 	}
 
 	atomic.AddInt64(&r.counters.droppedSpans, int64(r.buffer.addSpans([]basictracer.RawSpan{raw})))
+}
+
+func translateSpanContext(sc basictracer.SpanContext) *cpb.SpanContext {
+	return &cpb.SpanContext{
+		TraceId: sc.TraceID,
+		SpanId:  sc.SpanID,
+		Baggage: sc.Baggage,
+	}
+}
+
+func translateParentSpanID(pid uint64) []*cpb.Reference {
+	return []*cpb.Reference{
+		&cpb.Reference{
+			Relationship: cpb.Reference_CHILD_OF,
+			SpanContext:  &cpb.SpanContext{SpanId: pid},
+		},
+	}
+}
+
+func translateTime(t time.Time) *google_protobuf.Timestamp {
+	return &google_protobuf.Timestamp{
+		Seconds: t.Unix(),
+		Nanos:   int32(t.Nanosecond()),
+	}
+}
+
+func translateDuration(d time.Duration) uint64 {
+	return uint64(d)
+}
+
+func translateDurationFromOldesYoungest(ot time.Time, yt time.Time) uint64 {
+	return translateDuration(yt.Sub(ot))
+}
+
+func translateTags(tags ot.Tags) []*cpb.KeyValue {
+	kvs := make([]*cpb.KeyValue, 0, len(tags))
+	for key, tag := range tags {
+		kv := cpb.KeyValue{Key: key}
+		switch v := tag.(type) {
+		case string:
+			kv.Value = &cpb.KeyValue_StringValue{v}
+		case int:
+			kv.Value = &cpb.KeyValue_IntValue{int64(v)}
+		case float64:
+			kv.Value = &cpb.KeyValue_DoubleValue{v}
+		case bool:
+			kv.Value = &cpb.KeyValue_BoolValue{v}
+		default:
+			glog.Infof("value: %v, is an unsupported type, and has been converted to string")
+			// Thoughts?
+			kv.Value = &cpb.KeyValue_StringValue{fmt.Sprint(v)}
+		}
+		kvs = append(kvs, &kv)
+	}
+	return kvs
+}
+
+// TODO: Implement once OT logs have been updated
+func translateLogs(log []ot.LogData) []*cpb.Log {
+	return nil
+}
+
+func translateRawSpan(rs basictracer.RawSpan) *cpb.Span {
+	return &cpb.Span{
+		SpanContext:    translateSpanContext(rs.Context),
+		OperationName:  rs.Operation,
+		References:     translateParentSpanID(rs.ParentSpanID),
+		StartTimestamp: translateTime(rs.Start),
+		DurationMicros: translateDuration(rs.Duration),
+		Tags:           translateTags(rs.Tags),
+		Logs:           translateLogs(rs.Logs),
+	}
+}
+
+func convertRawSpans(rawSpans []basictracer.RawSpan) []*cpb.Span {
+	spans := make([]*cpb.Span, len(rawSpans))
+	for i, rs := range rawSpans {
+		spans[i] = translateRawSpan(rs)
+	}
+	return spans
+}
+
+func translateAttributes(atts map[string]string) []*cpb.KeyValue {
+	tags := make([]*cpb.KeyValue, 0, len(atts))
+	for k, v := range atts {
+		tags = append(tags, &cpb.KeyValue{Key: k, Value: &cpb.KeyValue_StringValue{v}})
+	}
+	return tags
+}
+
+func convertToTracer(atts map[string]string, id uint64) *cpb.Tracer {
+	return &cpb.Tracer{
+		TracerId: id,
+		Tags:     translateAttributes(atts),
+	}
+}
+
+// metrics := lightstep_thrift.Metrics{
+//  Counts: []*lightstep_thrift.MetricsSample{
+//      &lightstep_thrift.MetricsSample{
+//          Name:       "spans.dropped",
+//          Int64Value: &droppedPending,
+//      },
+//  },
+// }
+// req := &lightstep_thrift.ReportRequest{
+// OldestMicros:    thrift.Int64Ptr(r.reportOldest.UnixNano() / 1000),
+//  YoungestMicros:  thrift.Int64Ptr(r.reportYoungest.UnixNano() / 1000),
+//  Runtime:         r.thriftRuntime(),
+//  SpanRecords:     recs,
+// InternalMetrics: &metrics,
+// }
+
+func convertDroppedPendingToCounts(dp int64) []*cpb.MetricsSample {
+	return []*cpb.MetricsSample{
+		&cpb.MetricsSample{
+			Name:  spansDropped,
+			Value: &cpb.MetricsSample_IntValue{dp},
+		},
+	}
+}
+
+func convertToInternalMetrics(ot time.Time, yt time.Time, dp int64) *cpb.InternalMetrics {
+	return &cpb.InternalMetrics{
+		StartTimestamp: translateTime(ot),
+		DurationMicros: translateDurationFromOldesYoungest(ot, yt),
+		Counts:         convertDroppedPendingToCounts(dp),
+	}
 }
 
 func (r *Recorder) Flush() {
@@ -266,84 +412,20 @@ func (r *Recorder) Flush() {
 	r.reportYoungest = now
 
 	rawSpans := r.buffer.current()
-	// Convert them to thrift.
-	recs := make([]*lightstep_thrift.SpanRecord, len(rawSpans))
-	// TODO: could pool lightstep_thrift.SpanRecords
-	for i, raw := range rawSpans {
-		var joinIds []*lightstep_thrift.TraceJoinId
-		var attributes []*lightstep_thrift.KeyValue
-		for key, value := range raw.Tags {
-			if strings.HasPrefix(key, "join:") {
-				joinIds = append(joinIds, &lightstep_thrift.TraceJoinId{key, fmt.Sprint(value)})
-			} else {
-				attributes = append(attributes, &lightstep_thrift.KeyValue{key, fmt.Sprint(value)})
-			}
-		}
-		logs := make([]*lightstep_thrift.LogRecord, len(raw.Logs))
-		for j, log := range raw.Logs {
-			event := ""
-			if len(log.Event) > 0 {
-				// Don't allow for arbitrarily long log messages.
-				if len(log.Event) > *flagMaxLogMessageLen {
-					event = log.Event[:(*flagMaxLogMessageLen-1)] + ellipsis
-				} else {
-					event = log.Event
-				}
-			}
 
-			var thriftPayload *string
-			if log.Payload != nil {
-				jsonString, err := json.Marshal(log.Payload)
-				if err != nil {
-					thriftPayload = thrift.StringPtr(fmt.Sprintf("Error encoding payload object: %v", err))
-				} else {
-					thriftPayload = thrift.StringPtr(string(jsonString))
-				}
-			}
-			logs[j] = &lightstep_thrift.LogRecord{
-				TimestampMicros: thrift.Int64Ptr(log.Timestamp.UnixNano() / 1000),
-				StableName:      thrift.StringPtr(event),
-				PayloadJson:     thriftPayload,
-			}
-		}
-
-		// TODO implement baggage
-		if raw.ParentSpanID != 0 {
-			attributes = append(attributes, &lightstep_thrift.KeyValue{ParentSpanGUIDKey,
-				strconv.FormatUint(raw.ParentSpanID, 16)})
-		}
-
-		recs[i] = &lightstep_thrift.SpanRecord{
-			SpanGuid:       thrift.StringPtr(strconv.FormatUint(raw.Context.SpanID, 16)),
-			TraceGuid:      thrift.StringPtr(strconv.FormatUint(raw.Context.TraceID, 16)),
-			SpanName:       thrift.StringPtr(raw.Operation),
-			JoinIds:        joinIds,
-			OldestMicros:   thrift.Int64Ptr(raw.Start.UnixNano() / 1000),
-			YoungestMicros: thrift.Int64Ptr(raw.Start.Add(raw.Duration).UnixNano() / 1000),
-			Attributes:     attributes,
-			LogRecords:     logs,
-		}
-	}
-
+	spans := convertRawSpans(rawSpans)
+	tracer := convertToTracer(r.attributes, r.tracerID)
 	// TODO the handling of droppedPending / droppedSpans is very
 	// manual. Add abstraction for the second client-side count to
 	// avoid duplicating all the atomic ops.
 	droppedPending := atomic.SwapInt64(&r.counters.droppedSpans, 0)
+	internalMetrics := convertToInternalMetrics(r.reportOldest, r.reportYoungest, droppedPending)
 
-	metrics := lightstep_thrift.Metrics{
-		Counts: []*lightstep_thrift.MetricsSample{
-			&lightstep_thrift.MetricsSample{
-				Name:       "spans.dropped",
-				Int64Value: &droppedPending,
-			},
-		},
-	}
-	req := &lightstep_thrift.ReportRequest{
-		OldestMicros:    thrift.Int64Ptr(r.reportOldest.UnixNano() / 1000),
-		YoungestMicros:  thrift.Int64Ptr(r.reportYoungest.UnixNano() / 1000),
-		Runtime:         r.thriftRuntime(),
-		SpanRecords:     recs,
-		InternalMetrics: &metrics,
+	req := cpb.ReportRequest{
+		Tracer:          tracer,
+		Auth:            &cpb.Auth{r.accessToken},
+		Spans:           spans,
+		InternalMetrics: internalMetrics,
 	}
 
 	// Do *not* wait until the report RPC finishes to clear the buffer.
@@ -355,7 +437,8 @@ func (r *Recorder) Flush() {
 	r.reportInFlight = true
 	r.lock.Unlock() // unlock before making the RPC itself
 
-	resp, err := r.backend.Report(r.auth, req)
+	// Question: Where does context come in?
+	resp, err := r.backend.Report(context.Background(), &req)
 	if err != nil {
 		r.maybeLogError(err)
 	} else if len(resp.Errors) > 0 {
@@ -389,23 +472,23 @@ func (r *Recorder) Flush() {
 	}
 
 	for _, c := range resp.Commands {
-		if c.Disable != nil && *c.Disable {
+		if c.Disable {
 			r.Disable()
 		}
 	}
 }
 
 // caller must hold r.lock
-func (r *Recorder) thriftRuntime() *lightstep_thrift.Runtime {
-	runtimeAttrs := []*lightstep_thrift.KeyValue{}
-	for k, v := range r.attributes {
-		runtimeAttrs = append(runtimeAttrs, &lightstep_thrift.KeyValue{k, v})
-	}
-	return &lightstep_thrift.Runtime{
-		StartMicros: thrift.Int64Ptr(r.startTime.UnixNano() / 1000),
-		Attrs:       runtimeAttrs,
-	}
-}
+// func (r *Recorder) thriftRuntime() *lightstep_thrift.Runtime {
+// 	runtimeAttrs := []*lightstep_thrift.KeyValue{}
+// 	for k, v := range r.attributes {
+// 		runtimeAttrs = append(runtimeAttrs, &lightstep_thrift.KeyValue{k, v})
+// 	}
+// 	return &lightstep_thrift.Runtime{
+// 		StartMicros: thrift.Int64Ptr(r.startTime.UnixNano() / 1000),
+// 		Attrs:       runtimeAttrs,
+// 	}
+// }
 
 func (r *Recorder) Disable() {
 	r.lock.Lock()
@@ -451,15 +534,6 @@ func (r *Recorder) shouldFlush() bool {
 }
 
 func (r *Recorder) reportLoop() {
-	// (Thrift really should do this internally, but we saw some too-many-fd's
-	// errors and thrift is the most likely culprit.)
-	switch b := r.backend.(type) {
-	case *lightstep_thrift.ReportingServiceClient:
-		// TODO This is a bit racy with other calls to Flush, but we're
-		// currently assuming that no one calls Flush after Disable.
-		defer b.Transport.Close()
-	}
-
 	tickerChan := time.Tick(minReportingPeriod)
 	for range tickerChan {
 		r.maybeLogInfof("reporting alarm fired")
