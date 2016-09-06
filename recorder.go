@@ -15,6 +15,7 @@ import (
 	"golang.org/x/net/context"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 
 	"github.com/golang/glog"
 	google_protobuf "github.com/golang/protobuf/ptypes/timestamp"
@@ -233,7 +234,7 @@ func NewRecorder(opts Options) basictracer.SpanRecorder {
 	//}
 
 	// (alice) possibly the grpc dial here?
-	conn, err := grpc.Dial(getCollectorURL(opts))
+	conn, err := grpc.Dial(getCollectorHostPort(opts), grpc.WithTransportCredentials(credentials.NewClientTLSFromCert(nil, "")))
 	if err != nil {
 		rec.maybeLogError(err)
 		return nil
@@ -311,7 +312,7 @@ func translateTags(tags ot.Tags) []*cpb.KeyValue {
 		case bool:
 			kv.Value = &cpb.KeyValue_BoolValue{v}
 		default:
-			glog.Infof("value: %v, is an unsupported type, and has been converted to string")
+			glog.Infof("value: %v, %T, is an unsupported type, and has been converted to string", v, v)
 			// Thoughts?
 			kv.Value = &cpb.KeyValue_StringValue{fmt.Sprint(v)}
 		}
@@ -393,6 +394,22 @@ func convertToInternalMetrics(ot time.Time, yt time.Time, dp int64) *cpb.Interna
 	}
 }
 
+func (r *Recorder) makeReportRequest(rawSpans []basictracer.RawSpan, droppedPending int64) *cpb.ReportRequest {
+
+	spans := convertRawSpans(rawSpans)
+	tracer := convertToTracer(r.attributes, r.tracerID)
+	internalMetrics := convertToInternalMetrics(r.reportOldest, r.reportYoungest, droppedPending)
+
+	req := cpb.ReportRequest{
+		Tracer:          tracer,
+		Auth:            &cpb.Auth{r.accessToken},
+		Spans:           spans,
+		InternalMetrics: internalMetrics,
+	}
+	return &req
+
+}
+
 func (r *Recorder) Flush() {
 	r.lock.Lock()
 
@@ -412,21 +429,12 @@ func (r *Recorder) Flush() {
 	r.reportYoungest = now
 
 	rawSpans := r.buffer.current()
-
-	spans := convertRawSpans(rawSpans)
-	tracer := convertToTracer(r.attributes, r.tracerID)
 	// TODO the handling of droppedPending / droppedSpans is very
 	// manual. Add abstraction for the second client-side count to
 	// avoid duplicating all the atomic ops.
 	droppedPending := atomic.SwapInt64(&r.counters.droppedSpans, 0)
-	internalMetrics := convertToInternalMetrics(r.reportOldest, r.reportYoungest, droppedPending)
-
-	req := cpb.ReportRequest{
-		Tracer:          tracer,
-		Auth:            &cpb.Auth{r.accessToken},
-		Spans:           spans,
-		InternalMetrics: internalMetrics,
-	}
+	glog.Info("hi this is the recorder", r)
+	req := r.makeReportRequest(rawSpans, droppedPending)
 
 	// Do *not* wait until the report RPC finishes to clear the buffer.
 	// Consider the case of a new span coming in during the RPC: it'll be
@@ -438,7 +446,7 @@ func (r *Recorder) Flush() {
 	r.lock.Unlock() // unlock before making the RPC itself
 
 	// Question: Where does context come in?
-	resp, err := r.backend.Report(context.Background(), &req)
+	resp, err := r.backend.Report(context.Background(), req)
 	if err != nil {
 		r.maybeLogError(err)
 	} else if len(resp.Errors) > 0 {
@@ -550,6 +558,22 @@ func (r *Recorder) reportLoop() {
 			r.Flush()
 		}
 	}
+}
+
+func getCollectorHostPort(opts Options) string {
+	e := opts.Collector
+	host := defaultCollectorHost
+	if e.Host != "" {
+		host = e.Host
+	}
+	port := defaultSecurePort
+	if e.Plaintext {
+		port = defaultPlainPort
+	}
+	if e.Port > 0 {
+		port = e.Port
+	}
+	return fmt.Sprintf("%s:%d", host, port)
 }
 
 func getCollectorURL(opts Options) string {
