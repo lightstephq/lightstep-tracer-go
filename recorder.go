@@ -233,21 +233,13 @@ func NewRecorder(opts Options) basictracer.SpanRecorder {
 	//	timeout = opts.ReportTimeout
 	//}
 
-	// (alice) possibly the grpc dial here?
 	conn, err := grpc.Dial(getCollectorHostPort(opts), grpc.WithTransportCredentials(credentials.NewClientTLSFromCert(nil, "")))
 	if err != nil {
 		rec.maybeLogError(err)
 		return nil
 	}
-	defer conn.Close()
+	// TODO: There is currenlty no way to close this connection
 	rec.backend = cpb.NewCollectorServiceClient(conn)
-	// transport, err := thrift.NewTHttpPostClient(getCollectorURL(opts), timeout)
-	// if err != nil {
-	// 	rec.maybeLogError(err)
-	// 	return nil
-	// }
-	// rec.backend = lightstep_thrift.NewReportingServiceClientFactory(
-	// 	transport, thrift.NewTBinaryProtocolFactoryDefault())
 
 	go rec.reportLoop()
 
@@ -291,7 +283,7 @@ func translateTime(t time.Time) *google_protobuf.Timestamp {
 }
 
 func translateDuration(d time.Duration) uint64 {
-	return uint64(d)
+	return uint64(d) / 1000
 }
 
 func translateDurationFromOldesYoungest(ot time.Time, yt time.Time) uint64 {
@@ -313,7 +305,7 @@ func translateTags(tags ot.Tags) []*cpb.KeyValue {
 			kv.Value = &cpb.KeyValue_BoolValue{v}
 		default:
 			glog.Infof("value: %v, %T, is an unsupported type, and has been converted to string", v, v)
-			// Thoughts?
+			// TODO: use reflection so that not all custom types have to be converted to string
 			kv.Value = &cpb.KeyValue_StringValue{fmt.Sprint(v)}
 		}
 		kvs = append(kvs, &kv)
@@ -360,22 +352,6 @@ func convertToTracer(atts map[string]string, id uint64) *cpb.Tracer {
 		Tags:     translateAttributes(atts),
 	}
 }
-
-// metrics := lightstep_thrift.Metrics{
-//  Counts: []*lightstep_thrift.MetricsSample{
-//      &lightstep_thrift.MetricsSample{
-//          Name:       "spans.dropped",
-//          Int64Value: &droppedPending,
-//      },
-//  },
-// }
-// req := &lightstep_thrift.ReportRequest{
-// OldestMicros:    thrift.Int64Ptr(r.reportOldest.UnixNano() / 1000),
-//  YoungestMicros:  thrift.Int64Ptr(r.reportYoungest.UnixNano() / 1000),
-//  Runtime:         r.thriftRuntime(),
-//  SpanRecords:     recs,
-// InternalMetrics: &metrics,
-// }
 
 func convertDroppedPendingToCounts(dp int64) []*cpb.MetricsSample {
 	return []*cpb.MetricsSample{
@@ -433,7 +409,6 @@ func (r *Recorder) Flush() {
 	// manual. Add abstraction for the second client-side count to
 	// avoid duplicating all the atomic ops.
 	droppedPending := atomic.SwapInt64(&r.counters.droppedSpans, 0)
-	glog.Info("hi this is the recorder", r)
 	req := r.makeReportRequest(rawSpans, droppedPending)
 
 	// Do *not* wait until the report RPC finishes to clear the buffer.
@@ -485,18 +460,6 @@ func (r *Recorder) Flush() {
 		}
 	}
 }
-
-// caller must hold r.lock
-// func (r *Recorder) thriftRuntime() *lightstep_thrift.Runtime {
-// 	runtimeAttrs := []*lightstep_thrift.KeyValue{}
-// 	for k, v := range r.attributes {
-// 		runtimeAttrs = append(runtimeAttrs, &lightstep_thrift.KeyValue{k, v})
-// 	}
-// 	return &lightstep_thrift.Runtime{
-// 		StartMicros: thrift.Int64Ptr(r.startTime.UnixNano() / 1000),
-// 		Attrs:       runtimeAttrs,
-// 	}
-// }
 
 func (r *Recorder) Disable() {
 	r.lock.Lock()
