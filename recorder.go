@@ -302,7 +302,7 @@ func (r *Recorder) RecordSpan(raw basictracer.RawSpan) {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 
-	// Early-out for disabled runtimes
+	// Early-out for disabled runtimes.
 	if r.disabled {
 		return
 	}
@@ -423,7 +423,6 @@ func convertToInternalMetrics(ot time.Time, yt time.Time, dp int64) *cpb.Interna
 }
 
 func (r *Recorder) makeReportRequest(buffer *spansBuffer) *cpb.ReportRequest {
-	// Note this can only use immutable fields.
 	spans := convertRawSpans(buffer.rawSpans)
 	tracer := convertToTracer(r.attributes, r.tracerID)
 	internalMetrics := convertToInternalMetrics(buffer.reportOldest, buffer.reportYoungest, buffer.dropped)
@@ -452,7 +451,8 @@ func (r *Recorder) Flush() {
 		return
 	}
 
-	// not in flight => r.flushing has been reset
+	// There is not an in-flight report, therefore r.flushing has been reset and
+	// is ready to re-use.
 	now := time.Now()
 	tmp := r.buffer
 	r.buffer = r.flushing
