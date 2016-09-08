@@ -3,6 +3,7 @@ package lightstep
 import (
 	"testing"
 
+	"github.com/lightstep/lightstep-tracer-go/thrift_rpc"
 	"github.com/opentracing/basictracer-go"
 )
 
@@ -11,19 +12,20 @@ func makeSpanSlice(length int) []basictracer.RawSpan {
 }
 
 func TestMaxBufferSize(t *testing.T) {
-	recorder := NewRecorder(Options{
+	recorder := NewTracer(Options{
 		AccessToken: "0987654321",
-	}).(*Recorder)
+		UseGRPC:     true,
+	}).(basictracer.Tracer).Options().Recorder.(*Recorder)
 
 	checkCapSize := func(spanLen, spanCap int) {
 		recorder.lock.Lock()
 		defer recorder.lock.Unlock()
 
-		if recorder.buffer.cap() != spanCap {
-			t.Error("Unexpected buffer size")
+		if cap(recorder.buffer.rawSpans) != spanCap {
+			t.Errorf("Unexpected buffer cap: %v != %v", cap(recorder.buffer.rawSpans), spanCap)
 		}
-		if recorder.buffer.len() != spanLen {
-			t.Error("Unexpected buffer size")
+		if len(recorder.buffer.rawSpans) != spanLen {
+			t.Errorf("Unexpected buffer size: %v != %v", len(recorder.buffer.rawSpans), spanLen)
 		}
 	}
 
@@ -44,10 +46,11 @@ func TestMaxBufferSize(t *testing.T) {
 	checkCapSize(defaultMaxSpans, defaultMaxSpans)
 
 	maxBuffer := 10
-	recorder = NewRecorder(Options{
+	recorder = NewTracer(Options{
 		AccessToken:      "0987654321",
 		MaxBufferedSpans: maxBuffer,
-	}).(*Recorder)
+		UseGRPC:          true,
+	}).(basictracer.Tracer).Options().Recorder.(*Recorder)
 
 	checkCapSize(0, maxBuffer)
 
@@ -57,4 +60,9 @@ func TestMaxBufferSize(t *testing.T) {
 	}
 
 	checkCapSize(maxBuffer, maxBuffer)
+
+	_ = NewTracer(Options{
+		AccessToken: "0987654321",
+		UseGRPC:     false,
+	}).(basictracer.Tracer).Options().Recorder.(*thrift_rpc.Recorder)
 }

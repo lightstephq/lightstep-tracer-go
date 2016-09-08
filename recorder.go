@@ -239,7 +239,7 @@ type Recorder struct {
 func NewRecorder(opts Options) *Recorder {
 	if len(opts.AccessToken) == 0 {
 		fmt.Println("LightStep Recorder options.AccessToken must not be empty")
-		return nil // Note: this is a non-nil interface w/ a nil Recorder
+		return nil
 	}
 	if opts.Tags == nil {
 		opts.Tags = make(map[string]interface{})
