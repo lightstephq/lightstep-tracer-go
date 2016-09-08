@@ -169,7 +169,7 @@ type Recorder struct {
 	maxLogMessageLen int
 }
 
-func NewRecorder(opts Options) basictracer.SpanRecorder {
+func NewRecorder(opts Options) *Recorder {
 	if len(opts.AccessToken) == 0 {
 		// TODO maybe return a no-op recorder instead?
 		panic("LightStep Recorder options.AccessToken must not be empty")

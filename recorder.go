@@ -17,7 +17,8 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
-	"github.com/golang/glog"
+	// N.B.(jmacd): Do not use google.golang.org/glog in this package.
+
 	google_protobuf "github.com/golang/protobuf/ptypes/timestamp"
 	cpb "github.com/lightstep/lightstep-tracer-go/collectorpb"
 	"github.com/lightstep/lightstep-tracer-go/thrift_rpc"
@@ -120,8 +121,13 @@ type Options struct {
 func NewTracer(opts Options) ot.Tracer {
 	options := basictracer.DefaultOptions()
 	options.ShouldSample = func(_ uint64) bool { return true }
+
 	if opts.UseGRPC {
-		options.Recorder = NewRecorder(opts)
+		r := NewRecorder(opts)
+		if r == nil {
+			return ot.NoopTracer{}
+		}
+		options.Recorder = r
 	} else {
 		// convert opts to thrift_rpc.Options
 		thriftOpts := thrift_rpc.Options{
@@ -136,7 +142,11 @@ func NewTracer(opts Options) ot.Tracer {
 			Verbose:          opts.Verbose,
 			MaxLogMessageLen: int(*flagMaxLogMessageLen),
 		}
-		options.Recorder = thrift_rpc.NewRecorder(thriftOpts)
+		r := thrift_rpc.NewRecorder(thriftOpts)
+		if r == nil {
+			return ot.NoopTracer{}
+		}
+		options.Recorder = r
 	}
 	options.DropAllLogs = opts.DropSpanLogs
 	return basictracer.NewWithOptions(options)
@@ -170,6 +180,7 @@ type Recorder struct {
 	reportYoungest time.Time
 
 	// buffered data
+	// TODO flushing spansBuffer
 	buffer   spansBuffer
 	counters counterSet // The unreported count
 
@@ -198,10 +209,10 @@ type Recorder struct {
 	disabled bool
 }
 
-func NewRecorder(opts Options) basictracer.SpanRecorder {
+func NewRecorder(opts Options) *Recorder {
 	if len(opts.AccessToken) == 0 {
-		// TODO maybe return a no-op recorder instead?
-		panic("LightStep Recorder options.AccessToken must not be empty")
+		fmt.Println("LightStep Recorder options.AccessToken must not be empty")
+		return nil // Note: this is a non-nil interface w/ a nil Recorder
 	}
 	if opts.Tags == nil {
 		opts.Tags = make(map[string]interface{})
@@ -211,7 +222,7 @@ func NewRecorder(opts Options) basictracer.SpanRecorder {
 		opts.Tags[ComponentNameKey] = path.Base(os.Args[0])
 	}
 	if _, found := opts.Tags[GUIDKey]; found {
-		panic(fmt.Sprintf("Passing in your own %v is no longer supported", GUIDKey))
+		fmt.Printf("Passing in your own %v is no longer supported\n", GUIDKey)
 	}
 	if _, found := opts.Tags[HostnameKey]; !found {
 		hostname, _ := os.Hostname()
@@ -255,10 +266,10 @@ func NewRecorder(opts Options) basictracer.SpanRecorder {
 
 	conn, err := grpc.Dial(getCollectorHostPort(opts), grpc.WithTransportCredentials(credentials.NewClientTLSFromCert(nil, "")))
 	if err != nil {
-		rec.maybeLogError(err)
+		fmt.Println("grpc.Dial failed permanently:", err)
 		return nil
 	}
-	// TODO: There is currenlty no way to close this connection
+	// TODO: There is currenlty no way to close this connection, do please
 	rec.backend = cpb.NewCollectorServiceClient(conn)
 
 	go rec.reportLoop()
@@ -270,7 +281,9 @@ func (r *Recorder) RecordSpan(raw basictracer.RawSpan) {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 
-	// Early-out for disabled runtimes.
+	// Early-out for disabled runtimes.  TODO this should use
+	// atomic load/store to test disabled prior to taking the
+	// lock, do please.
 	if r.disabled {
 		return
 	}
@@ -324,7 +337,7 @@ func translateTags(tags ot.Tags) []*cpb.KeyValue {
 		case bool:
 			kv.Value = &cpb.KeyValue_BoolValue{v}
 		default:
-			glog.Infof("value: %v, %T, is an unsupported type, and has been converted to string", v, v)
+			fmt.Printf("value: %v, %T, is an unsupported type, and has been converted to string", v, v)
 			// TODO: use reflection so that not all custom types have to be converted to string
 			kv.Value = &cpb.KeyValue_StringValue{fmt.Sprint(v)}
 		}
@@ -429,7 +442,6 @@ func (r *Recorder) Flush() {
 	// manual. Add abstraction for the second client-side count to
 	// avoid duplicating all the atomic ops.
 	droppedPending := atomic.SwapInt64(&r.counters.droppedSpans, 0)
-	req := r.makeReportRequest(rawSpans, droppedPending)
 
 	// Do *not* wait until the report RPC finishes to clear the buffer.
 	// Consider the case of a new span coming in during the RPC: it'll be
@@ -439,6 +451,8 @@ func (r *Recorder) Flush() {
 
 	r.reportInFlight = true
 	r.lock.Unlock() // unlock before making the RPC itself
+
+	req := r.makeReportRequest(rawSpans, droppedPending)
 
 	// Question: Where does context come in?
 	resp, err := r.backend.Report(context.Background(), req)
