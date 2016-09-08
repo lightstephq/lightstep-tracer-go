@@ -48,27 +48,27 @@ func (b *spansBuffer) addSpan(span basictracer.RawSpan) {
 	b.rawSpans = append(b.rawSpans, span)
 }
 
-func (b *spansBuffer) mergeUnreported(a *spansBuffer) {
-	b.dropped += a.dropped
-	if a.reportOldest.Before(b.reportOldest) {
-		b.reportOldest = a.reportOldest
+func (into *spansBuffer) mergeUnreported(from *spansBuffer) {
+	into.dropped += from.dropped
+	if from.reportOldest.Before(into.reportOldest) {
+		into.reportOldest = from.reportOldest
 	}
-	if a.reportYoungest.After(b.reportYoungest) {
-		b.reportYoungest = a.reportYoungest
+	if from.reportYoungest.After(into.reportYoungest) {
+		into.reportYoungest = from.reportYoungest
 	}
 
 	// Note: Somewhat arbitrarily dropping the spans that won't
 	// fit; could be more principled here to avoid bias.
-	have := len(b.rawSpans)
-	space := cap(b.rawSpans) - have
-	unreported := len(a.rawSpans)
+	have := len(into.rawSpans)
+	space := cap(into.rawSpans) - have
+	unreported := len(from.rawSpans)
 
 	if space > unreported {
 		space = unreported
 	}
 
-	copy(b.rawSpans[have:], a.rawSpans[0:space])
-	b.dropped += int64(unreported - space)
+	copy(into.rawSpans[have:], from.rawSpans[0:space])
+	into.dropped += int64(unreported - space)
 
-	a.clear()
+	from.clear()
 }
