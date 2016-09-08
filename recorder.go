@@ -425,7 +425,7 @@ func convertToInternalMetrics(ot time.Time, yt time.Time, dp int64) *cpb.Interna
 func (r *Recorder) makeReportRequest(buffer *spansBuffer) *cpb.ReportRequest {
 	spans := convertRawSpans(buffer.rawSpans)
 	tracer := convertToTracer(r.attributes, r.tracerID)
-	internalMetrics := convertToInternalMetrics(buffer.reportOldest, buffer.reportYoungest, buffer.dropped)
+	internalMetrics := convertToInternalMetrics(buffer.reportStart, buffer.reportEnd, buffer.dropped)
 
 	req := cpb.ReportRequest{
 		Tracer:          tracer,

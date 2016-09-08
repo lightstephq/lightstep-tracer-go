@@ -7,16 +7,16 @@ import (
 )
 
 type spansBuffer struct {
-	rawSpans       []basictracer.RawSpan
-	dropped        int64
-	reportOldest   time.Time
-	reportYoungest time.Time
+	rawSpans    []basictracer.RawSpan
+	dropped     int64
+	reportStart time.Time
+	reportEnd   time.Time
 }
 
 func newSpansBuffer(size int) (b spansBuffer) {
 	b.rawSpans = make([]basictracer.RawSpan, 0, size)
-	b.reportOldest = time.Time{}
-	b.reportYoungest = time.Time{}
+	b.reportStart = time.Time{}
+	b.reportEnd = time.Time{}
 	return
 }
 
@@ -25,18 +25,18 @@ func (b *spansBuffer) isHalfFull() bool {
 }
 
 func (b *spansBuffer) setCurrent(now time.Time) {
-	b.reportOldest = now
-	b.reportYoungest = now
+	b.reportStart = now
+	b.reportEnd = now
 }
 
 func (b *spansBuffer) setFlushing(now time.Time) {
-	b.reportYoungest = now
+	b.reportEnd = now
 }
 
 func (b *spansBuffer) clear() {
 	b.rawSpans = b.rawSpans[:0]
-	b.reportOldest = time.Time{}
-	b.reportYoungest = time.Time{}
+	b.reportStart = time.Time{}
+	b.reportEnd = time.Time{}
 	b.dropped = 0
 }
 
@@ -50,11 +50,11 @@ func (b *spansBuffer) addSpan(span basictracer.RawSpan) {
 
 func (into *spansBuffer) mergeUnreported(from *spansBuffer) {
 	into.dropped += from.dropped
-	if from.reportOldest.Before(into.reportOldest) {
-		into.reportOldest = from.reportOldest
+	if from.reportStart.Before(into.reportStart) {
+		into.reportStart = from.reportStart
 	}
-	if from.reportYoungest.After(into.reportYoungest) {
-		into.reportYoungest = from.reportYoungest
+	if from.reportEnd.After(into.reportEnd) {
+		into.reportEnd = from.reportEnd
 	}
 
 	// Note: Somewhat arbitrarily dropping the spans that won't
