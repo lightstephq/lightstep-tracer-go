@@ -172,11 +172,15 @@ func FlushLightStepTracer(lsTracer ot.Tracer) error {
 	}
 
 	basicRecorder := basicTracer.Options().Recorder
-	lsRecorder, ok := basicRecorder.(*Recorder)
-	if !ok {
+
+	switch t := basicRecorder.(type) {
+	case *Recorder:
+		t.Flush()
+	case *thrift_rpc.Recorder:
+		t.Flush()
+	default:
 		return fmt.Errorf("Not a LightStep Recorder type: %v", reflect.TypeOf(basicRecorder))
 	}
-	lsRecorder.Flush()
 	return nil
 }
 
