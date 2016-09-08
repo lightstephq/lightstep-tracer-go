@@ -1,74 +1,57 @@
 package lightstep
 
-import (
-	"time"
+import "github.com/opentracing/basictracer-go"
 
-	"github.com/opentracing/basictracer-go"
-)
+const defaultMaxSpans = 1000
 
 type spansBuffer struct {
-	rawSpans       []basictracer.RawSpan
-	dropped        int64
-	reportOldest   time.Time
-	reportYoungest time.Time
+	rawSpans      []basictracer.RawSpan
+	maxBufferSize int
 }
 
-func newSpansBuffer(size int) (b spansBuffer) {
-	b.rawSpans = make([]basictracer.RawSpan, 0, size)
-	b.reportOldest = time.Time{}
-	b.reportYoungest = time.Time{}
+func (b *spansBuffer) setDefaults() {
+	b.maxBufferSize = defaultMaxSpans
+	b.rawSpans = make([]basictracer.RawSpan, 0, b.maxBufferSize)
+}
+
+func (b *spansBuffer) setMaxBufferSize(size int) {
+	b.maxBufferSize = size
+}
+
+func (b *spansBuffer) len() int {
+	return len(b.rawSpans)
+}
+
+func (b *spansBuffer) cap() int {
+	return b.maxBufferSize
+}
+
+func (b *spansBuffer) reset() {
+	// Reuse the existing buffer if it's the correct size
+	if cap(b.rawSpans) == b.maxBufferSize {
+		b.rawSpans = b.rawSpans[:0]
+	} else {
+		b.rawSpans = make([]basictracer.RawSpan, 0, b.maxBufferSize)
+	}
+}
+
+func (b *spansBuffer) current() []basictracer.RawSpan {
+	dst := make([]basictracer.RawSpan, len(b.rawSpans))
+	copy(dst, b.rawSpans)
+	return dst
+}
+
+// addSpans returns the number of spans dropped (0 if all were added to the
+// buffer).
+func (b *spansBuffer) addSpans(spans []basictracer.RawSpan) (droppedSpans int) {
+	space := b.maxBufferSize - len(b.rawSpans)
+	count := space
+	if len(spans) < count {
+		count = len(spans)
+	}
+	if count > 0 {
+		b.rawSpans = append(b.rawSpans, spans[:count]...)
+	}
+	droppedSpans = len(spans) - count
 	return
-}
-
-func (b *spansBuffer) isHalfFull() bool {
-	return len(b.rawSpans) > cap(b.rawSpans)/2
-}
-
-func (b *spansBuffer) setCurrent(now time.Time) {
-	b.reportOldest = now
-	b.reportYoungest = now
-}
-
-func (b *spansBuffer) setFlushing(now time.Time) {
-	b.reportYoungest = now
-}
-
-func (b *spansBuffer) clear() {
-	b.rawSpans = b.rawSpans[:0]
-	b.reportOldest = time.Time{}
-	b.reportYoungest = time.Time{}
-	b.dropped = 0
-}
-
-func (b *spansBuffer) addSpan(span basictracer.RawSpan) {
-	if len(b.rawSpans) == cap(b.rawSpans) {
-		b.dropped++
-		return
-	}
-	b.rawSpans = append(b.rawSpans, span)
-}
-
-func (b *spansBuffer) mergeUnreported(a *spansBuffer) {
-	b.dropped += a.dropped
-	if a.reportOldest.Before(b.reportOldest) {
-		b.reportOldest = a.reportOldest
-	}
-	if a.reportYoungest.After(b.reportYoungest) {
-		b.reportYoungest = a.reportYoungest
-	}
-
-	// Note: Somewhat arbitrarily dropping the spans that won't
-	// fit; could be more principled here to avoid bias.
-	have := len(b.rawSpans)
-	space := cap(b.rawSpans) - have
-	unreported := len(a.rawSpans)
-
-	if space > unreported {
-		space = unreported
-	}
-
-	copy(b.rawSpans[have:], a.rawSpans[0:space])
-	b.dropped += int64(unreported - space)
-
-	a.clear()
 }

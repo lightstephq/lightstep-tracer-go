@@ -9,6 +9,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"golang.org/x/net/context"
@@ -16,8 +17,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
-	// N.B.(jmacd): Do not use google.golang.org/glog in this package.
-
+	"github.com/golang/glog"
 	google_protobuf "github.com/golang/protobuf/ptypes/timestamp"
 	cpb "github.com/lightstep/lightstep-tracer-go/collectorpb"
 	"github.com/lightstep/lightstep-tracer-go/thrift_rpc"
@@ -39,9 +39,6 @@ const (
 	// parameters.
 	defaultMaxReportingPeriod = 2500 * time.Millisecond
 	minReportingPeriod        = 500 * time.Millisecond
-
-	defaultMaxSpans      = 1000
-	defaultReportTimeout = 30 * time.Second
 
 	// ParentSpanGUIDKey is the tag key used to record the relationship
 	// between child and parent spans.
@@ -123,24 +120,8 @@ type Options struct {
 func NewTracer(opts Options) ot.Tracer {
 	options := basictracer.DefaultOptions()
 	options.ShouldSample = func(_ uint64) bool { return true }
-
-	// Note: opts is a copy of the user's data, ok to modify.
-	if opts.MaxBufferedSpans == 0 {
-		opts.MaxBufferedSpans = defaultMaxSpans
-	}
-	if opts.ReportingPeriod == 0 {
-		opts.ReportingPeriod = defaultMaxReportingPeriod
-	}
-	if opts.ReportTimeout == 0 {
-		opts.ReportTimeout = defaultReportTimeout
-	}
-
 	if opts.UseGRPC {
-		r := NewRecorder(opts)
-		if r == nil {
-			return ot.NoopTracer{}
-		}
-		options.Recorder = r
+		options.Recorder = NewRecorder(opts)
 	} else {
 		// convert opts to thrift_rpc.Options
 		thriftOpts := thrift_rpc.Options{
@@ -155,11 +136,7 @@ func NewTracer(opts Options) ot.Tracer {
 			Verbose:          opts.Verbose,
 			MaxLogMessageLen: int(*flagMaxLogMessageLen),
 		}
-		r := thrift_rpc.NewRecorder(thriftOpts)
-		if r == nil {
-			return ot.NoopTracer{}
-		}
-		options.Recorder = r
+		options.Recorder = thrift_rpc.NewRecorder(thriftOpts)
 	}
 	options.DropAllLogs = opts.DropSpanLogs
 	return basictracer.NewWithOptions(options)
@@ -184,20 +161,24 @@ func FlushLightStepTracer(lsTracer ot.Tracer) error {
 type Recorder struct {
 	lock sync.Mutex
 
-	// Note: the following are divided into immutable fields and
-	// mutable fields. The mutable fields are modified under `lock`.
-
-	//////////////////////////////////////////////////////////////
-	// IMMUTABLE IMMUTABLE IMMUTABLE IMMUTABLE IMMUTABLE IMMUTABLE
-	//////////////////////////////////////////////////////////////
-
-	// Note: there may be a desire to update some of these fields
-	// at runtime, in which case suitable changes may be needed
-	// for variables accessed during Flush.
-
 	// auth and runtime information
 	attributes map[string]string
 	startTime  time.Time
+
+	// Time window of the data to be included in the next report.
+	reportOldest   time.Time
+	reportYoungest time.Time
+
+	// buffered data
+	buffer   spansBuffer
+	counters counterSet // The unreported count
+
+	lastReportAttempt  time.Time
+	maxReportingPeriod time.Duration
+	reportInFlight     bool
+
+	// Remote service that will receive reports
+	backend cpb.CollectorServiceClient
 
 	// apiURL is the base URL of the LightStep web API, used for
 	// explicit trace collection requests.
@@ -207,39 +188,20 @@ type Recorder struct {
 	// collection requests.
 	accessToken string
 
-	tracerID           uint64        // the LightStep tracer guid
-	verbose            bool          // whether to print verbose messages
-	maxReportingPeriod time.Duration // set by Options.MaxReportingPeriod
-	reportingTimeout   time.Duration // set by Options.ReportTimeout
+	tracerID uint64
 
-	// Remote service that will receive reports.
-	backend cpb.CollectorServiceClient
-
-	//////////////////////////////////////////////////////////
-	// MUTABLE MUTABLE MUTABLE MUTABLE MUTABLE MUTABLE MUTABLE
-	//////////////////////////////////////////////////////////
-
-	// Two buffers of data.
-	buffer   spansBuffer
-	flushing spansBuffer
-
-	// Flush state.
-	reportInFlight    bool
-	lastReportAttempt time.Time
+	verbose bool
 
 	// We allow our remote peer to disable this instrumentation at any
 	// time, turning all potentially costly runtime operations into
 	// no-ops.
-	//
-	// TODO this should use atomic load/store to test disabled
-	// prior to taking the lock, do please.
 	disabled bool
 }
 
-func NewRecorder(opts Options) *Recorder {
+func NewRecorder(opts Options) basictracer.SpanRecorder {
 	if len(opts.AccessToken) == 0 {
-		fmt.Println("LightStep Recorder options.AccessToken must not be empty")
-		return nil // Note: this is a non-nil interface w/ a nil Recorder
+		// TODO maybe return a no-op recorder instead?
+		panic("LightStep Recorder options.AccessToken must not be empty")
 	}
 	if opts.Tags == nil {
 		opts.Tags = make(map[string]interface{})
@@ -249,7 +211,7 @@ func NewRecorder(opts Options) *Recorder {
 		opts.Tags[ComponentNameKey] = path.Base(os.Args[0])
 	}
 	if _, found := opts.Tags[GUIDKey]; found {
-		fmt.Printf("Passing in your own %v is no longer supported\n", GUIDKey)
+		panic(fmt.Sprintf("Passing in your own %v is no longer supported", GUIDKey))
 	}
 	if _, found := opts.Tags[HostnameKey]; !found {
 		hostname, _ := os.Hostname()
@@ -273,24 +235,30 @@ func NewRecorder(opts Options) *Recorder {
 		accessToken:        opts.AccessToken,
 		attributes:         attributes,
 		startTime:          now,
+		reportOldest:       now,
+		reportYoungest:     now,
 		maxReportingPeriod: defaultMaxReportingPeriod,
-		reportingTimeout:   opts.ReportTimeout,
 		verbose:            opts.Verbose,
 		apiURL:             getAPIURL(opts),
 		tracerID:           genSeededGUID(),
-		buffer:             newSpansBuffer(opts.MaxBufferedSpans),
-		flushing:           newSpansBuffer(opts.MaxBufferedSpans),
+	}
+	rec.buffer.setDefaults()
+
+	if opts.MaxBufferedSpans > 0 {
+		rec.buffer.setMaxBufferSize(opts.MaxBufferedSpans)
 	}
 
-	rec.buffer.setCurrent(now)
+	// TODO: not using opts.ReportTimeout, use please
+	//if opts.ReportTimeout > 0 {
+	//	timeout = opts.ReportTimeout
+	//}
 
-	conn, err := grpc.Dial(getCollectorHostPort(opts),
-		grpc.WithTransportCredentials(credentials.NewClientTLSFromCert(nil, "")))
+	conn, err := grpc.Dial(getCollectorHostPort(opts), grpc.WithTransportCredentials(credentials.NewClientTLSFromCert(nil, "")))
 	if err != nil {
-		fmt.Println("grpc.Dial failed permanently:", err)
+		rec.maybeLogError(err)
 		return nil
 	}
-	// TODO: There is currenlty no way to close this connection, do please
+	// TODO: There is currenlty no way to close this connection
 	rec.backend = cpb.NewCollectorServiceClient(conn)
 
 	go rec.reportLoop()
@@ -302,12 +270,12 @@ func (r *Recorder) RecordSpan(raw basictracer.RawSpan) {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 
-	// Early-out for disabled runtimes
+	// Early-out for disabled runtimes.
 	if r.disabled {
 		return
 	}
 
-	r.buffer.addSpan(raw)
+	atomic.AddInt64(&r.counters.droppedSpans, int64(r.buffer.addSpans([]basictracer.RawSpan{raw})))
 }
 
 func translateSpanContext(sc basictracer.SpanContext) *cpb.SpanContext {
@@ -356,7 +324,7 @@ func translateTags(tags ot.Tags) []*cpb.KeyValue {
 		case bool:
 			kv.Value = &cpb.KeyValue_BoolValue{v}
 		default:
-			fmt.Printf("value: %v, %T, is an unsupported type, and has been converted to string", v, v)
+			glog.Infof("value: %v, %T, is an unsupported type, and has been converted to string", v, v)
 			// TODO: use reflection so that not all custom types have to be converted to string
 			kv.Value = &cpb.KeyValue_StringValue{fmt.Sprint(v)}
 		}
@@ -422,11 +390,11 @@ func convertToInternalMetrics(ot time.Time, yt time.Time, dp int64) *cpb.Interna
 	}
 }
 
-func (r *Recorder) makeReportRequest(buffer *spansBuffer) *cpb.ReportRequest {
-	// Note this can only use immutable fields.
-	spans := convertRawSpans(buffer.rawSpans)
+func (r *Recorder) makeReportRequest(rawSpans []basictracer.RawSpan, droppedPending int64) *cpb.ReportRequest {
+
+	spans := convertRawSpans(rawSpans)
 	tracer := convertToTracer(r.attributes, r.tracerID)
-	internalMetrics := convertToInternalMetrics(buffer.reportOldest, buffer.reportYoungest, buffer.dropped)
+	internalMetrics := convertToInternalMetrics(r.reportOldest, r.reportYoungest, droppedPending)
 
 	req := cpb.ReportRequest{
 		Tracer:          tracer,
@@ -452,20 +420,28 @@ func (r *Recorder) Flush() {
 		return
 	}
 
-	// not in flight => r.flushing has been reset
 	now := time.Now()
-	tmp := r.buffer
-	r.buffer = r.flushing
-	r.flushing = tmp
-	r.reportInFlight = true
-	r.flushing.setFlushing(now)
-	r.buffer.setCurrent(now)
 	r.lastReportAttempt = now
-	r.lock.Unlock()
+	r.reportYoungest = now
 
-	ctx, _ := context.WithTimeout(context.Background(), r.reportingTimeout)
-	resp, err := r.backend.Report(ctx, r.makeReportRequest(&r.flushing))
+	rawSpans := r.buffer.current()
+	// TODO the handling of droppedPending / droppedSpans is very
+	// manual. Add abstraction for the second client-side count to
+	// avoid duplicating all the atomic ops.
+	droppedPending := atomic.SwapInt64(&r.counters.droppedSpans, 0)
+	req := r.makeReportRequest(rawSpans, droppedPending)
 
+	// Do *not* wait until the report RPC finishes to clear the buffer.
+	// Consider the case of a new span coming in during the RPC: it'll be
+	// discarded along with the data that was just sent if the buffers are
+	// cleared later.
+	r.buffer.reset()
+
+	r.reportInFlight = true
+	r.lock.Unlock() // unlock before making the RPC itself
+
+	// Question: Where does context come in?
+	resp, err := r.backend.Report(context.Background(), req)
 	if err != nil {
 		r.maybeLogError(err)
 	} else if len(resp.Errors) > 0 {
@@ -482,19 +458,20 @@ func (r *Recorder) Flush() {
 	r.reportInFlight = false
 	if err != nil {
 		// Restore the records that did not get sent correctly
-		r.buffer.mergeUnreported(&r.flushing)
+		atomic.AddInt64(&r.counters.droppedSpans, int64(r.buffer.addSpans(rawSpans))+droppedPending)
 		r.lock.Unlock()
 		return
 	}
 
-	droppedSent := r.flushing.dropped
-	r.flushing.clear()
+	// Reset the buffers
+	r.reportOldest = now
+	r.reportYoungest = now
 
 	// TODO something about timing
 	r.lock.Unlock()
 
-	if droppedSent != 0 {
-		r.maybeLogInfof("client reported %d dropped spans", droppedSent)
+	if droppedPending != 0 {
+		r.maybeLogInfof("client reported %d dropped spans", droppedPending)
 	}
 
 	for _, c := range resp.Commands {
@@ -514,7 +491,7 @@ func (r *Recorder) Disable() {
 
 	fmt.Printf("Disabling Runtime instance: %p", r)
 
-	r.buffer.clear()
+	r.buffer.reset()
 	r.disabled = true
 }
 
@@ -532,16 +509,14 @@ func (r *Recorder) Disable() {
 // which can certainly happen with high data rates and/or unresponsive remote
 // peers).
 func (r *Recorder) shouldFlush() bool {
-	now := time.Now()
-
 	r.lock.Lock()
 	defer r.lock.Unlock()
 
-	if now.Add(minReportingPeriod).Sub(r.lastReportAttempt) > r.maxReportingPeriod {
+	if time.Now().Add(minReportingPeriod).Sub(r.lastReportAttempt) > r.maxReportingPeriod {
 		// Flush timeout.
 		r.maybeLogInfof("--> timeout")
 		return true
-	} else if r.buffer.isHalfFull() {
+	} else if r.buffer.len() > r.buffer.cap()/2 {
 		// Too many queued span records.
 		r.maybeLogInfof("--> span queue")
 		return true
