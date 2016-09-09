@@ -6,41 +6,41 @@ import (
 	"github.com/opentracing/basictracer-go"
 )
 
-type spansBuffer struct {
+type reportBuffer struct {
 	rawSpans    []basictracer.RawSpan
 	dropped     int64
 	reportStart time.Time
 	reportEnd   time.Time
 }
 
-func newSpansBuffer(size int) (b spansBuffer) {
+func newSpansBuffer(size int) (b reportBuffer) {
 	b.rawSpans = make([]basictracer.RawSpan, 0, size)
 	b.reportStart = time.Time{}
 	b.reportEnd = time.Time{}
 	return
 }
 
-func (b *spansBuffer) isHalfFull() bool {
+func (b *reportBuffer) isHalfFull() bool {
 	return len(b.rawSpans) > cap(b.rawSpans)/2
 }
 
-func (b *spansBuffer) setCurrent(now time.Time) {
+func (b *reportBuffer) setCurrent(now time.Time) {
 	b.reportStart = now
 	b.reportEnd = now
 }
 
-func (b *spansBuffer) setFlushing(now time.Time) {
+func (b *reportBuffer) setFlushing(now time.Time) {
 	b.reportEnd = now
 }
 
-func (b *spansBuffer) clear() {
+func (b *reportBuffer) clear() {
 	b.rawSpans = b.rawSpans[:0]
 	b.reportStart = time.Time{}
 	b.reportEnd = time.Time{}
 	b.dropped = 0
 }
 
-func (b *spansBuffer) addSpan(span basictracer.RawSpan) {
+func (b *reportBuffer) addSpan(span basictracer.RawSpan) {
 	if len(b.rawSpans) == cap(b.rawSpans) {
 		b.dropped++
 		return
@@ -48,7 +48,10 @@ func (b *spansBuffer) addSpan(span basictracer.RawSpan) {
 	b.rawSpans = append(b.rawSpans, span)
 }
 
-func (into *spansBuffer) mergeUnreported(from *spansBuffer) {
+// mergeFrom combines the spans and metadata in `from` with `into`,
+// returning with `from` empty and `into` having a subset of the
+// combined data.
+func (into *reportBuffer) mergeFrom(from *reportBuffer) {
 	into.dropped += from.dropped
 	if from.reportStart.Before(into.reportStart) {
 		into.reportStart = from.reportStart

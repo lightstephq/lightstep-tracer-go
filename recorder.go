@@ -224,8 +224,8 @@ type Recorder struct {
 	//////////////////////////////////////////////////////////
 
 	// Two buffers of data.
-	buffer   spansBuffer
-	flushing spansBuffer
+	buffer   reportBuffer
+	flushing reportBuffer
 
 	// Flush state.
 	reportInFlight    bool
@@ -426,7 +426,7 @@ func convertToInternalMetrics(ot time.Time, yt time.Time, dp int64) *cpb.Interna
 	}
 }
 
-func (r *Recorder) makeReportRequest(buffer *spansBuffer) *cpb.ReportRequest {
+func (r *Recorder) makeReportRequest(buffer *reportBuffer) *cpb.ReportRequest {
 	spans := convertRawSpans(buffer.rawSpans)
 	tracer := convertToTracer(r.attributes, r.tracerID)
 	internalMetrics := convertToInternalMetrics(buffer.reportStart, buffer.reportEnd, buffer.dropped)
@@ -458,9 +458,7 @@ func (r *Recorder) Flush() {
 	// There is not an in-flight report, therefore r.flushing has been reset and
 	// is ready to re-use.
 	now := time.Now()
-	tmp := r.buffer
-	r.buffer = r.flushing
-	r.flushing = tmp
+	r.buffer, r.flushing = r.flushing, r.buffer
 	r.reportInFlight = true
 	r.flushing.setFlushing(now)
 	r.buffer.setCurrent(now)
@@ -486,7 +484,7 @@ func (r *Recorder) Flush() {
 	r.reportInFlight = false
 	if err != nil {
 		// Restore the records that did not get sent correctly
-		r.buffer.mergeUnreported(&r.flushing)
+		r.buffer.mergeFrom(&r.flushing)
 		r.lock.Unlock()
 		return
 	}
