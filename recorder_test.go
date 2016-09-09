@@ -1,6 +1,7 @@
 package lightstep
 
 import (
+	"encoding/json"
 	"fmt"
 	"reflect"
 	"testing"
@@ -20,14 +21,12 @@ func makeSpanSlice(length int) []basictracer.RawSpan {
 func makeExpectedLogs() []*cpb.Log {
 	eRes := make([]*cpb.Log, 8)
 	for i := 0; i < 8; i++ {
+		pl, _ := json.Marshal([]interface{}{i, i, true, "suhhh"})
 		eRes[i] = &cpb.Log{
 			Timestamp: &google_protobuf.Timestamp{1473442150, 0},
 			Keyvalues: []*cpb.KeyValue{
 				&cpb.KeyValue{Key: messageKey, Value: &cpb.KeyValue_StringValue{fmt.Sprintf("Event%v", i)}},
-				&cpb.KeyValue{Key: payloadKey, Value: &cpb.KeyValue_IntValue{int64(i)}},
-				&cpb.KeyValue{Key: payloadKey, Value: &cpb.KeyValue_IntValue{int64(i)}},
-				&cpb.KeyValue{Key: payloadKey, Value: &cpb.KeyValue_BoolValue{true}},
-				&cpb.KeyValue{Key: payloadKey, Value: &cpb.KeyValue_StringValue{"suhhh"}},
+				&cpb.KeyValue{Key: payloadKey, Value: &cpb.KeyValue_StringValue{string(pl)}},
 			},
 		}
 	}

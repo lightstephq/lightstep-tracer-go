@@ -1,6 +1,7 @@
 package lightstep
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
@@ -377,29 +378,19 @@ func convertToKeyValue(k string, value interface{}) *cpb.KeyValue {
 	return &kv
 }
 
-// TODO: Decide what we want to do about duplicate keys
-func translatePayload(pl interface{}, kvs []*cpb.KeyValue) []*cpb.KeyValue {
-	switch p := pl.(type) {
-	case map[string]interface{}:
-		for k, v := range p {
-			kvs = append(kvs, convertToKeyValue(k, v))
-		}
-	case []interface{}:
-		for _, v := range p {
-			kvs = append(kvs, convertToKeyValue(payloadKey, v))
-		}
-	case nil:
-		return nil
-	default:
-		kvs = append(kvs, convertToKeyValue(payloadKey, p))
-	}
-	return kvs
-}
-
 func translateEventAndPayload(e string, pl interface{}) []*cpb.KeyValue {
 	var kvs []*cpb.KeyValue
 	kvs = append(kvs, &cpb.KeyValue{Key: messageKey, Value: &cpb.KeyValue_StringValue{e}})
-	return translatePayload(pl, kvs)
+	if pl == nil {
+		return kvs
+	}
+	jpl, err := json.Marshal(pl)
+	glog.Infof("the log is %v", string(jpl))
+	if err != nil {
+		return append(kvs, &cpb.KeyValue{Key: payloadKey, Value: &cpb.KeyValue_StringValue{fmt.Sprintf("%v", err)}})
+		//glog.Infof("alice there was an error! and it was %v", err)
+	}
+	return append(kvs, &cpb.KeyValue{Key: payloadKey, Value: &cpb.KeyValue_StringValue{string(jpl)}})
 }
 
 func translateLogData(ld ot.LogData) *cpb.Log {
