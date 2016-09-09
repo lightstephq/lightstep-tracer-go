@@ -379,13 +379,11 @@ func convertToKeyValue(k string, value interface{}) *cpb.KeyValue {
 }
 
 func translateEventAndPayload(e string, pl interface{}) []*cpb.KeyValue {
-	var kvs []*cpb.KeyValue
-	kvs = append(kvs, &cpb.KeyValue{Key: messageKey, Value: &cpb.KeyValue_StringValue{e}})
+	kvs := []*cpb.KeyValue{&cpb.KeyValue{Key: messageKey, Value: &cpb.KeyValue_StringValue{e}}}
 	if pl == nil {
 		return kvs
 	}
 	jpl, err := json.Marshal(pl)
-	glog.Infof("the log is %v", string(jpl))
 	if err != nil {
 		return append(kvs, &cpb.KeyValue{Key: payloadKey, Value: &cpb.KeyValue_StringValue{fmt.Sprintf("%v", err)}})
 	}
