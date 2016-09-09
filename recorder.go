@@ -384,6 +384,7 @@ func translateEventAndPayload(e string, pl interface{}) []*cpb.KeyValue {
 		return kvs
 	}
 	jpl, err := json.Marshal(pl)
+	// TODO put error into InternalMetrics
 	if err != nil {
 		return append(kvs, &cpb.KeyValue{Key: payloadKey, Value: &cpb.KeyValue_StringValue{fmt.Sprintf("%v", err)}})
 	}
