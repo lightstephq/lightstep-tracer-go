@@ -388,7 +388,6 @@ func translateEventAndPayload(e string, pl interface{}) []*cpb.KeyValue {
 	glog.Infof("the log is %v", string(jpl))
 	if err != nil {
 		return append(kvs, &cpb.KeyValue{Key: payloadKey, Value: &cpb.KeyValue_StringValue{fmt.Sprintf("%v", err)}})
-		//glog.Infof("alice there was an error! and it was %v", err)
 	}
 	return append(kvs, &cpb.KeyValue{Key: payloadKey, Value: &cpb.KeyValue_StringValue{string(jpl)}})
 }
