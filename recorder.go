@@ -371,9 +371,18 @@ func convertToKeyValue(k string, value interface{}) *cpb.KeyValue {
 	case bool:
 		kv.Value = &cpb.KeyValue_BoolValue{v}
 	default:
-		glog.Infof("value: %v, %T, is an unsupported type, and has been converted to string", v, v)
-		// TODO: use reflection so that not all custom types have to be converted to string
-		kv.Value = &cpb.KeyValue_StringValue{fmt.Sprint(v)}
+		r := reflect.ValueOf(v)
+		r = reflect.Indirect(r)
+		if r.Type().ConvertibleTo(reflect.TypeOf(float64(0))) {
+			kv.Value = &cpb.KeyValue_DoubleValue{r.Convert(reflect.TypeOf(float64(0))).Float()}
+		} else if r.Type().ConvertibleTo(reflect.TypeOf(true)) {
+			kv.Value = &cpb.KeyValue_BoolValue{r.Bool()}
+		} else if r.Type().ConvertibleTo(reflect.TypeOf("")) {
+			kv.Value = &cpb.KeyValue_StringValue{r.String()}
+		} else {
+			glog.Infof("value: %v, %T, is an unsupported type, and has been converted to string", v, v)
+			kv.Value = &cpb.KeyValue_StringValue{fmt.Sprint(v)}
+		}
 	}
 	return &kv
 }

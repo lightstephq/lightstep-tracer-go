@@ -48,14 +48,34 @@ func TestTranslateLogDatas(t *testing.T) {
 	if !reflect.DeepEqual(res, eRes) {
 		t.Errorf("%v doesn not equal %v", res, eRes)
 	}
-	//for i := 0; i < 8; i++ {
-	//	if !reflect.DeepEqual(eRes[i].Timestamp, res[i].Timestamp) {
-	//		t.Errorf("the timestamps do not match res: %v, expected res: %v", res[i].Timestamp, eRes[i].Timestamp)
-	//	}
-	//	if !reflect.DeepEqual(eRes[i].Keyvalues, res[i].Keyvalues) {
-	//		t.Errorf("the keyvalue pair does not match. kv res: %v, expected kv: %v", res[i].Keyvalues, eRes[i].Keyvalues)
-	//	}
-	//}
+}
+
+func TestConvertToKeyValue(t *testing.T) {
+	k := "testing"
+	type fakeString string
+	type fakeBool bool
+	type fakeInt64 int64
+	type fakeFloat64 float64
+	var a fakeString = "testing"
+	kv := convertToKeyValue(k, a)
+	if kv.GetStringValue() != "testing" {
+		t.Errorf("the fakeString value failed to be set")
+	}
+	var b fakeBool = true
+	kv = convertToKeyValue(k, b)
+	if kv.GetBoolValue() != true {
+		t.Errorf("the fakeBool value failed to be set")
+	}
+	var c fakeInt64 = 3
+	kv = convertToKeyValue(k, c)
+	if kv.GetDoubleValue() != float64(3) {
+		t.Errorf("the fakeInt64 value failed to be set")
+	}
+	var d fakeFloat64 = 3
+	kv = convertToKeyValue(k, d)
+	if kv.GetDoubleValue() != float64(3) {
+		t.Errorf("the fakeFloat64 value failed to be set")
+	}
 }
 
 func TestMaxBufferSize(t *testing.T) {
