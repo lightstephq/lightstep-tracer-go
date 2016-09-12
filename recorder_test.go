@@ -51,31 +51,36 @@ func TestTranslateLogDatas(t *testing.T) {
 }
 
 func TestConvertToKeyValue(t *testing.T) {
+	r := Recorder{}
 	k := "testing"
 	type fakeString string
 	type fakeBool bool
 	type fakeInt64 int64
 	type fakeFloat64 float64
 	var a fakeString = "testing"
-	kv := convertToKeyValue(k, a)
+	kv := r.convertToKeyValue(k, a)
 	if kv.GetStringValue() != "testing" {
 		t.Errorf("the fakeString value failed to be set")
 	}
 	var b fakeBool = true
-	kv = convertToKeyValue(k, b)
+	kv = r.convertToKeyValue(k, b)
 	if kv.GetBoolValue() != true {
 		t.Errorf("the fakeBool value failed to be set")
 	}
 	var c fakeInt64 = 3
-	kv = convertToKeyValue(k, c)
-	if kv.GetDoubleValue() != float64(3) {
+	kv = r.convertToKeyValue(k, c)
+	if kv.GetIntValue() != int64(3) {
 		t.Errorf("the fakeInt64 value failed to be set")
 	}
 	var d fakeFloat64 = 3
-	kv = convertToKeyValue(k, d)
+	kv = r.convertToKeyValue(k, d)
 	if kv.GetDoubleValue() != float64(3) {
 		t.Errorf("the fakeFloat64 value failed to be set")
 	}
+	// make sure these don't panic
+	r.convertToKeyValue(k, nil)
+	var p *int
+	r.convertToKeyValue(k, p)
 }
 
 func TestMaxBufferSize(t *testing.T) {

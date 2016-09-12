@@ -19,7 +19,6 @@ import (
 
 	// N.B.(jmacd): Do not use google.golang.org/glog in this package.
 
-	"github.com/golang/glog"
 	google_protobuf "github.com/golang/protobuf/ptypes/timestamp"
 	cpb "github.com/lightstep/lightstep-tracer-go/collectorpb"
 	"github.com/lightstep/lightstep-tracer-go/thrift_rpc"
@@ -64,6 +63,8 @@ const (
 
 	ellipsis = "…"
 )
+
+var intType reflect.Type = reflect.TypeOf(int64(0))
 
 // TODO move these to Options
 var (
@@ -350,40 +351,57 @@ func translateDurationFromOldesYoungest(ot time.Time, yt time.Time) uint64 {
 	return translateDuration(yt.Sub(ot))
 }
 
-func translateTags(tags ot.Tags) []*cpb.KeyValue {
+func (r *Recorder) translateTags(tags ot.Tags) []*cpb.KeyValue {
 	kvs := make([]*cpb.KeyValue, 0, len(tags))
 	for key, tag := range tags {
-		kv := convertToKeyValue(key, tag)
+		kv := r.convertToKeyValue(key, tag)
 		kvs = append(kvs, kv)
 	}
 	return kvs
 }
 
-func convertToKeyValue(k string, value interface{}) *cpb.KeyValue {
-	kv := cpb.KeyValue{Key: k}
-	switch v := value.(type) {
-	case string:
-		kv.Value = &cpb.KeyValue_StringValue{v}
-	case int:
-		kv.Value = &cpb.KeyValue_IntValue{int64(v)}
-	case float64:
-		kv.Value = &cpb.KeyValue_DoubleValue{v}
-	case bool:
-		kv.Value = &cpb.KeyValue_BoolValue{v}
+func (r *Recorder) convertToKeyValue(key string, value interface{}) *cpb.KeyValue {
+	kv := cpb.KeyValue{Key: key}
+	v := reflect.ValueOf(value)
+	k := v.Kind()
+	switch k {
+	case reflect.String:
+		kv.Value = &cpb.KeyValue_StringValue{v.String()}
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64, reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		kv.Value = &cpb.KeyValue_IntValue{v.Convert(intType).Int()}
+	case reflect.Float32, reflect.Float64:
+		kv.Value = &cpb.KeyValue_DoubleValue{v.Float()}
+	case reflect.Bool:
+		kv.Value = &cpb.KeyValue_BoolValue{v.Bool()}
 	default:
-		r := reflect.ValueOf(v)
-		r = reflect.Indirect(r)
-		if r.Type().ConvertibleTo(reflect.TypeOf(float64(0))) {
-			kv.Value = &cpb.KeyValue_DoubleValue{r.Convert(reflect.TypeOf(float64(0))).Float()}
-		} else if r.Type().ConvertibleTo(reflect.TypeOf(true)) {
-			kv.Value = &cpb.KeyValue_BoolValue{r.Bool()}
-		} else if r.Type().ConvertibleTo(reflect.TypeOf("")) {
-			kv.Value = &cpb.KeyValue_StringValue{r.String()}
-		} else {
-			glog.Infof("value: %v, %T, is an unsupported type, and has been converted to string", v, v)
-			kv.Value = &cpb.KeyValue_StringValue{fmt.Sprint(v)}
-		}
+		kv.Value = &cpb.KeyValue_StringValue{fmt.Sprint(v)}
+		r.maybeLogInfof("value: %v, %T, is an unsupported type, and has been converted to string", v, v)
 	}
+	/*
+		kv := cpb.KeyValue{Key: k}
+		switch v := value.(type) {
+		case string:
+			kv.Value = &cpb.KeyValue_StringValue{v}
+		case int:
+			kv.Value = &cpb.KeyValue_IntValue{int64(v)}
+		case float64:
+			kv.Value = &cpb.KeyValue_DoubleValue{v}
+		case bool:
+			kv.Value = &cpb.KeyValue_BoolValue{v}
+		default:
+			r := reflect.ValueOf(v)
+			r = reflect.Indirect(r)
+			if r.Type().ConvertibleTo(reflect.TypeOf(float64(0))) {
+				kv.Value = &cpb.KeyValue_DoubleValue{r.Convert(reflect.TypeOf(float64(0))).Float()}
+			} else if r.Type().ConvertibleTo(reflect.TypeOf(true)) {
+				kv.Value = &cpb.KeyValue_BoolValue{r.Bool()}
+			} else if r.Type().ConvertibleTo(reflect.TypeOf("")) {
+				kv.Value = &cpb.KeyValue_StringValue{r.String()}
+			} else {
+				glog.Infof("value: %v, %T, is an unsupported type, and has been converted to string", v, v)
+				kv.Value = &cpb.KeyValue_StringValue{fmt.Sprint(v)}
+			}
+		}*/
 	return &kv
 }
 
@@ -416,22 +434,22 @@ func translateLogDatas(lds []ot.LogData) []*cpb.Log {
 	return logs
 }
 
-func translateRawSpan(rs basictracer.RawSpan) *cpb.Span {
+func (r *Recorder) translateRawSpan(rs basictracer.RawSpan) *cpb.Span {
 	return &cpb.Span{
 		SpanContext:    translateSpanContext(rs.Context),
 		OperationName:  rs.Operation,
 		References:     translateParentSpanID(rs.ParentSpanID),
 		StartTimestamp: translateTime(rs.Start),
 		DurationMicros: translateDuration(rs.Duration),
-		Tags:           translateTags(rs.Tags),
+		Tags:           r.translateTags(rs.Tags),
 		Logs:           translateLogDatas(rs.Logs),
 	}
 }
 
-func convertRawSpans(rawSpans []basictracer.RawSpan) []*cpb.Span {
+func (r *Recorder) convertRawSpans(rawSpans []basictracer.RawSpan) []*cpb.Span {
 	spans := make([]*cpb.Span, len(rawSpans))
 	for i, rs := range rawSpans {
-		spans[i] = translateRawSpan(rs)
+		spans[i] = r.translateRawSpan(rs)
 	}
 	return spans
 }
@@ -469,7 +487,7 @@ func convertToInternalMetrics(ot time.Time, yt time.Time, dp int64) *cpb.Interna
 }
 
 func (r *Recorder) makeReportRequest(buffer *reportBuffer) *cpb.ReportRequest {
-	spans := convertRawSpans(buffer.rawSpans)
+	spans := r.convertRawSpans(buffer.rawSpans)
 	tracer := convertToTracer(r.attributes, r.tracerID)
 	internalMetrics := convertToInternalMetrics(buffer.reportStart, buffer.reportEnd, buffer.dropped)
 
