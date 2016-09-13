@@ -377,31 +377,6 @@ func (r *Recorder) convertToKeyValue(key string, value interface{}) *cpb.KeyValu
 		kv.Value = &cpb.KeyValue_StringValue{fmt.Sprint(v)}
 		r.maybeLogInfof("value: %v, %T, is an unsupported type, and has been converted to string", v, v)
 	}
-	/*
-		kv := cpb.KeyValue{Key: k}
-		switch v := value.(type) {
-		case string:
-			kv.Value = &cpb.KeyValue_StringValue{v}
-		case int:
-			kv.Value = &cpb.KeyValue_IntValue{int64(v)}
-		case float64:
-			kv.Value = &cpb.KeyValue_DoubleValue{v}
-		case bool:
-			kv.Value = &cpb.KeyValue_BoolValue{v}
-		default:
-			r := reflect.ValueOf(v)
-			r = reflect.Indirect(r)
-			if r.Type().ConvertibleTo(reflect.TypeOf(float64(0))) {
-				kv.Value = &cpb.KeyValue_DoubleValue{r.Convert(reflect.TypeOf(float64(0))).Float()}
-			} else if r.Type().ConvertibleTo(reflect.TypeOf(true)) {
-				kv.Value = &cpb.KeyValue_BoolValue{r.Bool()}
-			} else if r.Type().ConvertibleTo(reflect.TypeOf("")) {
-				kv.Value = &cpb.KeyValue_StringValue{r.String()}
-			} else {
-				glog.Infof("value: %v, %T, is an unsupported type, and has been converted to string", v, v)
-				kv.Value = &cpb.KeyValue_StringValue{fmt.Sprint(v)}
-			}
-		}*/
 	return &kv
 }
 
