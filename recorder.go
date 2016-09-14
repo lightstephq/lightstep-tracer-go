@@ -380,7 +380,7 @@ func (r *Recorder) convertToKeyValue(key string, value interface{}) *cpb.KeyValu
 	return &kv
 }
 
-func translateEventAndPayload(e string, pl interface{}) []*cpb.KeyValue {
+func translateEventAndPayload(e string, pl interface{}, internalLogs *[]*cpb.Log) []*cpb.KeyValue {
 	kvs := []*cpb.KeyValue{&cpb.KeyValue{Key: messageKey, Value: &cpb.KeyValue_StringValue{e}}}
 	if pl == nil {
 		return kvs
@@ -388,28 +388,32 @@ func translateEventAndPayload(e string, pl interface{}) []*cpb.KeyValue {
 	jpl, err := json.Marshal(pl)
 	// TODO put error into InternalMetrics
 	if err != nil {
-		return append(kvs, &cpb.KeyValue{Key: payloadKey, Value: &cpb.KeyValue_StringValue{fmt.Sprintf("%v", err)}})
+		*internalLogs = append(*internalLogs, &cpb.Log{
+			Timestamp: translateTime(time.Now()),
+			Keyvalues: []*cpb.KeyValue{&cpb.KeyValue{Key: payloadKey, Value: &cpb.KeyValue_StringValue{fmt.Sprintf("%v", err)}}},
+		})
+		return nil
 	}
 	return append(kvs, &cpb.KeyValue{Key: payloadKey, Value: &cpb.KeyValue_StringValue{string(jpl)}})
 }
 
-func translateLogData(ld ot.LogData) *cpb.Log {
+func translateLogData(ld ot.LogData, internalLogs *[]*cpb.Log) *cpb.Log {
 	return &cpb.Log{
 		Timestamp: translateTime(ld.Timestamp),
-		Keyvalues: translateEventAndPayload(ld.Event, ld.Payload),
+		Keyvalues: translateEventAndPayload(ld.Event, ld.Payload, internalLogs),
 	}
 }
 
 // TODO: Update once OT logs have been updated
-func translateLogDatas(lds []ot.LogData) []*cpb.Log {
+func translateLogDatas(lds []ot.LogData, internalLogs *[]*cpb.Log) []*cpb.Log {
 	logs := make([]*cpb.Log, len(lds))
 	for i, ld := range lds {
-		logs[i] = translateLogData(ld)
+		logs[i] = translateLogData(ld, internalLogs)
 	}
 	return logs
 }
 
-func (r *Recorder) translateRawSpan(rs basictracer.RawSpan) *cpb.Span {
+func (r *Recorder) translateRawSpan(rs basictracer.RawSpan, internalLogs *[]*cpb.Log) *cpb.Span {
 	return &cpb.Span{
 		SpanContext:    translateSpanContext(rs.Context),
 		OperationName:  rs.Operation,
@@ -417,14 +421,14 @@ func (r *Recorder) translateRawSpan(rs basictracer.RawSpan) *cpb.Span {
 		StartTimestamp: translateTime(rs.Start),
 		DurationMicros: translateDuration(rs.Duration),
 		Tags:           r.translateTags(rs.Tags),
-		Logs:           translateLogDatas(rs.Logs),
+		Logs:           translateLogDatas(rs.Logs, internalLogs),
 	}
 }
 
-func (r *Recorder) convertRawSpans(rawSpans []basictracer.RawSpan) []*cpb.Span {
+func (r *Recorder) convertRawSpans(rawSpans []basictracer.RawSpan, internalLogs *[]*cpb.Log) []*cpb.Span {
 	spans := make([]*cpb.Span, len(rawSpans))
 	for i, rs := range rawSpans {
-		spans[i] = r.translateRawSpan(rs)
+		spans[i] = r.translateRawSpan(rs, internalLogs)
 	}
 	return spans
 }
@@ -453,18 +457,20 @@ func convertDroppedPendingToCounts(dp int64) []*cpb.MetricsSample {
 	}
 }
 
-func convertToInternalMetrics(ot time.Time, yt time.Time, dp int64) *cpb.InternalMetrics {
+func convertToInternalMetrics(ot time.Time, yt time.Time, dp int64, internalLogs []*cpb.Log) *cpb.InternalMetrics {
 	return &cpb.InternalMetrics{
 		StartTimestamp: translateTime(ot),
 		DurationMicros: translateDurationFromOldesYoungest(ot, yt),
 		Counts:         convertDroppedPendingToCounts(dp),
+		Logs:           internalLogs,
 	}
 }
 
 func (r *Recorder) makeReportRequest(buffer *reportBuffer) *cpb.ReportRequest {
-	spans := r.convertRawSpans(buffer.rawSpans)
+	var internalLogs []*cpb.Log
+	spans := r.convertRawSpans(buffer.rawSpans, &internalLogs)
 	tracer := convertToTracer(r.attributes, r.tracerID)
-	internalMetrics := convertToInternalMetrics(buffer.reportStart, buffer.reportEnd, buffer.dropped)
+	internalMetrics := convertToInternalMetrics(buffer.reportStart, buffer.reportEnd, buffer.dropped, internalLogs)
 
 	req := cpb.ReportRequest{
 		Tracer:          tracer,
