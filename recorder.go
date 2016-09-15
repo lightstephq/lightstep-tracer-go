@@ -68,7 +68,7 @@ const (
 var (
 	intType reflect.Type = reflect.TypeOf(int64(0))
 
-	defaultReconnectPeriod = 5*time.Minute + time.Duration(rand.Float64()*float64(time.Second))
+	defaultReconnectPeriod = 5 * time.Minute
 
 	// TODO move these to Options
 	flagMaxLogMessageLen     = flag.Int("lightstep_max_log_message_len_bytes", 1024, "the maximum number of bytes used by a single log message")
@@ -303,8 +303,8 @@ func NewRecorder(opts Options) *Recorder {
 		tracerID:           genSeededGUID(),
 		buffer:             newSpansBuffer(opts.MaxBufferedSpans),
 		flushing:           newSpansBuffer(opts.MaxBufferedSpans),
-		reconnectPeriod:    opts.ReconnectPeriod,
 		hostPort:           getCollectorHostPort(opts),
+		reconnectPeriod:    time.Duration(float64(opts.ReconnectPeriod) * (1 + 0.2*rand.Float64())),
 	}
 
 	rec.buffer.setCurrent(now)
