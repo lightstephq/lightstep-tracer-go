@@ -74,6 +74,9 @@ var (
 	flagMaxLogMessageLen     = flag.Int("lightstep_max_log_message_len_bytes", 1024, "the maximum number of bytes used by a single log message")
 	flagMaxPayloadFieldBytes = flag.Int("lightstep_max_log_payload_field_bytes", 1024, "the maximum number of bytes exported in a single payload field")
 	flagMaxPayloadTotalBytes = flag.Int("lightstep_max_log_payload_max_total_bytes", 4096, "the maximum number of bytes exported in an entire payload")
+
+	errPreviousReportInFlight = fmt.Errorf("A previous Report is still in flight; aborting Flush().")
+	errConnectionWasClosed    = fmt.Errorf("The connection was closed.")
 )
 
 // A set of counter values for a given time window
@@ -549,8 +552,14 @@ func (r *Recorder) Flush() {
 		return
 	}
 
+	if r.conn == nil {
+		r.maybeLogError(errConnectionWasClosed)
+		r.lock.Unlock()
+		return
+	}
+
 	if r.reportInFlight == true {
-		r.maybeLogError(fmt.Errorf("A previous Report is still in flight; aborting Flush()."))
+		r.maybeLogError(errPreviousReportInFlight)
 		r.lock.Unlock()
 		return
 	}
@@ -658,11 +667,11 @@ func (r *Recorder) reportLoop() {
 			if disabled {
 				return
 			}
-			if reconnect {
-				r.reconnectClient(now)
-			}
 			if shouldFlush {
 				r.Flush()
+			}
+			if reconnect {
+				r.reconnectClient(now)
 			}
 		case <-r.closech:
 			return
