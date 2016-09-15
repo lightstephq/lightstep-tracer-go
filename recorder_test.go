@@ -138,3 +138,12 @@ func TestMaxBufferSize(t *testing.T) {
 		UseGRPC:     false,
 	}).(basictracer.Tracer).Options().Recorder.(*thrift_rpc.Recorder)
 }
+
+func TestDoubleClose(t *testing.T) {
+	rec := NewTracer(Options{
+		AccessToken: "0987654321",
+		UseGRPC:     true,
+	}).(basictracer.Tracer).Options().Recorder.(*Recorder)
+	rec.Close()
+	rec.Close()
+}

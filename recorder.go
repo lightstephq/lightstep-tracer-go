@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"math/rand"
 	"os"
 	"path"
 	"reflect"
@@ -64,10 +65,12 @@ const (
 	ellipsis = "…"
 )
 
-var intType reflect.Type = reflect.TypeOf(int64(0))
-
-// TODO move these to Options
 var (
+	intType reflect.Type = reflect.TypeOf(int64(0))
+
+	defaultReconnectPeriod = 5*time.Minute + time.Duration(rand.Float64()*float64(time.Second))
+
+	// TODO move these to Options
 	flagMaxLogMessageLen     = flag.Int("lightstep_max_log_message_len_bytes", 1024, "the maximum number of bytes used by a single log message")
 	flagMaxPayloadFieldBytes = flag.Int("lightstep_max_log_payload_field_bytes", 1024, "the maximum number of bytes exported in a single payload field")
 	flagMaxPayloadTotalBytes = flag.Int("lightstep_max_log_payload_max_total_bytes", 4096, "the maximum number of bytes exported in an entire payload")
@@ -121,6 +124,8 @@ type Options struct {
 	Verbose bool
 
 	UseGRPC bool
+
+	ReconnectPeriod time.Duration `yaml:"reconnect_period"`
 }
 
 // NewTracer returns a new Tracer that reports spans to a LightStep
@@ -138,6 +143,9 @@ func NewTracer(opts Options) ot.Tracer {
 	}
 	if opts.ReportTimeout == 0 {
 		opts.ReportTimeout = defaultReportTimeout
+	}
+	if opts.ReconnectPeriod == 0 {
+		opts.ReconnectPeriod = defaultReconnectPeriod
 	}
 
 	if opts.UseGRPC {
@@ -219,10 +227,16 @@ type Recorder struct {
 	tracerID           uint64        // the LightStep tracer guid
 	verbose            bool          // whether to print verbose messages
 	maxReportingPeriod time.Duration // set by Options.MaxReportingPeriod
+	reconnectPeriod    time.Duration // set by Options.ReconnectPeriod
 	reportingTimeout   time.Duration // set by Options.ReportTimeout
 
 	// Remote service that will receive reports.
-	backend cpb.CollectorServiceClient
+	hostPort      string
+	backend       cpb.CollectorServiceClient
+	conn          *grpc.ClientConn
+	connTimestamp time.Time
+	creds         grpc.DialOption
+	closech       chan struct{}
 
 	//////////////////////////////////////////////////////////
 	// MUTABLE MUTABLE MUTABLE MUTABLE MUTABLE MUTABLE MUTABLE
@@ -289,22 +303,74 @@ func NewRecorder(opts Options) *Recorder {
 		tracerID:           genSeededGUID(),
 		buffer:             newSpansBuffer(opts.MaxBufferedSpans),
 		flushing:           newSpansBuffer(opts.MaxBufferedSpans),
+		reconnectPeriod:    opts.ReconnectPeriod,
+		hostPort:           getCollectorHostPort(opts),
 	}
 
 	rec.buffer.setCurrent(now)
 
-	conn, err := grpc.Dial(getCollectorHostPort(opts),
-		grpc.WithTransportCredentials(credentials.NewClientTLSFromCert(nil, "")))
+	if opts.Collector.Plaintext {
+		rec.creds = grpc.WithInsecure()
+	} else {
+		rec.creds = grpc.WithTransportCredentials(credentials.NewClientTLSFromCert(nil, ""))
+	}
+
+	conn, backend, err := rec.connectClient()
 	if err != nil {
 		fmt.Println("grpc.Dial failed permanently:", err)
 		return nil
 	}
-	// TODO: There is currenlty no way to close this connection, do please
-	rec.backend = cpb.NewCollectorServiceClient(conn)
+
+	rec.conn = conn
+	rec.connTimestamp = now
+	rec.backend = backend
+	rec.closech = make(chan struct{})
 
 	go rec.reportLoop()
 
 	return rec
+}
+
+func (r *Recorder) connectClient() (*grpc.ClientConn, cpb.CollectorServiceClient, error) {
+	conn, err := grpc.Dial(r.hostPort, r.creds)
+	if err != nil {
+		return nil, nil, err
+	}
+	return conn, cpb.NewCollectorServiceClient(conn), nil
+}
+
+func (r *Recorder) reconnectClient(now time.Time) {
+	conn, backend, err := r.connectClient()
+	if err != nil {
+		r.maybeLogInfof("could not reconnect client")
+	} else {
+		toClose := r.conn
+
+		r.lock.Lock()
+		r.conn = conn
+		r.connTimestamp = now
+		r.backend = backend
+		r.lock.Unlock()
+
+		r.maybeLogInfof("reconnected client connection")
+		toClose.Close()
+	}
+}
+
+func (r *Recorder) Close() error {
+	r.lock.Lock()
+	conn := r.conn
+	closech := r.closech
+	r.conn = nil
+	r.closech = nil
+	r.lock.Unlock()
+	if closech != nil {
+		close(closech)
+	}
+	if conn == nil {
+		return nil
+	}
+	return conn.Close()
 }
 
 func (r *Recorder) RecordSpan(raw basictracer.RawSpan) {
@@ -568,12 +634,7 @@ func (r *Recorder) Disable() {
 // runtime library, and we want to avoid that at all costs (even dropping data,
 // which can certainly happen with high data rates and/or unresponsive remote
 // peers).
-func (r *Recorder) shouldFlush() bool {
-	now := time.Now()
-
-	r.lock.Lock()
-	defer r.lock.Unlock()
-
+func (r *Recorder) shouldFlushLocked(now time.Time) bool {
 	if now.Add(minReportingPeriod).Sub(r.lastReportAttempt) > r.maxReportingPeriod {
 		// Flush timeout.
 		r.maybeLogInfof("--> timeout")
@@ -588,19 +649,28 @@ func (r *Recorder) shouldFlush() bool {
 
 func (r *Recorder) reportLoop() {
 	tickerChan := time.Tick(minReportingPeriod)
-	for range tickerChan {
-		r.maybeLogInfof("reporting alarm fired")
+	for {
+		select {
+		case <-tickerChan:
+			now := time.Now()
 
-		// Kill the reportLoop() if we've been disabled.
-		r.lock.Lock()
-		if r.disabled {
+			r.lock.Lock()
+			disabled := r.disabled
+			reconnect := now.Sub(r.connTimestamp) > r.reconnectPeriod
+			shouldFlush := r.shouldFlushLocked(now)
 			r.lock.Unlock()
-			break
-		}
-		r.lock.Unlock()
 
-		if r.shouldFlush() {
-			r.Flush()
+			if disabled {
+				return
+			}
+			if reconnect {
+				r.reconnectClient(now)
+			}
+			if shouldFlush {
+				r.Flush()
+			}
+		case <-r.closech:
+			return
 		}
 	}
 }
@@ -622,6 +692,7 @@ func getCollectorHostPort(opts Options) string {
 }
 
 func getCollectorURL(opts Options) string {
+	// TODO This is dead code, remove?
 	return getURL(opts.Collector,
 		defaultCollectorHost,
 		collectorPath)
