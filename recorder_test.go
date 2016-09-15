@@ -43,7 +43,7 @@ func TestTranslateLogDatas(t *testing.T) {
 			Payload:   []interface{}{i, i, true, "suhhh"},
 		}
 	}
-	res := translateLogDatas(otLogs, nil)
+	res, _ := translateLogDatas(otLogs)
 	eRes := makeExpectedLogs()
 	if !reflect.DeepEqual(res, eRes) {
 		t.Errorf("%v doesn not equal %v", res, eRes)
