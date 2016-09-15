@@ -344,16 +344,15 @@ func (r *Recorder) reconnectClient(now time.Time) {
 	if err != nil {
 		r.maybeLogInfof("could not reconnect client")
 	} else {
-		toClose := r.conn
-
 		r.lock.Lock()
+		oldConn := r.conn
 		r.conn = conn
 		r.connTimestamp = now
 		r.backend = backend
 		r.lock.Unlock()
 
+		oldConn.Close()
 		r.maybeLogInfof("reconnected client connection")
-		toClose.Close()
 	}
 }
 
@@ -581,25 +580,21 @@ func (r *Recorder) Flush() {
 		r.maybeLogInfof("Report: resp=%v, err=%v", resp, err)
 	}
 
+	var droppedSent int64
 	r.lock.Lock()
 	r.reportInFlight = false
 	if err != nil {
 		// Restore the records that did not get sent correctly
 		r.buffer.mergeFrom(&r.flushing)
-		r.lock.Unlock()
-		return
+	} else {
+		droppedSent = r.flushing.dropped
+		r.flushing.clear()
 	}
-
-	droppedSent := r.flushing.dropped
-	r.flushing.clear()
-
-	// TODO something about timing
 	r.lock.Unlock()
 
 	if droppedSent != 0 {
 		r.maybeLogInfof("client reported %d dropped spans", droppedSent)
 	}
-
 	for _, c := range resp.Commands {
 		if c.Disable {
 			r.Disable()
@@ -656,7 +651,7 @@ func (r *Recorder) reportLoop() {
 
 			r.lock.Lock()
 			disabled := r.disabled
-			reconnect := now.Sub(r.connTimestamp) > r.reconnectPeriod
+			reconnect := !r.reportInFlight && now.Sub(r.connTimestamp) > r.reconnectPeriod
 			shouldFlush := r.shouldFlushLocked(now)
 			r.lock.Unlock()
 
