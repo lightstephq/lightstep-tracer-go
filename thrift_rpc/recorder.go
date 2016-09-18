@@ -1,7 +1,6 @@
 package thrift_rpc
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"path"
@@ -47,8 +46,6 @@ const (
 	GUIDKey                  = "lightstep.guid" // <- runtime guid, not span guid
 	HostnameKey              = "lightstep.hostname"
 	CommandLineKey           = "lightstep.command_line"
-
-	ellipsis = "…"
 )
 
 // Endpoint describes a collection or web API host/port and whether or
@@ -285,30 +282,16 @@ func (r *Recorder) Flush() {
 		}
 		logs := make([]*lightstep_thrift.LogRecord, len(raw.Logs))
 		for j, log := range raw.Logs {
-			event := ""
-			if len(log.Event) > 0 {
-				// Don't allow for arbitrarily long log messages.
-				if len(log.Event) > r.maxLogMessageLen {
-					event = log.Event[:(r.maxLogMessageLen-1)] + ellipsis
-				} else {
-					event = log.Event
-				}
-			}
-
-			var thriftPayload *string
-			if log.Payload != nil {
-				jsonString, err := json.Marshal(log.Payload)
-				if err != nil {
-					thriftPayload = thrift.StringPtr(fmt.Sprintf("Error encoding payload object: %v", err))
-				} else {
-					thriftPayload = thrift.StringPtr(string(jsonString))
-				}
-			}
-			logs[j] = &lightstep_thrift.LogRecord{
+			thriftLogRecord := &lightstep_thrift.LogRecord{
 				TimestampMicros: thrift.Int64Ptr(log.Timestamp.UnixNano() / 1000),
-				StableName:      thrift.StringPtr(event),
-				PayloadJson:     thriftPayload,
 			}
+			// In the deprecated thrift case, we can reuse a single "field"
+			// encoder across all of the N log fields.
+			lfe := logFieldEncoder{thriftLogRecord, r}
+			for _, f := range log.Fields {
+				f.Marshal(&lfe)
+			}
+			logs[j] = thriftLogRecord
 		}
 
 		// TODO implement baggage

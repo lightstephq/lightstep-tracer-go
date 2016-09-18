@@ -1,8 +1,6 @@
 package lightstep
 
 import (
-	"encoding/json"
-	"flag"
 	"fmt"
 	"math/rand"
 	"os"
@@ -42,8 +40,10 @@ const (
 	defaultMaxReportingPeriod = 2500 * time.Millisecond
 	minReportingPeriod        = 500 * time.Millisecond
 
-	defaultMaxSpans      = 1000
-	defaultReportTimeout = 30 * time.Second
+	defaultMaxSpans       = 1000
+	defaultReportTimeout  = 30 * time.Second
+	defaultMaxLogKeyLen   = 256
+	defaultMaxLogValueLen = 1024
 
 	// ParentSpanGUIDKey is the tag key used to record the relationship
 	// between child and parent spans.
@@ -61,23 +61,9 @@ const (
 	GUIDKey                  = "lightstep.guid" // <- runtime guid, not span guid
 	HostnameKey              = "lightstep.hostname"
 	CommandLineKey           = "lightstep.command_line"
-
-	ellipsis = "…"
 )
 
-var (
-	intType reflect.Type = reflect.TypeOf(int64(0))
-
-	defaultReconnectPeriod = 5 * time.Minute
-
-	// TODO move these to Options
-	flagMaxLogMessageLen     = flag.Int("lightstep_max_log_message_len_bytes", 1024, "the maximum number of bytes used by a single log message")
-	flagMaxPayloadFieldBytes = flag.Int("lightstep_max_log_payload_field_bytes", 1024, "the maximum number of bytes exported in a single payload field")
-	flagMaxPayloadTotalBytes = flag.Int("lightstep_max_log_payload_max_total_bytes", 4096, "the maximum number of bytes exported in an entire payload")
-
-	errPreviousReportInFlight = fmt.Errorf("A previous Report is still in flight; aborting Flush().")
-	errConnectionWasClosed    = fmt.Errorf("The connection was closed.")
-)
+var intType reflect.Type = reflect.TypeOf(int64(0))
 
 // A set of counter values for a given time window
 type counterSet struct {
@@ -114,6 +100,15 @@ type Options struct {
 	// before sending them to a collector.
 	MaxBufferedSpans int `yaml:"max_buffered_spans"`
 
+	// MaxLogKeyLen is the maximum allowable size (in characters) of an
+	// OpenTracing logging key. Longer keys are truncated.
+	MaxLogKeyLen int `yaml:"max_log_key_len"`
+
+	// MaxLogValueLen is the maximum allowable size (in characters) of an
+	// OpenTracing logging value. Longer values are truncated. Only applies to
+	// variable-length value types (strings, interface{}, etc).
+	MaxLogValueLen int `yaml:"max_log_value_len"`
+
 	// ReportingPeriod is the maximum duration of time between sending spans
 	// to a collector.  If zero, the default will be used.
 	ReportingPeriod time.Duration `yaml:"reporting_period"`
@@ -140,6 +135,12 @@ func NewTracer(opts Options) ot.Tracer {
 	// Note: opts is a copy of the user's data, ok to modify.
 	if opts.MaxBufferedSpans == 0 {
 		opts.MaxBufferedSpans = defaultMaxSpans
+	}
+	if opts.MaxLogKeyLen == 0 {
+		opts.MaxLogKeyLen = defaultMaxLogKeyLen
+	}
+	if opts.MaxLogValueLen == 0 {
+		opts.MaxLogValueLen = defaultMaxLogValueLen
 	}
 	if opts.ReportingPeriod == 0 {
 		opts.ReportingPeriod = defaultMaxReportingPeriod
@@ -169,7 +170,7 @@ func NewTracer(opts Options) ot.Tracer {
 			ReportTimeout:    opts.ReportTimeout,
 			DropSpanLogs:     opts.DropSpanLogs,
 			Verbose:          opts.Verbose,
-			MaxLogMessageLen: int(*flagMaxLogMessageLen),
+			MaxLogMessageLen: int(opts.MaxLogValueLen),
 		}
 		r := thrift_rpc.NewRecorder(thriftOpts)
 		if r == nil {
@@ -229,6 +230,8 @@ type Recorder struct {
 
 	tracerID           uint64        // the LightStep tracer guid
 	verbose            bool          // whether to print verbose messages
+	maxLogKeyLen       int           // see Options.MaxLogKeyLen
+	maxLogValueLen     int           // see Options.MaxLogValueLen
 	maxReportingPeriod time.Duration // set by Options.MaxReportingPeriod
 	reconnectPeriod    time.Duration // set by Options.ReconnectPeriod
 	reportingTimeout   time.Duration // set by Options.ReportTimeout
@@ -302,6 +305,8 @@ func NewRecorder(opts Options) *Recorder {
 		maxReportingPeriod: defaultMaxReportingPeriod,
 		reportingTimeout:   opts.ReportTimeout,
 		verbose:            opts.Verbose,
+		maxLogKeyLen:       opts.MaxLogKeyLen,
+		maxLogValueLen:     opts.MaxLogValueLen,
 		apiURL:             getAPIURL(opts),
 		tracerID:           genSeededGUID(),
 		buffer:             newSpansBuffer(opts.MaxBufferedSpans),
@@ -448,40 +453,18 @@ func (r *Recorder) convertToKeyValue(key string, value interface{}) *cpb.KeyValu
 	return &kv
 }
 
-func translateEventAndPayload(e string, pl interface{}, internalLogs []*cpb.Log) ([]*cpb.KeyValue, []*cpb.Log) {
-	kvs := []*cpb.KeyValue{&cpb.KeyValue{Key: messageKey, Value: &cpb.KeyValue_StringValue{e}}}
-	if pl == nil {
-		return kvs, internalLogs
-	}
-	jpl, err := json.Marshal(pl)
-	// TODO put error into InternalMetrics
-	if err != nil {
-		internalLogs = append(internalLogs, &cpb.Log{
-			Timestamp: translateTime(time.Now()),
-			Keyvalues: []*cpb.KeyValue{&cpb.KeyValue{Key: payloadKey, Value: &cpb.KeyValue_StringValue{fmt.Sprintf("%v", err)}}},
-		})
-		return nil, internalLogs
-	}
-	return append(kvs, &cpb.KeyValue{Key: payloadKey, Value: &cpb.KeyValue_StringValue{string(jpl)}}), internalLogs
-}
-
-// TODO: Update once OT logs have been updated
-func translateLogDatas(lds []ot.LogData) ([]*cpb.Log, []*cpb.Log) {
-	var internalLogs []*cpb.Log
-	logs := make([]*cpb.Log, len(lds))
-	for i, ld := range lds {
-		kvs, il := translateEventAndPayload(ld.Event, ld.Payload, internalLogs)
+func (r *Recorder) translateLogs(lrs []ot.LogRecord) []*cpb.Log {
+	logs := make([]*cpb.Log, len(lrs))
+	for i, lr := range lrs {
 		logs[i] = &cpb.Log{
-			Timestamp: translateTime(ld.Timestamp),
-			Keyvalues: kvs,
+			Timestamp: translateTime(lr.Timestamp),
 		}
-		internalLogs = append(internalLogs, il...)
+		marshalFields(r, logs[i], lr.Fields)
 	}
-	return logs, internalLogs
+	return logs
 }
 
 func (r *Recorder) translateRawSpan(rs basictracer.RawSpan) (*cpb.Span, []*cpb.Log) {
-	logs, internalLogs := translateLogDatas(rs.Logs)
 	s := &cpb.Span{
 		SpanContext:    translateSpanContext(rs.Context),
 		OperationName:  rs.Operation,
@@ -489,7 +472,7 @@ func (r *Recorder) translateRawSpan(rs basictracer.RawSpan) (*cpb.Span, []*cpb.L
 		StartTimestamp: translateTime(rs.Start),
 		DurationMicros: translateDuration(rs.Duration),
 		Tags:           r.translateTags(rs.Tags),
-		Logs:           logs,
+		Logs:           r.translateLogs(rs.Logs),
 	}
 	return s, internalLogs
 }

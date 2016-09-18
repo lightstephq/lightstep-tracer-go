@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -12,6 +13,11 @@ import (
 	"github.com/lightstep/lightstep-tracer-go/thrift_rpc"
 	"github.com/opentracing/basictracer-go"
 	ot "github.com/opentracing/opentracing-go"
+	"github.com/opentracing/opentracing-go/log"
+)
+
+const (
+	arbitraryTimestampSecs = 1473442150
 )
 
 func makeSpanSlice(length int) []basictracer.RawSpan {
@@ -23,30 +29,41 @@ func makeExpectedLogs() []*cpb.Log {
 	for i := 0; i < 8; i++ {
 		pl, _ := json.Marshal([]interface{}{i, i, true, "suhhh"})
 		eRes[i] = &cpb.Log{
-			Timestamp: &google_protobuf.Timestamp{1473442150, 0},
+			Timestamp: &google_protobuf.Timestamp{arbitraryTimestampSecs, 0},
 			Keyvalues: []*cpb.KeyValue{
-				&cpb.KeyValue{Key: messageKey, Value: &cpb.KeyValue_StringValue{fmt.Sprintf("Event%v", i)}},
-				&cpb.KeyValue{Key: payloadKey, Value: &cpb.KeyValue_StringValue{string(pl)}},
+				&cpb.KeyValue{Key: "string", Value: &cpb.KeyValue_StringValue{fmt.Sprintf("foo%d", i)}},
+				&cpb.KeyValue{Key: "object", Value: &cpb.KeyValue_StringValue{string(pl)}},
+				&cpb.KeyValue{
+					Key:   "too_long-----------…",
+					Value: &cpb.KeyValue_StringValue{"---------------------------------------…"},
+				},
 			},
 		}
 	}
 	return eRes
 }
 
-func TestTranslateLogDatas(t *testing.T) {
-	ts := time.Unix(1473442150, 0)
-	otLogs := make([]ot.LogData, 8)
+func TestTranslateLogs(t *testing.T) {
+	fakeRecorder := Recorder{
+		maxLogKeyLen:   20,
+		maxLogValueLen: 40,
+	}
+	ts := time.Unix(arbitraryTimestampSecs, 0)
+	otLogs := make([]ot.LogRecord, 8)
 	for i := 0; i < 8; i++ {
-		otLogs[i] = ot.LogData{
+		otLogs[i] = ot.LogRecord{
 			Timestamp: ts,
-			Event:     fmt.Sprintf("Event%v", i),
-			Payload:   []interface{}{i, i, true, "suhhh"},
+			Fields: []log.Field{
+				log.String("string", fmt.Sprintf("foo%d", i)),
+				log.Object("object", []interface{}{i, i, true, "suhhh"}),
+				log.String("too_long"+strings.Repeat("-", 50), strings.Repeat("-", 110)),
+			},
 		}
 	}
-	res, _ := translateLogDatas(otLogs)
+	res := fakeRecorder.translateLogs(otLogs)
 	eRes := makeExpectedLogs()
 	if !reflect.DeepEqual(res, eRes) {
-		t.Errorf("%v doesn not equal %v", res, eRes)
+		t.Errorf("%v does not equal %v", res, eRes)
 	}
 }
 
