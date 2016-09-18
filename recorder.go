@@ -63,7 +63,14 @@ const (
 	CommandLineKey           = "lightstep.command_line"
 )
 
-var intType reflect.Type = reflect.TypeOf(int64(0))
+var (
+	defaultReconnectPeriod = 5 * time.Minute
+
+	intType reflect.Type = reflect.TypeOf(int64(0))
+
+	errPreviousReportInFlight = fmt.Errorf("a previous Report is still in flight; aborting Flush()")
+	errConnectionWasClosed    = fmt.Errorf("the connection was closed")
+)
 
 // A set of counter values for a given time window
 type counterSet struct {
@@ -464,7 +471,7 @@ func (r *Recorder) translateLogs(lrs []ot.LogRecord) []*cpb.Log {
 	return logs
 }
 
-func (r *Recorder) translateRawSpan(rs basictracer.RawSpan) (*cpb.Span, []*cpb.Log) {
+func (r *Recorder) translateRawSpan(rs basictracer.RawSpan) *cpb.Span {
 	s := &cpb.Span{
 		SpanContext:    translateSpanContext(rs.Context),
 		OperationName:  rs.Operation,
@@ -474,18 +481,16 @@ func (r *Recorder) translateRawSpan(rs basictracer.RawSpan) (*cpb.Span, []*cpb.L
 		Tags:           r.translateTags(rs.Tags),
 		Logs:           r.translateLogs(rs.Logs),
 	}
-	return s, internalLogs
+	return s
 }
 
-func (r *Recorder) convertRawSpans(rawSpans []basictracer.RawSpan) ([]*cpb.Span, []*cpb.Log) {
-	var internalLogs []*cpb.Log
+func (r *Recorder) convertRawSpans(rawSpans []basictracer.RawSpan) []*cpb.Span {
 	spans := make([]*cpb.Span, len(rawSpans))
 	for i, rs := range rawSpans {
-		s, il := r.translateRawSpan(rs)
+		s := r.translateRawSpan(rs)
 		spans[i] = s
-		internalLogs = append(internalLogs, il...)
 	}
-	return spans, internalLogs
+	return spans
 }
 
 func translateAttributes(atts map[string]string) []*cpb.KeyValue {
@@ -512,19 +517,18 @@ func convertDroppedPendingToCounts(dp int64) []*cpb.MetricsSample {
 	}
 }
 
-func convertToInternalMetrics(ot time.Time, yt time.Time, dp int64, internalLogs []*cpb.Log) *cpb.InternalMetrics {
+func convertToInternalMetrics(ot time.Time, yt time.Time, dp int64) *cpb.InternalMetrics {
 	return &cpb.InternalMetrics{
 		StartTimestamp: translateTime(ot),
 		DurationMicros: translateDurationFromOldesYoungest(ot, yt),
 		Counts:         convertDroppedPendingToCounts(dp),
-		Logs:           internalLogs,
 	}
 }
 
 func (r *Recorder) makeReportRequest(buffer *reportBuffer) *cpb.ReportRequest {
-	spans, internalLogs := r.convertRawSpans(buffer.rawSpans)
+	spans := r.convertRawSpans(buffer.rawSpans)
 	tracer := convertToTracer(r.attributes, r.tracerID)
-	internalMetrics := convertToInternalMetrics(buffer.reportStart, buffer.reportEnd, buffer.dropped, internalLogs)
+	internalMetrics := convertToInternalMetrics(buffer.reportStart, buffer.reportEnd, buffer.dropped)
 
 	req := cpb.ReportRequest{
 		Tracer:          tracer,
