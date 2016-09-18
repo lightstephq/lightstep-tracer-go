@@ -60,7 +60,7 @@ func TestTranslateLogs(t *testing.T) {
 			},
 		}
 	}
-	res := fakeRecorder.translateLogs(otLogs)
+	res := fakeRecorder.translateLogs(otLogs, nil)
 	eRes := makeExpectedLogs()
 	if !reflect.DeepEqual(res, eRes) {
 		t.Errorf("%v does not equal %v", res, eRes)

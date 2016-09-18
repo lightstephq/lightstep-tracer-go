@@ -14,11 +14,17 @@ const (
 // An implementation of the log.Encoder interface
 type logFieldEncoder struct {
 	recorder        *Recorder
+	buffer          *reportBuffer
 	currentKeyValue *cpb.KeyValue
 }
 
-func marshalFields(recorder *Recorder, protoLog *cpb.Log, fields []log.Field) {
-	lfe := logFieldEncoder{recorder, nil}
+func marshalFields(
+	recorder *Recorder,
+	protoLog *cpb.Log,
+	fields []log.Field,
+	buffer *reportBuffer,
+) {
+	lfe := logFieldEncoder{recorder, buffer, nil}
 	protoLog.Keyvalues = make([]*cpb.KeyValue, len(fields))
 	for i, f := range fields {
 		lfe.currentKeyValue = &cpb.KeyValue{}
@@ -65,7 +71,12 @@ func (lfe *logFieldEncoder) EmitFloat64(key string, value float64) {
 }
 func (lfe *logFieldEncoder) EmitObject(key string, value interface{}) {
 	lfe.emitSafeKey(key)
-	jsonBytes, _ := json.Marshal(value)
+	jsonBytes, err := json.Marshal(value)
+	if err != nil {
+		lfe.buffer.logEncoderErrorCount++
+		lfe.emitSafeString("<json.Marshal error>")
+		return
+	}
 	lfe.emitSafeString(string(jsonBytes))
 }
 func (lfe *logFieldEncoder) EmitLazyLogger(value log.LazyLogger) {

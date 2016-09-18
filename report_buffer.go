@@ -7,10 +7,11 @@ import (
 )
 
 type reportBuffer struct {
-	rawSpans    []basictracer.RawSpan
-	dropped     int64
-	reportStart time.Time
-	reportEnd   time.Time
+	rawSpans             []basictracer.RawSpan
+	droppedSpanCount     int64
+	logEncoderErrorCount int64
+	reportStart          time.Time
+	reportEnd            time.Time
 }
 
 func newSpansBuffer(size int) (b reportBuffer) {
@@ -37,12 +38,13 @@ func (b *reportBuffer) clear() {
 	b.rawSpans = b.rawSpans[:0]
 	b.reportStart = time.Time{}
 	b.reportEnd = time.Time{}
-	b.dropped = 0
+	b.droppedSpanCount = 0
+	b.logEncoderErrorCount = 0
 }
 
 func (b *reportBuffer) addSpan(span basictracer.RawSpan) {
 	if len(b.rawSpans) == cap(b.rawSpans) {
-		b.dropped++
+		b.droppedSpanCount++
 		return
 	}
 	b.rawSpans = append(b.rawSpans, span)
@@ -52,7 +54,8 @@ func (b *reportBuffer) addSpan(span basictracer.RawSpan) {
 // returning with `from` empty and `into` having a subset of the
 // combined data.
 func (into *reportBuffer) mergeFrom(from *reportBuffer) {
-	into.dropped += from.dropped
+	into.droppedSpanCount += from.droppedSpanCount
+	into.logEncoderErrorCount += from.logEncoderErrorCount
 	if from.reportStart.Before(into.reportStart) {
 		into.reportStart = from.reportStart
 	}
@@ -71,7 +74,7 @@ func (into *reportBuffer) mergeFrom(from *reportBuffer) {
 	}
 
 	copy(into.rawSpans[have:], from.rawSpans[0:space])
-	into.dropped += int64(unreported - space)
+	into.droppedSpanCount += int64(unreported - space)
 
 	from.clear()
 }

@@ -26,8 +26,9 @@ import (
 )
 
 const (
-	spansDropped  = "spans.dropped"
-	collectorPath = "/_rpc/v1/reports/binary"
+	spansDropped     = "spans.dropped"
+	logEncoderErrors = "log_encoder.errors"
+	collectorPath    = "/_rpc/v1/reports/binary"
 
 	defaultPlainPort  = 80
 	defaultSecurePort = 443
@@ -427,7 +428,7 @@ func translateDuration(d time.Duration) uint64 {
 	return uint64(d) / 1000
 }
 
-func translateDurationFromOldesYoungest(ot time.Time, yt time.Time) uint64 {
+func translateDurationFromOldestYoungest(ot time.Time, yt time.Time) uint64 {
 	return translateDuration(yt.Sub(ot))
 }
 
@@ -460,18 +461,18 @@ func (r *Recorder) convertToKeyValue(key string, value interface{}) *cpb.KeyValu
 	return &kv
 }
 
-func (r *Recorder) translateLogs(lrs []ot.LogRecord) []*cpb.Log {
+func (r *Recorder) translateLogs(lrs []ot.LogRecord, buffer *reportBuffer) []*cpb.Log {
 	logs := make([]*cpb.Log, len(lrs))
 	for i, lr := range lrs {
 		logs[i] = &cpb.Log{
 			Timestamp: translateTime(lr.Timestamp),
 		}
-		marshalFields(r, logs[i], lr.Fields)
+		marshalFields(r, logs[i], lr.Fields, buffer)
 	}
 	return logs
 }
 
-func (r *Recorder) translateRawSpan(rs basictracer.RawSpan) *cpb.Span {
+func (r *Recorder) translateRawSpan(rs basictracer.RawSpan, buffer *reportBuffer) *cpb.Span {
 	s := &cpb.Span{
 		SpanContext:    translateSpanContext(rs.Context),
 		OperationName:  rs.Operation,
@@ -479,15 +480,15 @@ func (r *Recorder) translateRawSpan(rs basictracer.RawSpan) *cpb.Span {
 		StartTimestamp: translateTime(rs.Start),
 		DurationMicros: translateDuration(rs.Duration),
 		Tags:           r.translateTags(rs.Tags),
-		Logs:           r.translateLogs(rs.Logs),
+		Logs:           r.translateLogs(rs.Logs, buffer),
 	}
 	return s
 }
 
-func (r *Recorder) convertRawSpans(rawSpans []basictracer.RawSpan) []*cpb.Span {
-	spans := make([]*cpb.Span, len(rawSpans))
-	for i, rs := range rawSpans {
-		s := r.translateRawSpan(rs)
+func (r *Recorder) convertRawSpans(buffer *reportBuffer) []*cpb.Span {
+	spans := make([]*cpb.Span, len(buffer.rawSpans))
+	for i, rs := range buffer.rawSpans {
+		s := r.translateRawSpan(rs, buffer)
 		spans[i] = s
 	}
 	return spans
@@ -508,33 +509,36 @@ func convertToTracer(atts map[string]string, id uint64) *cpb.Tracer {
 	}
 }
 
-func convertDroppedPendingToCounts(dp int64) []*cpb.MetricsSample {
+func (b *reportBuffer) generateMetricsSample() []*cpb.MetricsSample {
 	return []*cpb.MetricsSample{
 		&cpb.MetricsSample{
 			Name:  spansDropped,
-			Value: &cpb.MetricsSample_IntValue{dp},
+			Value: &cpb.MetricsSample_IntValue{b.droppedSpanCount},
+		},
+		&cpb.MetricsSample{
+			Name:  logEncoderErrors,
+			Value: &cpb.MetricsSample_IntValue{b.logEncoderErrorCount},
 		},
 	}
 }
 
-func convertToInternalMetrics(ot time.Time, yt time.Time, dp int64) *cpb.InternalMetrics {
+func (b *reportBuffer) convertToInternalMetrics() *cpb.InternalMetrics {
 	return &cpb.InternalMetrics{
-		StartTimestamp: translateTime(ot),
-		DurationMicros: translateDurationFromOldesYoungest(ot, yt),
-		Counts:         convertDroppedPendingToCounts(dp),
+		StartTimestamp: translateTime(b.reportStart),
+		DurationMicros: translateDurationFromOldestYoungest(b.reportStart, b.reportEnd),
+		Counts:         b.generateMetricsSample(),
 	}
 }
 
 func (r *Recorder) makeReportRequest(buffer *reportBuffer) *cpb.ReportRequest {
-	spans := r.convertRawSpans(buffer.rawSpans)
+	spans := r.convertRawSpans(buffer)
 	tracer := convertToTracer(r.attributes, r.tracerID)
-	internalMetrics := convertToInternalMetrics(buffer.reportStart, buffer.reportEnd, buffer.dropped)
 
 	req := cpb.ReportRequest{
 		Tracer:          tracer,
 		Auth:            &cpb.Auth{r.accessToken},
 		Spans:           spans,
-		InternalMetrics: internalMetrics,
+		InternalMetrics: buffer.convertToInternalMetrics(),
 	}
 	return &req
 
@@ -592,7 +596,7 @@ func (r *Recorder) Flush() {
 		// Restore the records that did not get sent correctly
 		r.buffer.mergeFrom(&r.flushing)
 	} else {
-		droppedSent = r.flushing.dropped
+		droppedSent = r.flushing.droppedSpanCount
 		r.flushing.clear()
 	}
 	r.lock.Unlock()
