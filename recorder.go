@@ -613,6 +613,10 @@ func (r *Recorder) Flush() {
 	if droppedSent != 0 {
 		r.maybeLogInfof("client reported %d dropped spans", droppedSent)
 	}
+
+	if err != nil {
+		return
+	}
 	for _, c := range resp.Commands {
 		if c.Disable {
 			r.Disable()
