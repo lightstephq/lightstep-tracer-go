@@ -45,6 +45,7 @@ const (
 	defaultReportTimeout  = 30 * time.Second
 	defaultMaxLogKeyLen   = 256
 	defaultMaxLogValueLen = 1024
+	defaultMaxLogsPerSpan = 500
 
 	// ParentSpanGUIDKey is the tag key used to record the relationship
 	// between child and parent spans.
@@ -117,6 +118,9 @@ type Options struct {
 	// variable-length value types (strings, interface{}, etc).
 	MaxLogValueLen int `yaml:"max_log_value_len"`
 
+	// MaxLogsPerSpan limits the number of logs in a single span.
+	MaxLogsPerSpan int `yaml:"max_logs_per_span"`
+
 	// ReportingPeriod is the maximum duration of time between sending spans
 	// to a collector.  If zero, the default will be used.
 	ReportingPeriod time.Duration `yaml:"reporting_period"`
@@ -150,6 +154,9 @@ func NewTracer(opts Options) ot.Tracer {
 	if opts.MaxLogValueLen == 0 {
 		opts.MaxLogValueLen = defaultMaxLogValueLen
 	}
+	if opts.MaxLogsPerSpan == 0 {
+		opts.MaxLogsPerSpan = defaultMaxLogsPerSpan
+	}
 	if opts.ReportingPeriod == 0 {
 		opts.ReportingPeriod = defaultMaxReportingPeriod
 	}
@@ -177,8 +184,9 @@ func NewTracer(opts Options) ot.Tracer {
 			ReportingPeriod:  opts.ReportingPeriod,
 			ReportTimeout:    opts.ReportTimeout,
 			DropSpanLogs:     opts.DropSpanLogs,
+			MaxLogsPerSpan:   opts.MaxLogsPerSpan,
 			Verbose:          opts.Verbose,
-			MaxLogMessageLen: int(opts.MaxLogValueLen),
+			MaxLogMessageLen: opts.MaxLogValueLen,
 		}
 		r := thrift_rpc.NewRecorder(thriftOpts)
 		if r == nil {
@@ -187,6 +195,7 @@ func NewTracer(opts Options) ot.Tracer {
 		options.Recorder = r
 	}
 	options.DropAllLogs = opts.DropSpanLogs
+	options.MaxLogsPerSpan = opts.MaxLogsPerSpan
 	return basictracer.NewWithOptions(options)
 }
 
