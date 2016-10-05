@@ -131,9 +131,9 @@ type Options struct {
 	DropSpanLogs bool `yaml:"drop_span_logs"`
 
 	// Set Verbose to true to enable more text logging.
-	Verbose bool
+	Verbose bool `yaml:"verbose"`
 
-	UseGRPC bool
+	UseGRPC bool `yaml:"use_grpc"`
 
 	ReconnectPeriod time.Duration `yaml:"reconnect_period"`
 }
@@ -418,6 +418,9 @@ func translateSpanContext(sc basictracer.SpanContext) *cpb.SpanContext {
 }
 
 func translateParentSpanID(pid uint64) []*cpb.Reference {
+	if pid == 0 {
+		return nil
+	}
 	return []*cpb.Reference{
 		&cpb.Reference{
 			Relationship: cpb.Reference_CHILD_OF,
