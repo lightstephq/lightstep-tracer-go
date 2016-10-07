@@ -586,7 +586,8 @@ func (r *Recorder) Flush() {
 	r.lastReportAttempt = now
 	r.lock.Unlock()
 
-	ctx, _ := context.WithTimeout(context.Background(), r.reportingTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), r.reportingTimeout)
+	defer cancel()
 	resp, err := r.backend.Report(ctx, r.makeReportRequest(&r.flushing))
 
 	if err != nil {
