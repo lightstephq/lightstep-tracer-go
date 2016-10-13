@@ -133,7 +133,8 @@ type Options struct {
 	// Set Verbose to true to enable more text logging.
 	Verbose bool `yaml:"verbose"`
 
-	UseGRPC bool `yaml:"use_grpc"`
+	// Note: flag is in use--do not change.
+	UseGRPC bool `yaml:"usegrpc"`
 
 	ReconnectPeriod time.Duration `yaml:"reconnect_period"`
 }
