@@ -14,6 +14,6 @@ proto:
 	  echo "Must run 'git submodule update --init' before generating protobuf stubs"; \
 	  false; \
 	fi
-	docker run -v $(shell pwd)/lightstep-tracer-common:/input:ro -v $(shell pwd)/collectorpb:/output \
+	docker run --rm -v $(shell pwd)/lightstep-tracer-common:/input:ro -v $(shell pwd)/collectorpb:/output \
 	  lightstep/protoc:latest \
 	  protoc --go_out=plugins=grpc:/output --proto_path=/input /input/collector.proto
