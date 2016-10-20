@@ -9,6 +9,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"time"
 
 	"golang.org/x/net/context"
 
@@ -27,7 +28,11 @@ func subRoutine(ctx context.Context) {
 
 	subSpan := opentracing.StartSpan(
 		"child span", opentracing.ChildOf(trivialSpan.Context()))
-	trivialSpan.LogFields(log.Int("int_key", 42), log.Object("subSpan", subSpan))
+	trivialSpan.LogFields(log.Int("int_key", 42), log.Object("subSpan", subSpan),
+		log.String("time.eager", fmt.Sprint(time.Now())),
+		log.Lazy(func(fv log.Encoder) {
+			fv.EmitString("time.lazy", fmt.Sprint(time.Now()))
+		}))
 	defer subSpan.Finish()
 }
 

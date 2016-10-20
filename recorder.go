@@ -45,6 +45,7 @@ const (
 	defaultReportTimeout  = 30 * time.Second
 	defaultMaxLogKeyLen   = 256
 	defaultMaxLogValueLen = 1024
+	defaultMaxLogsPerSpan = 500
 
 	// ParentSpanGUIDKey is the tag key used to record the relationship
 	// between child and parent spans.
@@ -117,6 +118,9 @@ type Options struct {
 	// variable-length value types (strings, interface{}, etc).
 	MaxLogValueLen int `yaml:"max_log_value_len"`
 
+	// MaxLogsPerSpan limits the number of logs in a single span.
+	MaxLogsPerSpan int `yaml:"max_logs_per_span"`
+
 	// ReportingPeriod is the maximum duration of time between sending spans
 	// to a collector.  If zero, the default will be used.
 	ReportingPeriod time.Duration `yaml:"reporting_period"`
@@ -127,19 +131,15 @@ type Options struct {
 	DropSpanLogs bool `yaml:"drop_span_logs"`
 
 	// Set Verbose to true to enable more text logging.
-	Verbose bool
+	Verbose bool `yaml:"verbose"`
 
-	UseGRPC bool
+	// Note: flag is in use--do not change.
+	UseGRPC bool `yaml:"usegrpc"`
 
 	ReconnectPeriod time.Duration `yaml:"reconnect_period"`
 }
 
-// NewTracer returns a new Tracer that reports spans to a LightStep
-// collector.
-func NewTracer(opts Options) ot.Tracer {
-	options := basictracer.DefaultOptions()
-	options.ShouldSample = func(_ uint64) bool { return true }
-
+func (opts *Options) setDefaults() {
 	// Note: opts is a copy of the user's data, ok to modify.
 	if opts.MaxBufferedSpans == 0 {
 		opts.MaxBufferedSpans = defaultMaxSpans
@@ -150,6 +150,9 @@ func NewTracer(opts Options) ot.Tracer {
 	if opts.MaxLogValueLen == 0 {
 		opts.MaxLogValueLen = defaultMaxLogValueLen
 	}
+	if opts.MaxLogsPerSpan == 0 {
+		opts.MaxLogsPerSpan = defaultMaxLogsPerSpan
+	}
 	if opts.ReportingPeriod == 0 {
 		opts.ReportingPeriod = defaultMaxReportingPeriod
 	}
@@ -159,6 +162,13 @@ func NewTracer(opts Options) ot.Tracer {
 	if opts.ReconnectPeriod == 0 {
 		opts.ReconnectPeriod = defaultReconnectPeriod
 	}
+}
+
+// NewTracer returns a new Tracer that reports spans to a LightStep
+// collector.
+func NewTracer(opts Options) ot.Tracer {
+	options := basictracer.DefaultOptions()
+	options.ShouldSample = func(_ uint64) bool { return true }
 
 	if opts.UseGRPC {
 		r := NewRecorder(opts)
@@ -167,6 +177,7 @@ func NewTracer(opts Options) ot.Tracer {
 		}
 		options.Recorder = r
 	} else {
+		opts.setDefaults()
 		// convert opts to thrift_rpc.Options
 		thriftOpts := thrift_rpc.Options{
 			AccessToken:      opts.AccessToken,
@@ -177,8 +188,9 @@ func NewTracer(opts Options) ot.Tracer {
 			ReportingPeriod:  opts.ReportingPeriod,
 			ReportTimeout:    opts.ReportTimeout,
 			DropSpanLogs:     opts.DropSpanLogs,
+			MaxLogsPerSpan:   opts.MaxLogsPerSpan,
 			Verbose:          opts.Verbose,
-			MaxLogMessageLen: int(opts.MaxLogValueLen),
+			MaxLogMessageLen: opts.MaxLogValueLen,
 		}
 		r := thrift_rpc.NewRecorder(thriftOpts)
 		if r == nil {
@@ -187,6 +199,7 @@ func NewTracer(opts Options) ot.Tracer {
 		options.Recorder = r
 	}
 	options.DropAllLogs = opts.DropSpanLogs
+	options.MaxLogsPerSpan = opts.MaxLogsPerSpan
 	return basictracer.NewWithOptions(options)
 }
 
@@ -274,6 +287,7 @@ type Recorder struct {
 }
 
 func NewRecorder(opts Options) *Recorder {
+	opts.setDefaults()
 	if len(opts.AccessToken) == 0 {
 		fmt.Println("LightStep Recorder options.AccessToken must not be empty")
 		return nil
@@ -409,6 +423,9 @@ func translateSpanContext(sc basictracer.SpanContext) *cpb.SpanContext {
 }
 
 func translateParentSpanID(pid uint64) []*cpb.Reference {
+	if pid == 0 {
+		return nil
+	}
 	return []*cpb.Reference{
 		&cpb.Reference{
 			Relationship: cpb.Reference_CHILD_OF,
@@ -574,7 +591,8 @@ func (r *Recorder) Flush() {
 	r.lastReportAttempt = now
 	r.lock.Unlock()
 
-	ctx, _ := context.WithTimeout(context.Background(), r.reportingTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), r.reportingTimeout)
+	defer cancel()
 	resp, err := r.backend.Report(ctx, r.makeReportRequest(&r.flushing))
 
 	if err != nil {

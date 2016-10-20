@@ -97,6 +97,9 @@ type Options struct {
 
 	// In place of Flags
 	MaxLogMessageLen int
+
+	// MaxLogsPerSpan limits the number of logs in a single span.
+	MaxLogsPerSpan int `yaml:"max_logs_per_span"`
 }
 
 // NewTracer returns a new Tracer that reports spans to a LightStep
@@ -106,6 +109,7 @@ func NewTracer(opts Options) ot.Tracer {
 	options.ShouldSample = func(_ uint64) bool { return true }
 	options.Recorder = NewRecorder(opts)
 	options.DropAllLogs = opts.DropSpanLogs
+	options.MaxLogsPerSpan = opts.MaxLogsPerSpan
 	return basictracer.NewWithOptions(options)
 }
 
