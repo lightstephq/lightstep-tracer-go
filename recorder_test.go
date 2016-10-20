@@ -32,7 +32,7 @@ func makeExpectedLogs() []*cpb.Log {
 			Timestamp: &google_protobuf.Timestamp{arbitraryTimestampSecs, 0},
 			Keyvalues: []*cpb.KeyValue{
 				&cpb.KeyValue{Key: "string", Value: &cpb.KeyValue_StringValue{fmt.Sprintf("foo%d", i)}},
-				&cpb.KeyValue{Key: "object", Value: &cpb.KeyValue_StringValue{string(pl)}},
+				&cpb.KeyValue{Key: "object", Value: &cpb.KeyValue_JsonValue{string(pl)}},
 				&cpb.KeyValue{
 					Key:   "too_long-----------…",
 					Value: &cpb.KeyValue_StringValue{"---------------------------------------…"},
