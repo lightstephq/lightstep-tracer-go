@@ -33,8 +33,9 @@ const (
 	defaultPlainPort  = 80
 	defaultSecurePort = 443
 
-	defaultCollectorHost = "collector.lightstep.com"
-	defaultAPIHost       = "api.lightstep.com"
+	defaultCollectorHost     = "collector.lightstep.com"
+	defaultGRPCCollectorHost = "collector-grpc.lightstep.com"
+	defaultAPIHost           = "api.lightstep.com"
 
 	// See the comment for shouldFlush() for more about these tuning
 	// parameters.
@@ -703,16 +704,21 @@ func (r *Recorder) reportLoop(closech chan struct{}) {
 
 func getCollectorHostPort(opts Options) string {
 	e := opts.Collector
-	host := defaultCollectorHost
-	if e.Host != "" {
-		host = e.Host
+	host := e.Host
+	if host == "" {
+		if opts.UseGRPC {
+			host = defaultGRPCCollectorHost
+		} else {
+			host = defaultCollectorHost
+		}
 	}
-	port := defaultSecurePort
-	if e.Plaintext {
-		port = defaultPlainPort
-	}
-	if e.Port > 0 {
-		port = e.Port
+	port := e.Port
+	if port <= 0 {
+		if e.Plaintext {
+			port = defaultPlainPort
+		} else {
+			port = defaultSecurePort
+		}
 	}
 	return fmt.Sprintf("%s:%d", host, port)
 }
