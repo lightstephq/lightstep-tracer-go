@@ -38,4 +38,3 @@ func main() {
 
 For instrumentation documentation, see the [opentracing-go
 godocs](https://godoc.org/github.com/opentracing/opentracing-go).
-
