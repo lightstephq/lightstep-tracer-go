@@ -1,4 +1,9 @@
-all: thrift proto
+# tools
+GO=go
+
+default: build
+
+all: thrift proto build
 
 .PHONY: thrift proto
 
@@ -17,3 +22,6 @@ proto:
 	docker run --rm -v $(shell pwd)/lightstep-tracer-common:/input:ro -v $(shell pwd)/collectorpb:/output \
 	  lightstep/protoc:latest \
 	  protoc --go_out=plugins=grpc:/output --proto_path=/input /input/collector.proto
+
+build: thrift proto
+	${GO} build github.com/lightstep/lightstep-tracer-go/...
