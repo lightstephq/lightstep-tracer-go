@@ -35,3 +35,4 @@
 777daa17ff9b5daef1cfdf915088a2ada3332bf0	google.golang.org/grpc/test/codec_perf
 777daa17ff9b5daef1cfdf915088a2ada3332bf0	google.golang.org/grpc/transport
 manual removal					golang.org/x/net/context
+manual removal					golang.org/x/net/trace
