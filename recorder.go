@@ -387,6 +387,10 @@ func (r *Recorder) reconnectClient(now time.Time) {
 	}
 }
 
+func (r *Recorder) TracerID() uint64 {
+	return r.tracerID
+}
+
 func (r *Recorder) Close() error {
 	r.lock.Lock()
 	conn := r.conn
