@@ -250,7 +250,7 @@ type Recorder struct {
 	// collection requests.
 	accessToken string
 
-	tracerID           uint64        // the LightStep tracer guid
+	reporterID         uint64        // the LightStep tracer guid
 	verbose            bool          // whether to print verbose messages
 	maxLogKeyLen       int           // see Options.MaxLogKeyLen
 	maxLogValueLen     int           // see Options.MaxLogValueLen
@@ -331,7 +331,7 @@ func NewRecorder(opts Options) *Recorder {
 		maxLogKeyLen:       opts.MaxLogKeyLen,
 		maxLogValueLen:     opts.MaxLogValueLen,
 		apiURL:             getAPIURL(opts),
-		tracerID:           genSeededGUID(),
+		reporterID:         genSeededGUID(),
 		buffer:             newSpansBuffer(opts.MaxBufferedSpans),
 		flushing:           newSpansBuffer(opts.MaxBufferedSpans),
 		hostPort:           getCollectorHostPort(opts),
@@ -387,8 +387,8 @@ func (r *Recorder) reconnectClient(now time.Time) {
 	}
 }
 
-func (r *Recorder) TracerID() uint64 {
-	return r.tracerID
+func (r *Recorder) ReporterID() uint64 {
+	return r.reporterID
 }
 
 func (r *Recorder) Close() error {
@@ -524,10 +524,10 @@ func translateAttributes(atts map[string]string) []*cpb.KeyValue {
 	return tags
 }
 
-func convertToTracer(atts map[string]string, id uint64) *cpb.Tracer {
-	return &cpb.Tracer{
-		TracerId: id,
-		Tags:     translateAttributes(atts),
+func convertToReporter(atts map[string]string, id uint64) *cpb.Reporter {
+	return &cpb.Reporter{
+		ReporterId: id,
+		Tags:       translateAttributes(atts),
 	}
 }
 
@@ -554,10 +554,10 @@ func (b *reportBuffer) convertToInternalMetrics() *cpb.InternalMetrics {
 
 func (r *Recorder) makeReportRequest(buffer *reportBuffer) *cpb.ReportRequest {
 	spans := r.convertRawSpans(buffer)
-	tracer := convertToTracer(r.attributes, r.tracerID)
+	reporter := convertToReporter(r.attributes, r.reporterID)
 
 	req := cpb.ReportRequest{
-		Tracer:          tracer,
+		Reporter:        reporter,
 		Auth:            &cpb.Auth{r.accessToken},
 		Spans:           spans,
 		InternalMetrics: buffer.convertToInternalMetrics(),
