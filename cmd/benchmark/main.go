@@ -10,8 +10,6 @@ import (
 	"sync"
 	"time"
 
-	// bench "github.com/lightstep/lightstep-benchmarks/benchlib"
-
 	ls "github.com/lightstep/lightstep-tracer-go"
 	bt "github.com/opentracing/basictracer-go"
 	ot "github.com/opentracing/opentracing-go"
