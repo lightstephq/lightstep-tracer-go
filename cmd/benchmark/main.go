@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	bench "github.com/lightstep/lightstep-benchmarks/benchlib"
+	// bench "github.com/lightstep/lightstep-benchmarks/benchlib"
 
 	ls "github.com/lightstep/lightstep-tracer-go"
 	bt "github.com/opentracing/basictracer-go"
@@ -19,6 +19,14 @@ import (
 
 const (
 	clientName = "golang"
+
+	ControlPath           = "/control"
+	ResultPath            = "/result"
+	ControllerPort        = 8000
+	GrpcPort              = 8001
+	ControllerHost        = "localhost"
+	ControllerAccessToken = "ignored"
+	LogsSizeMax           = 1 << 20
 )
 
 var (
@@ -30,11 +38,35 @@ func fatal(x ...interface{}) {
 }
 
 func init() {
-	lps := make([]byte, bench.LogsSizeMax)
+	lps := make([]byte, LogsSizeMax)
 	for i := 0; i < len(lps); i++ {
 		lps[i] = 'A' + byte(i%26)
 	}
 	logPayloadStr = string(lps)
+}
+
+type Control struct {
+	Concurrent int // How many routines, threads, etc.
+
+	// How much work to perform under one span
+	Work int64
+
+	// How many repetitions
+	Repeat int64
+
+	// How many amortized nanoseconds to sleep after each span
+	Sleep time.Duration
+	// How many nanoseconds to sleep at once
+	SleepInterval time.Duration
+
+	// How many bytes per log statement
+	BytesPerLog int64
+	NumLogs     int64
+
+	// Misc control bits
+	Trace   bool // Trace the operation.
+	Exit    bool // Terminate the test.
+	Profile bool // Profile this operation
 }
 
 type testClient struct {
@@ -71,9 +103,9 @@ func (t *testClient) getURL(path string) []byte {
 
 func (t *testClient) loop() {
 	for {
-		body := t.getURL(bench.ControlPath)
+		body := t.getURL(ControlPath)
 
-		control := bench.Control{}
+		control := Control{}
 		if err := json.Unmarshal(body, &control); err != nil {
 			fatal("Bench control parse error: ", err)
 		}
@@ -83,7 +115,7 @@ func (t *testClient) loop() {
 		timing, flusht, sleeps, answer := t.run(&control)
 		t.getURL(fmt.Sprintf(
 			"%s?timing=%.9f&flush=%.9f&s=%.9f&a=%d",
-			bench.ResultPath,
+			ResultPath,
 			timing.Seconds(),
 			flusht.Seconds(),
 			sleeps.Seconds(),
@@ -91,7 +123,7 @@ func (t *testClient) loop() {
 	}
 }
 
-func testBody(control *bench.Control) (time.Duration, int64) {
+func testBody(control *Control) (time.Duration, int64) {
 	var sleep_debt time.Duration
 	var answer int64
 	var totalSleep time.Duration
@@ -116,7 +148,7 @@ func testBody(control *bench.Control) (time.Duration, int64) {
 	return totalSleep, answer
 }
 
-func (t *testClient) run(control *bench.Control) (time.Duration, time.Duration, time.Duration, int64) {
+func (t *testClient) run(control *Control) (time.Duration, time.Duration, time.Duration, int64) {
 	if control.Trace {
 		ot.InitGlobalTracer(t.tracer)
 	} else {
@@ -166,13 +198,13 @@ func main() {
 	flag.Parse()
 	tc := &testClient{
 		baseURL: fmt.Sprint("http://",
-			bench.ControllerHost, ":",
-			bench.ControllerPort),
+			ControllerHost, ":",
+			ControllerPort),
 		tracer: ls.NewTracer(ls.Options{
-			AccessToken: bench.ControllerAccessToken,
+			AccessToken: ControllerAccessToken,
 			Collector: ls.Endpoint{
-				Host:      bench.ControllerHost,
-				Port:      bench.GrpcPort,
+				Host:      ControllerHost,
+				Port:      GrpcPort,
 				Plaintext: true,
 			},
 			// Verbose: true,
