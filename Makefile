@@ -11,7 +11,8 @@ ifeq (,$(wildcard $(LIGHTSTEP_HOME)/go/src/crouton/crouton.thrift))
 # the command is run within the LightStep development environment (i.e. the
 # LIGHTSTEP_HOME environment variable is set).
 lightstep_thrift/constants.go: $(LIGHTSTEP_HOME)/go/src/crouton/crouton.thrift
-	thrift --gen go:package_prefix='github.com/lightstep/lightstep-tracer-go/',thrift_import='github.com/lightstep/lightstep-tracer-go/thrift_0_9_2/lib/go/thrift' -out . $(LIGHTSTEP_HOME)/go/src/crouton/crouton.thrift
+	docker run -v "$(LIGHTSTEP_HOME)/go/src/crouton:/data" -v "$(PWD):/out" --rm thrift:0.9.2 \
+		thrift --gen go:package_prefix='github.com/lightstep/lightstep-tracer-go/',thrift_import='github.com/lightstep/lightstep-tracer-go/thrift_0_9_2/lib/go/thrift' -out /out /data/crouton.thrift
 	rm -rf lightstep_thrift/reporting_service-remote
 else
 lightstep_thrift/constants.go:
