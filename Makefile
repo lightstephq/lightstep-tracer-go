@@ -27,4 +27,5 @@ build: thrift proto
 	${GO} build github.com/lightstep/lightstep-tracer-go/...
 
 test:
+	$(GO) test
 	docker run --rm -v $(GOPATH):/input:ro lightstep/noglog:latest noglog github.com/lightstep/lightstep-tracer-go
