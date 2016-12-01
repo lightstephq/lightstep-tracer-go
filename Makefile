@@ -26,5 +26,5 @@ endif
 test: lightstep_thrift/constants.go collectorpb/collector.pb.go
 	go test github.com/lightstep/lightstep-tracer-go/...
 
-build: thrift proto
+build: lightstep_thrift/constants.go collectorpb/collector.pb.go
 	go build github.com/lightstep/lightstep-tracer-go/...
