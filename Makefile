@@ -32,3 +32,7 @@ test: lightstep_thrift/constants.go collectorpb/collector.pb.go
 
 build: lightstep_thrift/constants.go collectorpb/collector.pb.go
 	${GO} build github.com/lightstep/lightstep-tracer-go/...
+
+test:
+	$(GO) test
+	docker run --rm -v $(GOPATH):/input:ro lightstep/noglog:latest noglog github.com/lightstep/lightstep-tracer-go
