@@ -1,5 +1,9 @@
-.PHONY: default build test
+# tools
+GO=go
+
 default: build
+
+.PHONY: default build test
 
 # Thrift
 ifeq (,$(wildcard $(LIGHTSTEP_HOME)/go/src/crouton/crouton.thrift))
@@ -24,7 +28,7 @@ collectorpb/collector.pb.go: lightstep-tracer-common/collector.proto
 endif
 
 test: lightstep_thrift/constants.go collectorpb/collector.pb.go
-	go test github.com/lightstep/lightstep-tracer-go/...
+	${GO} test github.com/lightstep/lightstep-tracer-go/...
 
 build: lightstep_thrift/constants.go collectorpb/collector.pb.go
-	go build github.com/lightstep/lightstep-tracer-go/...
+	${GO} build github.com/lightstep/lightstep-tracer-go/...
