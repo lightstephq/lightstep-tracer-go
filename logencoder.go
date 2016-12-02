@@ -77,7 +77,7 @@ func (lfe *logFieldEncoder) EmitObject(key string, value interface{}) {
 		lfe.emitSafeString("<json.Marshal error>")
 		return
 	}
-	lfe.emitSafeString(string(jsonBytes))
+	lfe.emitSafeJSON(string(jsonBytes))
 }
 func (lfe *logFieldEncoder) EmitLazyLogger(value log.LazyLogger) {
 	// Delegate to `value` to do the late-bound encoding.
@@ -95,4 +95,12 @@ func (lfe *logFieldEncoder) emitSafeString(str string) {
 		str = str[:(lfe.recorder.maxLogValueLen-1)] + ellipsis
 	}
 	lfe.currentKeyValue.Value = &cpb.KeyValue_StringValue{str}
+}
+func (lfe *logFieldEncoder) emitSafeJSON(json string) {
+	if len(json) > lfe.recorder.maxLogValueLen {
+		str := json[:(lfe.recorder.maxLogValueLen-1)] + ellipsis
+		lfe.currentKeyValue.Value = &cpb.KeyValue_StringValue{str}
+		return
+	}
+	lfe.currentKeyValue.Value = &cpb.KeyValue_JsonValue{json}
 }
