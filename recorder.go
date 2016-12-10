@@ -223,6 +223,24 @@ func FlushLightStepTracer(lsTracer ot.Tracer) error {
 	return nil
 }
 
+func GetLightStepAccessToken(lsTracer ot.Tracer) (string, error) {
+	basicTracer, ok := lsTracer.(basictracer.Tracer)
+	if !ok {
+		return "", fmt.Errorf("Not a LightStep Tracer type: %v", reflect.TypeOf(lsTracer))
+	}
+
+	basicRecorder := basicTracer.Options().Recorder
+
+	switch t := basicRecorder.(type) {
+	case *Recorder:
+		return t.accessToken, nil
+	case *thrift_rpc.Recorder:
+		return t.AccessToken, nil
+	default:
+		return "", fmt.Errorf("Not a LightStep Recorder type: %v", reflect.TypeOf(basicRecorder))
+	}
+}
+
 // Recorder buffers spans and forwards them to a LightStep collector.
 type Recorder struct {
 	lock sync.Mutex

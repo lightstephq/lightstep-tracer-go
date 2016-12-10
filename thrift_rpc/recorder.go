@@ -155,9 +155,9 @@ type Recorder struct {
 	// explicit trace collection requests.
 	apiURL string
 
-	// accessToken is the access token used for explicit trace
+	// AccessToken is the access token used for explicit trace
 	// collection requests.
-	accessToken string
+	AccessToken string
 
 	verbose bool
 
@@ -214,7 +214,7 @@ func NewRecorder(opts Options) *Recorder {
 		maxReportingPeriod: defaultMaxReportingPeriod,
 		verbose:            opts.Verbose,
 		apiURL:             getAPIURL(opts),
-		accessToken:        opts.AccessToken,
+		AccessToken:        opts.AccessToken,
 		maxLogMessageLen:   opts.MaxLogMessageLen,
 	}
 	rec.buffer.setDefaults()
