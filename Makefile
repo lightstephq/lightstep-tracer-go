@@ -6,16 +6,16 @@ default: build
 .PHONY: default build test
 
 # Thrift
-ifeq (,$(wildcard $(LIGHTSTEP_HOME)/go/src/crouton/crouton.thrift))
-# LightStep-specific: rebuilds the LightStep thrift protocol files.  Assumes
-# the command is run within the LightStep development environment (i.e. the
-# LIGHTSTEP_HOME environment variable is set).
-lightstep_thrift/constants.go: $(LIGHTSTEP_HOME)/go/src/crouton/crouton.thrift
-	docker run -v "$(LIGHTSTEP_HOME)/go/src/crouton:/data" -v "$(PWD):/out" --rm thrift:0.9.2 \
-		thrift --gen go:package_prefix='github.com/lightstep/lightstep-tracer-go/',thrift_import='github.com/lightstep/lightstep-tracer-go/thrift_0_9_2/lib/go/thrift' -out /out /data/crouton.thrift
-	rm -rf lightstep_thrift/reporting_service-remote
-else
+ifeq (,$(wildcard $(GOPATH)/src/github.com/lightstep/common-go/crouton.thrift))
 lightstep_thrift/constants.go:
+else
+# LightStep-specific: rebuilds the LightStep thrift protocol files.
+# Assumes the command is run within the LightStep development
+# environment (i.e., private repos are cloned in GOPATH).
+lightstep_thrift/constants.go: $(GOPATH)/src/github.com/lightstep/common-go/crouton.thrift
+	docker run --rm -v "$(GOPATH)/src/github.com/lightstep/common-go:/data" -v "$(PWD):/out" thrift:0.9.2 \
+	  thrift --gen go:package_prefix='github.com/lightstep/lightstep-tracer-go/',thrift_import='github.com/lightstep/lightstep-tracer-go/thrift_0_9_2/lib/go/thrift' -out /out /data/crouton.thrift
+	rm -rf lightstep_thrift/reporting_service-remote
 endif
 
 # gRPC
