@@ -48,13 +48,28 @@ func (lfe *logFieldEncoder) EmitObject(key string, value interface{}) {
 	}
 }
 
-// All other log.Encoder methods do nothing in the thrift_rpc implementation.
-func (lfe *logFieldEncoder) EmitBool(key string, value bool)       {}
-func (lfe *logFieldEncoder) EmitInt(key string, value int)         {}
-func (lfe *logFieldEncoder) EmitInt32(key string, value int32)     {}
-func (lfe *logFieldEncoder) EmitInt64(key string, value int64)     {}
-func (lfe *logFieldEncoder) EmitUint32(key string, value uint32)   {}
-func (lfe *logFieldEncoder) EmitUint64(key string, value uint64)   {}
-func (lfe *logFieldEncoder) EmitFloat32(key string, value float32) {}
-func (lfe *logFieldEncoder) EmitFloat64(key string, value float64) {}
-func (lfe *logFieldEncoder) EmitLazyLogger(value log.LazyLogger)   {}
+func (lfe *logFieldEncoder) EmitBool(key string, value bool) {
+	lfe.EmitString(key, fmt.Sprint(value))
+}
+func (lfe *logFieldEncoder) EmitInt(key string, value int) {
+	lfe.EmitString(key, fmt.Sprint(value))
+}
+func (lfe *logFieldEncoder) EmitInt32(key string, value int32) {
+	lfe.EmitString(key, fmt.Sprint(value))
+}
+func (lfe *logFieldEncoder) EmitInt64(key string, value int64) {
+	lfe.EmitString(key, fmt.Sprint(value))
+}
+func (lfe *logFieldEncoder) EmitUint32(key string, value uint32) {
+	lfe.EmitString(key, fmt.Sprint(value))
+}
+func (lfe *logFieldEncoder) EmitUint64(key string, value uint64) {
+	lfe.EmitString(key, fmt.Sprint(value))
+}
+func (lfe *logFieldEncoder) EmitFloat32(key string, value float32) {
+	lfe.EmitString(key, fmt.Sprint(value))
+}
+func (lfe *logFieldEncoder) EmitFloat64(key string, value float64) {
+	lfe.EmitString(key, fmt.Sprint(value))
+}
+func (lfe *logFieldEncoder) EmitLazyLogger(value log.LazyLogger) {}
