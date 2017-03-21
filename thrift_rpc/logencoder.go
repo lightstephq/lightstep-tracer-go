@@ -25,14 +25,17 @@ type logFieldEncoder struct {
 }
 
 func (lfe *logFieldEncoder) EmitString(key, value string) {
-	if key == deprecatedFieldKeyEvent {
-		if len(value) > lfe.recorder.maxLogMessageLen {
-			value = value[:(lfe.recorder.maxLogMessageLen-1)] + ellipsis
-		}
-		lfe.logRecord.StableName = thrift.StringPtr(value)
+	if len(value) > lfe.recorder.maxLogMessageLen {
+		value = value[:(lfe.recorder.maxLogMessageLen-1)] + ellipsis
 	}
+	lfe.logRecord.Fields = append(lfe.logRecord.Fields, &lightstep_thrift.KeyValue{
+		Key:   key,
+		Value: value,
+	})
 }
+
 func (lfe *logFieldEncoder) EmitObject(key string, value interface{}) {
+	//TODO remove deprecatedFieldKeyPayload?
 	if key == deprecatedFieldKeyPayload {
 		var thriftPayload string
 		jsonString, err := json.Marshal(value)
