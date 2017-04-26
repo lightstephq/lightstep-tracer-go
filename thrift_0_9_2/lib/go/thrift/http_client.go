@@ -190,6 +190,9 @@ func (p *THttpClient) Close() error {
 		p.responseBuffer = nil
 	}
 	if p.requestBuffer != nil {
+		// Note: We do not return the buffer to the pool,
+		// since there is a potential race here.  It will be
+		// garbage collected.
 		p.requestBuffer = nil
 	}
 	return nil
