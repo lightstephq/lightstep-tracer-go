@@ -30,7 +30,7 @@ func main() {
     })
 
     // Optionally set the opentracing global Tracer to the above
-    opentracing.InitGlobalTracer(lightstepTracer)
+    opentracing.SetGlobalTracer(lightstepTracer)
 
     ...
 }
