@@ -6,8 +6,19 @@ import (
 )
 
 type (
-	SetSpanID       uint64
-	SetTraceID      uint64
+	// SetSpanID is a opentracing.StartSpanOption that sets an
+	// explicit SpanID.  It must be used in conjunction with
+	// SetTraceID or the result is undefined.
+	SetSpanID uint64
+
+	// SetTraceID is an opentracing.StartSpanOption that sets an
+	// explicit TraceID.  It must be used in order to set an
+	// explicit SpanID or ParentSpanID.
+	SetTraceID uint64
+
+	// SetParentSpanID is an opentracing.StartSpanOption that sets
+	// an explicit parent SpanID.  It must be used in conjunction with
+	// SetTraceID or the result is undefined.
 	SetParentSpanID uint64
 )
 
