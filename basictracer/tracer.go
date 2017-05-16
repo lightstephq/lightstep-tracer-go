@@ -35,6 +35,21 @@ type Options struct {
 	MaxLogsPerSpan int
 }
 
+type StartSpanOptions struct {
+	Options opentracing.StartSpanOptions
+
+	// Options to explicitly set span_id, trace_id,
+	// parent_span_id, expected to be used when exporting spans
+	// from another system into LightStep via opentracing APIs.
+	SetSpanID       uint64
+	SetParentSpanID uint64
+	SetTraceID      uint64
+}
+
+type LightStepStartSpanOption interface {
+	ApplyLS(*StartSpanOptions)
+}
+
 // DefaultOptions returns an Options object with a 1 in 64 sampling rate and
 // all options disabled. A Recorder needs to be set manually before using the
 // returned object with a Tracer.
@@ -70,43 +85,54 @@ func (t *tracerImpl) StartSpan(
 	operationName string,
 	opts ...opentracing.StartSpanOption,
 ) opentracing.Span {
-	sso := opentracing.StartSpanOptions{}
+	sso := StartSpanOptions{}
 	for _, o := range opts {
-		o.Apply(&sso)
+		if lso, ok := o.(LightStepStartSpanOption); ok {
+			lso.ApplyLS(&sso)
+		} else {
+			o.Apply(&sso.Options)
+		}
 	}
-	return t.StartSpanWithOptions(operationName, sso)
+	return t.startSpanWithOptions(operationName, &sso)
 }
 
-func (t *tracerImpl) StartSpanWithOptions(
+func (t *tracerImpl) startSpanWithOptions(
 	operationName string,
-	opts opentracing.StartSpanOptions,
+	opts *StartSpanOptions,
 ) opentracing.Span {
 	// Start time.
-	startTime := opts.StartTime
+	startTime := opts.Options.StartTime
 	if startTime.IsZero() {
 		startTime = time.Now()
 	}
 
 	// Tags.
-	tags := opts.Tags
+	tags := opts.Options.Tags
 
 	// Build the new span. This is the only allocation: We'll return this as
 	// an opentracing.Span.
 	sp := &spanImpl{}
+
+	// It's meaningless to provide wither SpanID or ParentSpanID
+	// without also providing TraceID, so just test for TraceID.
+	if opts.SetTraceID != 0 {
+		sp.raw.Context.TraceID = opts.SetTraceID
+		sp.raw.Context.SpanID = opts.SetSpanID
+		sp.raw.ParentSpanID = opts.SetParentSpanID
+	}
 
 	// Look for a parent in the list of References.
 	//
 	// TODO: would be nice if basictracer did something with all
 	// References, not just the first one.
 ReferencesLoop:
-	for _, ref := range opts.References {
+	for _, ref := range opts.Options.References {
 		switch ref.Type {
 		case opentracing.ChildOfRef,
 			opentracing.FollowsFromRef:
 
 			refCtx := ref.ReferencedContext.(SpanContext)
 			sp.raw.Context.TraceID = refCtx.TraceID
-			sp.raw.Context.SpanID = randomID()
 			sp.raw.ParentSpanID = refCtx.SpanID
 
 			if l := len(refCtx.Baggage); l > 0 {
@@ -119,9 +145,11 @@ ReferencesLoop:
 		}
 	}
 	if sp.raw.Context.TraceID == 0 {
-		// No parent Span found; allocate new trace and span ids and determine
-		// the Sampled status.
+		// TraceID not set by parent reference or explicitly
 		sp.raw.Context.TraceID, sp.raw.Context.SpanID = randomID2()
+	} else if sp.raw.Context.SpanID == 0 {
+		// TraceID set but SpanID not set
+		sp.raw.Context.SpanID = randomID()
 	}
 
 	return t.startSpanInternal(
