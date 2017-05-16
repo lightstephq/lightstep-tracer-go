@@ -13,12 +13,17 @@ type (
 
 	// SetTraceID is an opentracing.StartSpanOption that sets an
 	// explicit TraceID.  It must be used in order to set an
-	// explicit SpanID or ParentSpanID.
+	// explicit SpanID or ParentSpanID.  If a ChildOf or
+	// FollowsFrom span relation is also set in the start options,
+	// it will override this value.
 	SetTraceID uint64
 
 	// SetParentSpanID is an opentracing.StartSpanOption that sets
-	// an explicit parent SpanID.  It must be used in conjunction with
-	// SetTraceID or the result is undefined.
+	// an explicit parent SpanID.  It must be used in conjunction
+	// with SetTraceID or the result is undefined.  If the value
+	// is zero, it will be disregarded.  If a ChildOf or
+	// FollowsFrom span relation is also set in the start options,
+	// it will override this value.
 	SetParentSpanID uint64
 )
 
