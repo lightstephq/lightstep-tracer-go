@@ -57,7 +57,7 @@ const (
 	payloadKey        = "payload"
 
 	TracerPlatformValue = "go"
-	TracerVersionValue  = "0.9.1"
+	// Note: TracerVersionValue is generated from ./VERSION
 
 	TracerPlatformKey        = "lightstep.tracer_platform"
 	TracerPlatformVersionKey = "lightstep.tracer_platform_version"
