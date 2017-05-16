@@ -87,9 +87,10 @@ func (t *tracerImpl) StartSpan(
 ) opentracing.Span {
 	sso := StartSpanOptions{}
 	for _, o := range opts {
-		if lso, ok := o.(LightStepStartSpanOption); ok {
-			lso.ApplyLS(&sso)
-		} else {
+		switch o := o.(type) {
+		case LightStepStartSpanOption:
+			o.ApplyLS(&sso)
+		default:
 			o.Apply(&sso.Options)
 		}
 	}
