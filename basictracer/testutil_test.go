@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"reflect"
 	"runtime"
-	"sync"
 	"sync/atomic"
 	"testing"
 
@@ -130,51 +129,4 @@ func (fv *LogFieldValidator) validateNextField(key string, actualKind reflect.Ki
 		fv.t.Errorf("%s:%d Bad value: expected %q, found %q", file, line, fv.nextValAsString, fmt.Sprint(value))
 	}
 	// All good.
-}
-
-// InMemorySpanRecorder is a simple thread-safe implementation of
-// SpanRecorder that stores all reported spans in memory, accessible
-// via reporter.GetSpans(). It is primarily intended for testing purposes.
-type InMemorySpanRecorder struct {
-	sync.RWMutex
-	spans []RawSpan
-}
-
-// NewInMemoryRecorder creates new InMemorySpanRecorder
-func NewInMemoryRecorder() *InMemorySpanRecorder {
-	return new(InMemorySpanRecorder)
-}
-
-// RecordSpan implements the respective method of SpanRecorder.
-func (r *InMemorySpanRecorder) RecordSpan(span RawSpan) {
-	r.Lock()
-	defer r.Unlock()
-	r.spans = append(r.spans, span)
-}
-
-// GetSpans returns a copy of the array of spans accumulated so far.
-func (r *InMemorySpanRecorder) GetSpans() []RawSpan {
-	r.RLock()
-	defer r.RUnlock()
-	spans := make([]RawSpan, len(r.spans))
-	copy(spans, r.spans)
-	return spans
-}
-
-// GetSampledSpans returns a slice of spans accumulated so far which were sampled.
-func (r *InMemorySpanRecorder) GetSampledSpans() []RawSpan {
-	r.RLock()
-	defer r.RUnlock()
-	spans := make([]RawSpan, 0, len(r.spans))
-	for _, span := range r.spans {
-		spans = append(spans, span)
-	}
-	return spans
-}
-
-// Reset clears the internal array of spans.
-func (r *InMemorySpanRecorder) Reset() {
-	r.Lock()
-	defer r.Unlock()
-	r.spans = nil
 }

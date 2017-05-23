@@ -42,5 +42,14 @@ test: lightstep_thrift/constants.go collectorpb/collector.pb.go lightsteppb/ligh
 	${GO} test $(shell go list ./... | grep -v /vendor/)
 	docker run --rm -v $(GOPATH):/input:ro lightstep/noglog:latest noglog github.com/lightstep/lightstep-tracer-go
 
-build: lightstep_thrift/constants.go collectorpb/collector.pb.go lightsteppb/lightstep_carrier.pb.go
+build: lightstep_thrift/constants.go collectorpb/collector.pb.go lightsteppb/lightstep_carrier.pb.go version.go
 	${GO} build github.com/lightstep/lightstep-tracer-go/...
+
+# When releasing significant changes, make sure to update the semantic
+# version number in `./VERSION`, merge changes, then run `make release_tag`.
+version.go: VERSION
+	./tag_version.sh
+
+release_tag:
+	git tag -a v`cat ./VERSION`
+	git push origin v`cat ./VERSION`
