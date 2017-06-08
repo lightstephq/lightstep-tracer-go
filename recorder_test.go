@@ -3,185 +3,275 @@ package lightstep
 import (
 	"encoding/json"
 	"fmt"
-	"reflect"
 	"strings"
-	"testing"
 	"time"
 
 	google_protobuf "github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/lightstep/lightstep-tracer-go/basictracer"
 	cpb "github.com/lightstep/lightstep-tracer-go/collectorpb"
-	"github.com/lightstep/lightstep-tracer-go/thrift_rpc"
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
 	ot "github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/log"
-)
-
-const (
-	arbitraryTimestampSecs = 1473442150
 )
 
 func makeSpanSlice(length int) []basictracer.RawSpan {
 	return make([]basictracer.RawSpan, length)
 }
 
-func makeExpectedLogs() []*cpb.Log {
-	eRes := make([]*cpb.Log, 8)
-	for i := 0; i < 8; i++ {
-		pl, _ := json.Marshal([]interface{}{i, i, true, "suhhh"})
-		eRes[i] = &cpb.Log{
-			Timestamp: &google_protobuf.Timestamp{arbitraryTimestampSecs, 0},
-			Keyvalues: []*cpb.KeyValue{
-				&cpb.KeyValue{Key: "string", Value: &cpb.KeyValue_StringValue{fmt.Sprintf("foo%d", i)}},
-				&cpb.KeyValue{Key: "object", Value: &cpb.KeyValue_JsonValue{string(pl)}},
-				&cpb.KeyValue{
-					Key:   "too_long-----------…",
-					Value: &cpb.KeyValue_StringValue{"---------------------------------------…"},
-				},
-			},
-		}
-	}
-	return eRes
-}
+var _ = Describe("Recorder", func() {
+	const (
+		arbitraryTimestampSecs = 1473442150
+	)
 
-func TestTranslateLogs(t *testing.T) {
-	fakeRecorder := Recorder{
-		maxLogKeyLen:   20,
-		maxLogValueLen: 40,
-	}
-	ts := time.Unix(arbitraryTimestampSecs, 0)
-	otLogs := make([]ot.LogRecord, 8)
-	for i := 0; i < 8; i++ {
-		otLogs[i] = ot.LogRecord{
-			Timestamp: ts,
-			Fields: []log.Field{
-				log.String("string", fmt.Sprintf("foo%d", i)),
-				log.Object("object", []interface{}{i, i, true, "suhhh"}),
-				log.String("too_long"+strings.Repeat("-", 50), strings.Repeat("-", 110)),
-			},
-		}
-	}
-	res := fakeRecorder.translateLogs(otLogs, nil)
-	eRes := makeExpectedLogs()
-	if !reflect.DeepEqual(res, eRes) {
-		t.Errorf("%v does not equal %v", res, eRes)
-	}
-}
+	var (
+		recorder     *Recorder
+		tracer       ot.Tracer
+		fakeRecorder Recorder
+		timestamp    time.Time
+		logs         []*cpb.Log
+	)
+	Describe("Regarding KeyValue conversion", func() {
+		Context("Of raw values", func() {
+			const (
+				testString = "whomping willow"
+			)
 
-func TestConvertToKeyValue(t *testing.T) {
-	r := Recorder{}
-	k := "testing"
-	type fakeString string
-	type fakeBool bool
-	type fakeInt64 int64
-	type fakeFloat64 float64
-	var a fakeString = "testing"
-	kv := r.convertToKeyValue(k, a)
-	if kv.GetStringValue() != "testing" {
-		t.Errorf("the fakeString value failed to be set")
-	}
-	var b fakeBool = true
-	kv = r.convertToKeyValue(k, b)
-	if kv.GetBoolValue() != true {
-		t.Errorf("the fakeBool value failed to be set")
-	}
-	var c fakeInt64 = 3
-	kv = r.convertToKeyValue(k, c)
-	if kv.GetIntValue() != int64(3) {
-		t.Errorf("the fakeInt64 value failed to be set")
-	}
-	var d fakeFloat64 = 3
-	kv = r.convertToKeyValue(k, d)
-	if kv.GetDoubleValue() != float64(3) {
-		t.Errorf("the fakeFloat64 value failed to be set")
-	}
-	// make sure these don't panic
-	r.convertToKeyValue(k, nil)
-	var p *int
-	r.convertToKeyValue(k, p)
-}
+			type fakeString string
+			type fakeBool bool
+			type fakeInt64 int64
+			type fakeFloat64 float64
 
-func TestMaxBufferSize(t *testing.T) {
-	recorder := NewTracer(Options{
-		AccessToken: "0987654321",
-		UseGRPC:     true,
-	}).(basictracer.Tracer).Options().Recorder.(*Recorder)
+			BeforeEach(func() {
+				fakeRecorder = Recorder{}
+			})
 
-	checkCapSize := func(spanLen, spanCap int) {
-		recorder.lock.Lock()
-		defer recorder.lock.Unlock()
+			Context("When converting weird values", func() {
+				It("does not panic", func() {
+					go func() {
+						defer GinkgoRecover()
+						fakeRecorder.convertToKeyValue(testString, nil)
+						var nilPointer *int
+						fakeRecorder.convertToKeyValue(testString, nilPointer)
+					}()
+				})
+			})
 
-		if cap(recorder.buffer.rawSpans) != spanCap {
-			t.Errorf("Unexpected buffer cap: %v != %v", cap(recorder.buffer.rawSpans), spanCap)
-		}
-		if len(recorder.buffer.rawSpans) != spanLen {
-			t.Errorf("Unexpected buffer size: %v != %v", len(recorder.buffer.rawSpans), spanLen)
-		}
-	}
+			Context("When converting a string", func() {
+				Specify("GetStringValue() should return the string", func() {
+					var value fakeString = "fake news"
+					keyValue := fakeRecorder.convertToKeyValue(testString, value)
+					Expect(keyValue.GetStringValue()).To(Equal("fake news"))
+				})
+			})
 
-	checkCapSize(0, defaultMaxSpans)
+			Context("When converting a boolean", func() {
+				Specify("GetBoolValue() should return the bool", func() {
+					var value fakeBool = true
+					keyValue := fakeRecorder.convertToKeyValue(testString, value)
+					Expect(keyValue.GetBoolValue()).To(Equal(true))
+				})
+			})
 
-	spans := makeSpanSlice(defaultMaxSpans)
-	for _, span := range spans {
-		recorder.RecordSpan(span)
-	}
+			Context("When converting an integer", func() {
+				Specify("GetIntValue() should return the int", func() {
+					var value fakeInt64 = 42
+					keyValue := fakeRecorder.convertToKeyValue(testString, value)
+					Expect(keyValue.GetIntValue()).To(Equal(int64(42)))
+				})
+			})
 
-	checkCapSize(defaultMaxSpans, defaultMaxSpans)
+			Context("When converting a float", func() {
+				Specify("GetDoubleValue() should return the float", func() {
+					var value fakeFloat64 = 42.0
+					keyValue := fakeRecorder.convertToKeyValue(testString, value)
+					Expect(keyValue.GetDoubleValue()).To(Equal(float64(42.0)))
+				})
+			})
+		})
 
-	spans = append(spans, makeSpanSlice(defaultMaxSpans)...)
-	for _, span := range spans {
-		recorder.RecordSpan(span)
-	}
+		Context("Of log translation", func() {
+			BeforeEach(func() {
+				fakeRecorder = Recorder{
+					maxLogKeyLen:   20,
+					maxLogValueLen: 40,
+				}
+				timestamp = time.Unix(arbitraryTimestampSecs, 0)
+				otLogs := make([]ot.LogRecord, 8)
+				for i := 0; i < 8; i++ {
+					otLogs[i] = ot.LogRecord{
+						Timestamp: timestamp,
+						Fields: []log.Field{
+							log.String("string", fmt.Sprintf("foo%d", i)),
+							log.Object("object", []interface{}{i, i, true, "suhhh"}),
+							log.String("too_long"+strings.Repeat("-", 50), strings.Repeat("-", 110)),
+						},
+					}
+				}
+				logs = fakeRecorder.translateLogs(otLogs, nil)
+			})
 
-	checkCapSize(defaultMaxSpans, defaultMaxSpans)
+			Context("When a timestamp is translated", func() {
+				It("is translated with google_protobuf", func() {
+					for i := 0; i < 8; i++ {
+						Expect(logs[i].Timestamp).To(Equal(&google_protobuf.Timestamp{arbitraryTimestampSecs, 0}))
+					}
+				})
+			})
 
-	maxBuffer := 10
-	recorder = NewTracer(Options{
-		AccessToken:      "0987654321",
-		MaxBufferedSpans: maxBuffer,
-		UseGRPC:          true,
-	}).(basictracer.Tracer).Options().Recorder.(*Recorder)
+			Context("When a short string field is translated", func() {
+				It("is translated to String Key Value pair", func() {
+					for i := 0; i < 8; i++ {
+						Expect(logs[i].Keyvalues[0]).To(Equal(
+							&cpb.KeyValue{
+								Key:   "string",
+								Value: &cpb.KeyValue_StringValue{fmt.Sprintf("foo%d", i)},
+							},
+						))
+					}
+				})
+			})
 
-	checkCapSize(0, maxBuffer)
+			Context("When an object is translated", func() {
+				It("is marshled into JSON", func() {
+					for i := 0; i < 8; i++ {
+						pl, _ := json.Marshal([]interface{}{i, i, true, "suhhh"})
+						Expect(logs[i].Keyvalues[1]).To(Equal(
+							&cpb.KeyValue{Key: "object", Value: &cpb.KeyValue_JsonValue{string(pl)}},
+						))
+					}
+				})
+			})
 
-	spans = append(spans, makeSpanSlice(100*defaultMaxSpans)...)
-	for _, span := range spans {
-		recorder.RecordSpan(span)
-	}
-
-	checkCapSize(maxBuffer, maxBuffer)
-
-	_ = NewTracer(Options{
-		AccessToken: "0987654321",
-		UseThrift:   true,
-	}).(basictracer.Tracer).Options().Recorder.(*thrift_rpc.Recorder)
-}
-
-func TestDoubleClose(t *testing.T) {
-	tracer := NewTracer(Options{
-		AccessToken: "0987654321",
-		UseGRPC:     true,
+			Context("When a long string field is translated", func() {
+				It("is translated to a truncated String Key Value pair", func() {
+					for i := 0; i < 8; i++ {
+						Expect(logs[i].Keyvalues[2]).To(Equal(
+							&cpb.KeyValue{
+								Key:   "too_long-----------…",
+								Value: &cpb.KeyValue_StringValue{"---------------------------------------…"},
+							},
+						))
+					}
+				})
+			})
+		})
 	})
-	err := CloseTracer(tracer)
-	if err != nil {
-		t.Errorf("err on first close: %s", err.Error())
-	}
-	err = CloseTracer(tracer)
-	if err != nil {
-		t.Errorf("err on second close: %s", err.Error())
-	}
-}
 
-func TestDoubleCloseThrift(t *testing.T) {
-	tracer := NewTracer(Options{
-		AccessToken: "0987654321",
-		UseGRPC:     false,
+	Context("When calling Close() twice", func() {
+		Context("With grpc enabled", func() {
+			It("Should not fail", func() {
+				tracer = NewTracer(Options{
+					AccessToken: "0987654321",
+					UseGRPC:     true,
+				})
+				err := CloseTracer(tracer)
+				Expect(err).NotTo(HaveOccurred())
+
+				err = CloseTracer(tracer)
+				Expect(err).NotTo(HaveOccurred())
+			})
+		})
+
+		Context("With thrift enabled", func() {
+			It("Should not fail", func() {
+				tracer = NewTracer(Options{
+					AccessToken: "0987654321",
+					UseGRPC:     false,
+				})
+				err := CloseTracer(tracer)
+				Expect(err).NotTo(HaveOccurred())
+
+				err = CloseTracer(tracer)
+				Expect(err).NotTo(HaveOccurred())
+			})
+		})
 	})
-	err := CloseTracer(tracer)
-	if err != nil {
-		t.Errorf("err on first close: %s", err.Error())
-	}
-	err = CloseTracer(tracer)
-	if err != nil {
-		t.Errorf("err on second close: %s", err.Error())
-	}
-}
+
+	Describe("Regarding the span buffer", func() {
+		Context("With the default max span buffer size", func() {
+			BeforeEach(func() {
+				recorder = NewTracer(Options{
+					AccessToken: "0987654321",
+					UseGRPC:     true,
+				}).(basictracer.Tracer).Options().Recorder.(*Recorder)
+			})
+
+			Context("Before any spans have been started", func() {
+				It("The buffer should be empty and the capacity should be the default", func() {
+					recorder.lock.Lock()
+					defer recorder.lock.Unlock()
+					Expect(cap(recorder.buffer.rawSpans)).To(Equal(defaultMaxSpans))
+					Expect(len(recorder.buffer.rawSpans)).To(Equal(0))
+				})
+			})
+
+			Context("After spans have been started", func() {
+				It("The buffer should respond appropriately", func() {
+					By("Having a full buffer when enough spans have been started")
+					spans := makeSpanSlice(defaultMaxSpans)
+					for _, span := range spans {
+						recorder.RecordSpan(span)
+					}
+					recorder.lock.Lock()
+					Expect(len(recorder.buffer.rawSpans)).To(Equal(defaultMaxSpans))
+					recorder.lock.Unlock()
+
+					By("Having the buffer at default capacity")
+					recorder.lock.Lock()
+					Expect(cap(recorder.buffer.rawSpans)).To(Equal(defaultMaxSpans))
+					recorder.lock.Unlock()
+
+					By("Having the capacity and length remain the same when more spans are started")
+					spans = append(spans, makeSpanSlice(defaultMaxSpans)...)
+					for _, span := range spans {
+						recorder.RecordSpan(span)
+					}
+					recorder.lock.Lock()
+					Expect(cap(recorder.buffer.rawSpans)).To(Equal(defaultMaxSpans))
+					Expect(len(recorder.buffer.rawSpans)).To(Equal(defaultMaxSpans))
+					recorder.lock.Unlock()
+				})
+			})
+		})
+
+		Context("With a user specied buffer size", func() {
+			const (
+				maxBuffer int = 10
+			)
+
+			BeforeEach(func() {
+				recorder = NewTracer(Options{
+					AccessToken:      "0987654321",
+					MaxBufferedSpans: maxBuffer,
+					UseGRPC:          true,
+				}).(basictracer.Tracer).Options().Recorder.(*Recorder)
+			})
+
+			Context("Before any spans have been started", func() {
+				It("The buffer should be empty with the specified capacity", func() {
+					recorder.lock.Lock()
+					defer recorder.lock.Unlock()
+					Expect(cap(recorder.buffer.rawSpans)).To(Equal(maxBuffer))
+					Expect(len(recorder.buffer.rawSpans)).To(Equal(0))
+				})
+			})
+
+			Context("After many spans have been started", func() {
+				BeforeEach(func() {
+					spans := makeSpanSlice(100 * defaultMaxSpans)
+					for _, span := range spans {
+						recorder.RecordSpan(span)
+					}
+				})
+
+				It("The buffer be full with the specified capacity", func() {
+					recorder.lock.Lock()
+					defer recorder.lock.Unlock()
+					Expect(cap(recorder.buffer.rawSpans)).To(Equal(maxBuffer))
+					Expect(len(recorder.buffer.rawSpans)).To(Equal(maxBuffer))
+				})
+			})
+		})
+	})
+})

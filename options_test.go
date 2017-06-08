@@ -1,68 +1,83 @@
 package lightstep
 
 import (
-	"testing"
-
 	"github.com/lightstep/lightstep-tracer-go/basictracer"
-	"github.com/stretchr/testify/assert"
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
+	opentracing "github.com/opentracing/opentracing-go"
 )
 
-func TestSpan_SetID3(t *testing.T) {
-	var (
+var _ = Describe("Options", func() {
+	const (
 		expectedTraceID      uint64 = 1
-		expectedSpanID       uint64 = 2
-		expectedParentSpanID uint64 = 3
+		expectedSpanId       uint64 = 2
+		expectedParentSpanId uint64 = 3
 	)
 
-	recorder := basictracer.NewInMemoryRecorder()
-	tracer := basictracer.NewWithOptions(basictracer.Options{Recorder: recorder})
-
-	tracer.StartSpan("x", SetTraceID(1), SetSpanID(2), SetParentSpanID(3)).Finish()
-
-	spans := recorder.GetSpans()
-	assert.Equal(t, 1, len(spans))
-
-	span := spans[0]
-	assert.Equal(t, span.Context.TraceID, expectedTraceID)
-	assert.Equal(t, span.Context.SpanID, expectedSpanID)
-	assert.Equal(t, span.ParentSpanID, expectedParentSpanID)
-}
-
-func TestSpan_SetID2(t *testing.T) {
 	var (
-		expectedTraceID uint64 = 1
-		expectedSpanID  uint64 = 2
+		recorder *basictracer.InMemorySpanRecorder
+		tracer   opentracing.Tracer
 	)
 
-	recorder := basictracer.NewInMemoryRecorder()
-	tracer := basictracer.NewWithOptions(basictracer.Options{Recorder: recorder})
+	BeforeEach(func() {
+		recorder = basictracer.NewInMemoryRecorder()
+		tracer = basictracer.NewWithOptions(basictracer.Options{Recorder: recorder})
+	})
 
-	tracer.StartSpan("x", SetTraceID(1), SetSpanID(2)).Finish()
+	Describe("Categorizing setting trace options", func() {
+		Context("When only the TraceID is set", func() {
+			BeforeEach(func() {
+				tracer.StartSpan("x", SetTraceID(expectedTraceID)).Finish()
+			})
 
-	spans := recorder.GetSpans()
-	assert.Equal(t, 1, len(spans))
+			It("Should set the options appropriately", func() {
+				By("Only running one span")
+				spans := recorder.GetSpans()
+				Expect(len(spans)).To(Equal(1))
 
-	span := spans[0]
-	assert.Equal(t, span.Context.TraceID, expectedTraceID)
-	assert.Equal(t, span.Context.SpanID, expectedSpanID)
-	assert.Equal(t, span.ParentSpanID, uint64(0))
-}
+				By("Appropriately setting TraceID")
+				span := spans[0]
+				Expect(span.Context.TraceID).To(Equal(expectedTraceID))
+				Expect(span.Context.SpanID).ToNot(Equal(uint64(0)))
+				Expect(span.ParentSpanID).To(Equal(uint64(0)))
+			})
+		})
 
-func TestSpan_SetID1(t *testing.T) {
-	var (
-		expectedTraceID uint64 = 1
-	)
+		Context("When both the TraceID and SpanID are set", func() {
+			BeforeEach(func() {
+				tracer.StartSpan("x", SetTraceID(expectedTraceID), SetSpanID(expectedSpanId)).Finish()
+			})
 
-	recorder := basictracer.NewInMemoryRecorder()
-	tracer := basictracer.NewWithOptions(basictracer.Options{Recorder: recorder})
+			It("Should set the options appropriately", func() {
+				By("Only running one span")
+				spans := recorder.GetSpans()
+				Expect(len(spans)).To(Equal(1))
 
-	tracer.StartSpan("x", SetTraceID(1)).Finish()
+				By("Appropriately setting the TraceID and SpanID")
+				span := spans[0]
+				Expect(span.Context.TraceID).To(Equal(expectedTraceID))
+				Expect(span.Context.SpanID).To(Equal(expectedSpanId))
+				Expect(span.ParentSpanID).To(Equal(uint64(0)))
+			})
+		})
 
-	spans := recorder.GetSpans()
-	assert.Equal(t, 1, len(spans))
+		Context("When TraceID, SpanID, and ParentSpanID are set", func() {
+			BeforeEach(func() {
+				tracer.StartSpan("x", SetTraceID(expectedTraceID), SetSpanID(expectedSpanId), SetParentSpanID(expectedParentSpanId)).Finish()
+			})
 
-	span := spans[0]
-	assert.Equal(t, span.Context.TraceID, expectedTraceID)
-	assert.NotEqual(t, span.Context.SpanID, uint64(0))
-	assert.Equal(t, span.ParentSpanID, uint64(0))
-}
+			It("Should set the options appropriately", func() {
+				By("Only running one span")
+				spans := recorder.GetSpans()
+				Expect(len(spans)).To(Equal(1))
+
+				By("Appropriately setting TraceID, SpanID, and ParentSpanID")
+				span := spans[0]
+				Expect(span.Context.TraceID).To(Equal(expectedTraceID))
+				Expect(span.Context.SpanID).To(Equal(expectedSpanId))
+				Expect(span.ParentSpanID).To(Equal(expectedParentSpanId))
+			})
+		})
+	})
+
+})
