@@ -10,8 +10,8 @@ import (
 var _ = Describe("Options", func() {
 	const (
 		expectedTraceID      uint64 = 1
-		expectedSpanId       uint64 = 2
-		expectedParentSpanId uint64 = 3
+		expectedSpanID       uint64 = 2
+		expectedParentSpanID uint64 = 3
 	)
 
 	var (
@@ -45,7 +45,7 @@ var _ = Describe("Options", func() {
 
 		Context("When both the TraceID and SpanID are set", func() {
 			BeforeEach(func() {
-				tracer.StartSpan("x", SetTraceID(expectedTraceID), SetSpanID(expectedSpanId)).Finish()
+				tracer.StartSpan("x", SetTraceID(expectedTraceID), SetSpanID(expectedSpanID)).Finish()
 			})
 
 			It("Should set the options appropriately", func() {
@@ -56,14 +56,14 @@ var _ = Describe("Options", func() {
 				By("Appropriately setting the TraceID and SpanID")
 				span := spans[0]
 				Expect(span.Context.TraceID).To(Equal(expectedTraceID))
-				Expect(span.Context.SpanID).To(Equal(expectedSpanId))
+				Expect(span.Context.SpanID).To(Equal(expectedSpanID))
 				Expect(span.ParentSpanID).To(Equal(uint64(0)))
 			})
 		})
 
 		Context("When TraceID, SpanID, and ParentSpanID are set", func() {
 			BeforeEach(func() {
-				tracer.StartSpan("x", SetTraceID(expectedTraceID), SetSpanID(expectedSpanId), SetParentSpanID(expectedParentSpanId)).Finish()
+				tracer.StartSpan("x", SetTraceID(expectedTraceID), SetSpanID(expectedSpanID), SetParentSpanID(expectedParentSpanID)).Finish()
 			})
 
 			It("Should set the options appropriately", func() {
@@ -74,10 +74,9 @@ var _ = Describe("Options", func() {
 				By("Appropriately setting TraceID, SpanID, and ParentSpanID")
 				span := spans[0]
 				Expect(span.Context.TraceID).To(Equal(expectedTraceID))
-				Expect(span.Context.SpanID).To(Equal(expectedSpanId))
-				Expect(span.ParentSpanID).To(Equal(expectedParentSpanId))
+				Expect(span.Context.SpanID).To(Equal(expectedSpanID))
+				Expect(span.ParentSpanID).To(Equal(expectedParentSpanID))
 			})
 		})
 	})
-
 })

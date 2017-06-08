@@ -34,7 +34,7 @@ var _ = Describe("Recorder", func() {
 	Describe("Regarding KeyValue conversion", func() {
 		Context("Of raw values", func() {
 			const (
-				testString = "whomping willow"
+				keyString = "whomping willow"
 			)
 
 			type fakeString string
@@ -47,12 +47,12 @@ var _ = Describe("Recorder", func() {
 			})
 
 			Context("When converting weird values", func() {
-				It("does not panic", func() {
+				It("Does not panic", func() {
 					go func() {
 						defer GinkgoRecover()
-						fakeRecorder.convertToKeyValue(testString, nil)
+						fakeRecorder.convertToKeyValue(keyString, nil)
 						var nilPointer *int
-						fakeRecorder.convertToKeyValue(testString, nilPointer)
+						fakeRecorder.convertToKeyValue(keyString, nilPointer)
 					}()
 				})
 			})
@@ -60,7 +60,7 @@ var _ = Describe("Recorder", func() {
 			Context("When converting a string", func() {
 				Specify("GetStringValue() should return the string", func() {
 					var value fakeString = "fake news"
-					keyValue := fakeRecorder.convertToKeyValue(testString, value)
+					keyValue := fakeRecorder.convertToKeyValue(keyString, value)
 					Expect(keyValue.GetStringValue()).To(Equal("fake news"))
 				})
 			})
@@ -68,7 +68,7 @@ var _ = Describe("Recorder", func() {
 			Context("When converting a boolean", func() {
 				Specify("GetBoolValue() should return the bool", func() {
 					var value fakeBool = true
-					keyValue := fakeRecorder.convertToKeyValue(testString, value)
+					keyValue := fakeRecorder.convertToKeyValue(keyString, value)
 					Expect(keyValue.GetBoolValue()).To(Equal(true))
 				})
 			})
@@ -76,7 +76,7 @@ var _ = Describe("Recorder", func() {
 			Context("When converting an integer", func() {
 				Specify("GetIntValue() should return the int", func() {
 					var value fakeInt64 = 42
-					keyValue := fakeRecorder.convertToKeyValue(testString, value)
+					keyValue := fakeRecorder.convertToKeyValue(keyString, value)
 					Expect(keyValue.GetIntValue()).To(Equal(int64(42)))
 				})
 			})
@@ -84,7 +84,7 @@ var _ = Describe("Recorder", func() {
 			Context("When converting a float", func() {
 				Specify("GetDoubleValue() should return the float", func() {
 					var value fakeFloat64 = 42.0
-					keyValue := fakeRecorder.convertToKeyValue(testString, value)
+					keyValue := fakeRecorder.convertToKeyValue(keyString, value)
 					Expect(keyValue.GetDoubleValue()).To(Equal(float64(42.0)))
 				})
 			})
@@ -133,7 +133,7 @@ var _ = Describe("Recorder", func() {
 			})
 
 			Context("When an object is translated", func() {
-				It("is marshled into JSON", func() {
+				It("Is marshled into JSON", func() {
 					for i := 0; i < 8; i++ {
 						pl, _ := json.Marshal([]interface{}{i, i, true, "suhhh"})
 						Expect(logs[i].Keyvalues[1]).To(Equal(
@@ -144,7 +144,7 @@ var _ = Describe("Recorder", func() {
 			})
 
 			Context("When a long string field is translated", func() {
-				It("is translated to a truncated String Key Value pair", func() {
+				It("Is translated to a truncated String Key Value pair", func() {
 					for i := 0; i < 8; i++ {
 						Expect(logs[i].Keyvalues[2]).To(Equal(
 							&cpb.KeyValue{
