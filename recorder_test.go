@@ -47,12 +47,14 @@ var _ = Describe("Recorder", func() {
 			})
 
 			Context("When converting weird values", func() {
-				It("Does not panic", func() {
+				It("Does not panic", func(done Done) {
 					go func() {
 						defer GinkgoRecover()
 						fakeRecorder.convertToKeyValue(keyString, nil)
 						var nilPointer *int
 						fakeRecorder.convertToKeyValue(keyString, nilPointer)
+
+						close(done)
 					}()
 				})
 			})
