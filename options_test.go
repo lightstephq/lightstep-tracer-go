@@ -1,6 +1,7 @@
-package lightstep
+package lightstep_test
 
 import (
+	. "github.com/lightstep/lightstep-tracer-go"
 	"github.com/lightstep/lightstep-tracer-go/basictracer"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
