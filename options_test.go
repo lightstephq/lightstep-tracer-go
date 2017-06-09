@@ -24,59 +24,57 @@ var _ = Describe("Options", func() {
 		tracer = basictracer.NewWithOptions(basictracer.Options{Recorder: recorder})
 	})
 
-	Describe("Categorizing setting trace options", func() {
-		Context("When only the TraceID is set", func() {
-			BeforeEach(func() {
-				tracer.StartSpan("x", SetTraceID(expectedTraceID)).Finish()
-			})
-
-			It("Should set the options appropriately", func() {
-				By("Only running one span")
-				spans := recorder.GetSpans()
-				Expect(len(spans)).To(Equal(1))
-
-				By("Appropriately setting TraceID")
-				span := spans[0]
-				Expect(span.Context.TraceID).To(Equal(expectedTraceID))
-				Expect(span.Context.SpanID).ToNot(Equal(uint64(0)))
-				Expect(span.ParentSpanID).To(Equal(uint64(0)))
-			})
+	Context("When only the TraceID is set", func() {
+		BeforeEach(func() {
+			tracer.StartSpan("x", SetTraceID(expectedTraceID)).Finish()
 		})
 
-		Context("When both the TraceID and SpanID are set", func() {
-			BeforeEach(func() {
-				tracer.StartSpan("x", SetTraceID(expectedTraceID), SetSpanID(expectedSpanID)).Finish()
-			})
+		It("Should set the options appropriately", func() {
+			By("Only running one span")
+			spans := recorder.GetSpans()
+			Expect(len(spans)).To(Equal(1))
 
-			It("Should set the options appropriately", func() {
-				By("Only running one span")
-				spans := recorder.GetSpans()
-				Expect(len(spans)).To(Equal(1))
+			By("Appropriately setting TraceID")
+			span := spans[0]
+			Expect(span.Context.TraceID).To(Equal(expectedTraceID))
+			Expect(span.Context.SpanID).ToNot(Equal(uint64(0)))
+			Expect(span.ParentSpanID).To(Equal(uint64(0)))
+		})
+	})
 
-				By("Appropriately setting the TraceID and SpanID")
-				span := spans[0]
-				Expect(span.Context.TraceID).To(Equal(expectedTraceID))
-				Expect(span.Context.SpanID).To(Equal(expectedSpanID))
-				Expect(span.ParentSpanID).To(Equal(uint64(0)))
-			})
+	Context("When both the TraceID and SpanID are set", func() {
+		BeforeEach(func() {
+			tracer.StartSpan("x", SetTraceID(expectedTraceID), SetSpanID(expectedSpanID)).Finish()
 		})
 
-		Context("When TraceID, SpanID, and ParentSpanID are set", func() {
-			BeforeEach(func() {
-				tracer.StartSpan("x", SetTraceID(expectedTraceID), SetSpanID(expectedSpanID), SetParentSpanID(expectedParentSpanID)).Finish()
-			})
+		It("Should set the options appropriately", func() {
+			By("Only running one span")
+			spans := recorder.GetSpans()
+			Expect(len(spans)).To(Equal(1))
 
-			It("Should set the options appropriately", func() {
-				By("Only running one span")
-				spans := recorder.GetSpans()
-				Expect(len(spans)).To(Equal(1))
+			By("Appropriately setting the TraceID and SpanID")
+			span := spans[0]
+			Expect(span.Context.TraceID).To(Equal(expectedTraceID))
+			Expect(span.Context.SpanID).To(Equal(expectedSpanID))
+			Expect(span.ParentSpanID).To(Equal(uint64(0)))
+		})
+	})
 
-				By("Appropriately setting TraceID, SpanID, and ParentSpanID")
-				span := spans[0]
-				Expect(span.Context.TraceID).To(Equal(expectedTraceID))
-				Expect(span.Context.SpanID).To(Equal(expectedSpanID))
-				Expect(span.ParentSpanID).To(Equal(expectedParentSpanID))
-			})
+	Context("When TraceID, SpanID, and ParentSpanID are set", func() {
+		BeforeEach(func() {
+			tracer.StartSpan("x", SetTraceID(expectedTraceID), SetSpanID(expectedSpanID), SetParentSpanID(expectedParentSpanID)).Finish()
+		})
+
+		It("Should set the options appropriately", func() {
+			By("Only running one span")
+			spans := recorder.GetSpans()
+			Expect(len(spans)).To(Equal(1))
+
+			By("Appropriately setting TraceID, SpanID, and ParentSpanID")
+			span := spans[0]
+			Expect(span.Context.TraceID).To(Equal(expectedTraceID))
+			Expect(span.Context.SpanID).To(Equal(expectedSpanID))
+			Expect(span.ParentSpanID).To(Equal(expectedParentSpanID))
 		})
 	})
 })

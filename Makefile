@@ -39,7 +39,7 @@ lightsteppb/lightstep_carrier.pb.go: lightstep-tracer-common/lightstep_carrier.p
 endif
 
 test: lightstep_thrift/constants.go collectorpb/collector.pb.go lightsteppb/lightstep_carrier.pb.go
-	${GO} test $(shell go list ./... | grep -v /vendor/)
+	ginkgo -r ./...
 	docker run --rm -v $(GOPATH):/input:ro lightstep/noglog:latest noglog github.com/lightstep/lightstep-tracer-go
 
 build: lightstep_thrift/constants.go collectorpb/collector.pb.go lightsteppb/lightstep_carrier.pb.go version.go
