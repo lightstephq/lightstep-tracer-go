@@ -9,16 +9,12 @@ import (
 )
 
 var _ = Describe("Options", func() {
-	const (
-		expectedTraceID      uint64 = 1
-		expectedSpanID       uint64 = 2
-		expectedParentSpanID uint64 = 3
-	)
+	const expectedTraceID uint64 = 1
+	const expectedSpanID uint64 = 2
+	const expectedParentSpanID uint64 = 3
 
-	var (
-		recorder *basictracer.InMemorySpanRecorder
-		tracer   opentracing.Tracer
-	)
+	var recorder *basictracer.InMemorySpanRecorder
+	var tracer opentracing.Tracer
 
 	BeforeEach(func() {
 		recorder = basictracer.NewInMemoryRecorder()

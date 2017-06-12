@@ -24,9 +24,6 @@ func makeSpanSlice(length int) []basictracer.RawSpan {
 }
 
 var _ = Describe("Recorder", func() {
-	const (
-		arbitraryTimestampSecs = 1473442150
-	)
 
 	var (
 		tracer ot.Tracer
@@ -34,10 +31,8 @@ var _ = Describe("Recorder", func() {
 
 	Describe("CloseTracer", func() {
 		Context("With thrift enabled", func() {
-			var (
-				thriftServer         *thrift.TSimpleServer
-				fakeReportingHandler *lightstep_thriftfakes.FakeReportingService
-			)
+			var thriftServer *thrift.TSimpleServer
+			var fakeReportingHandler *lightstep_thriftfakes.FakeReportingService
 
 			BeforeEach(func() {
 				addr := "localhost:50051"
@@ -110,14 +105,10 @@ var _ = Describe("Recorder", func() {
 		})
 
 		Context("With grpc enabled", func() {
-			const (
-				port = ":50051"
-			)
+			const port string = ":50051"
 
-			var (
-				fakeCollector *collectorpbfakes.FakeCollectorServiceServer
-				grpcServer    *grpc.Server
-			)
+			var fakeCollector *collectorpbfakes.FakeCollectorServiceServer
+			var grpcServer *grpc.Server
 
 			BeforeEach(func() {
 				listener, err := net.Listen("tcp", port)
