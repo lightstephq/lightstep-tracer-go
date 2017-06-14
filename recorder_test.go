@@ -10,8 +10,8 @@ import (
 	"google.golang.org/grpc"
 
 	. "github.com/lightstep/lightstep-tracer-go"
-	"github.com/lightstep/lightstep-tracer-go/collectorpb"
-	"github.com/lightstep/lightstep-tracer-go/collectorpb/collectorpbfakes"
+	cpb "github.com/lightstep/lightstep-tracer-go/collectorpb"
+	cpbfakes "github.com/lightstep/lightstep-tracer-go/collectorpb/collectorpbfakes"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	ot "github.com/opentracing/opentracing-go"
@@ -19,12 +19,15 @@ import (
 	"golang.org/x/net/context"
 )
 
-func newGrpcServer(port int) (net.Listener, *grpc.Server, error) {
+func newGrpcServer(port int) (net.Listener, *cpbfakes.FakeCollectorServiceServer, *grpc.Server, error) {
 	listener, err := net.Listen("tcp", fmt.Sprintf(":%v", port))
 	if err != nil {
-		return listener, nil, err
+		return listener, nil, nil, err
 	}
-	return listener, grpc.NewServer(), nil
+	fakeCollector := new(cpbfakes.FakeCollectorServiceServer)
+	grpcServer := grpc.NewServer()
+	cpb.RegisterCollectorServiceServer(grpcServer, fakeCollector)
+	return listener, fakeCollector, grpcServer, nil
 }
 
 func startNSpans(n int, tracer ot.Tracer) {
@@ -38,25 +41,24 @@ var _ = Describe("Recorder", func() {
 
 	Context("With grpc enabled", func() {
 		var port int = 9090 + GinkgoParallelNode()
-		var fakeCollector *collectorpbfakes.FakeCollectorServiceServer
+		var fakeCollector *cpbfakes.FakeCollectorServiceServer
 		var grpcServer *grpc.Server
-		var reportChan chan *collectorpb.ReportRequest
+		var latestSpans func() []*cpb.Span
 
 		BeforeEach(func() {
 			var listener net.Listener
 			var err error
-			if listener, grpcServer, err = newGrpcServer(port); err != nil {
+			if listener, fakeCollector, grpcServer, err = newGrpcServer(port); err != nil {
 				Fail("failed to start grpc server")
 			}
 
-			fakeCollector = new(collectorpbfakes.FakeCollectorServiceServer)
 			// setup a channel to grab the latest report to the Collector
-			reportChan = make(chan *collectorpb.ReportRequest)
-			fakeCollector.ReportStub = func(context context.Context, reportRequest *collectorpb.ReportRequest) (*collectorpb.ReportResponse, error) {
+			reportChan := make(chan *cpb.ReportRequest)
+			fakeCollector.ReportStub = func(context context.Context, reportRequest *cpb.ReportRequest) (*cpb.ReportResponse, error) {
 				reportChan <- reportRequest
 				return nil, nil
 			}
-			collectorpb.RegisterCollectorServiceServer(grpcServer, fakeCollector)
+			latestSpans = func() []*cpb.Span { return (<-reportChan).GetSpans() }
 			// NOTE: pretty sure we don't have to check if grpcServer is serving
 			// since if we get err then err == nil in which case listener will buffer data
 			go grpcServer.Serve(listener)
@@ -103,9 +105,7 @@ var _ = Describe("Recorder", func() {
 
 				By("Stop communication with server")
 				lastCallCount := fakeCollector.ReportCallCount()
-				Consistently(func() int {
-					return fakeCollector.ReportCallCount()
-				}, 3, 0.05).Should(Equal(lastCallCount))
+				Consistently(fakeCollector.ReportCallCount, 3, 0.05).Should(Equal(lastCallCount))
 
 				By("Allowing other tracers to reconnect to the server")
 				tracer = NewTracer(Options{
@@ -115,30 +115,23 @@ var _ = Describe("Recorder", func() {
 					ReportTimeout:   10 * time.Millisecond,
 				})
 
-				Eventually(func() int {
-					return fakeCollector.ReportCallCount()
-				}).ShouldNot(Equal(lastCallCount))
+				Eventually(fakeCollector.ReportCallCount).ShouldNot(Equal(lastCallCount))
 			})
 		})
 
 		Describe("SpanBuffer", func() {
 			It("should respect MaxBufferedSpans", func() {
 				startNSpans(10, tracer)
-				Eventually(func() []*collectorpb.Span {
-					return (<-reportChan).GetSpans()
-				}).Should(HaveLen(10))
+				Eventually(latestSpans).Should(HaveLen(10))
 
 				startNSpans(10, tracer)
-				Eventually(func() []*collectorpb.Span {
-					return (<-reportChan).GetSpans()
-				}).Should(HaveLen(10))
+				Eventually(latestSpans).Should(HaveLen(10))
 			})
 		})
 
 		Describe("Logging", func() {
 			var span ot.Span
 			BeforeEach(func() {
-				reportChan = make(chan *collectorpb.ReportRequest)
 				span = tracer.StartSpan("spantastic")
 			})
 
@@ -152,19 +145,19 @@ var _ = Describe("Recorder", func() {
 				span.Finish()
 
 				obj, _ := json.Marshal([]interface{}{"gr", 8})
-				expected := []*collectorpb.KeyValue{
-					&collectorpb.KeyValue{Key: "donut", Value: &collectorpb.KeyValue_StringValue{"bacon"}},
-					&collectorpb.KeyValue{Key: "key", Value: &collectorpb.KeyValue_JsonValue{string(obj)}},
-					&collectorpb.KeyValue{Key: "donut arm…", Value: &collectorpb.KeyValue_StringValue{"OOOOOOOOOO…"}},
-					&collectorpb.KeyValue{Key: "life", Value: &collectorpb.KeyValue_IntValue{42}},
+				expected := []*cpb.KeyValue{
+					&cpb.KeyValue{Key: "donut", Value: &cpb.KeyValue_StringValue{"bacon"}},
+					&cpb.KeyValue{Key: "key", Value: &cpb.KeyValue_JsonValue{string(obj)}},
+					&cpb.KeyValue{Key: "donut arm…", Value: &cpb.KeyValue_StringValue{"OOOOOOOOOO…"}},
+					&cpb.KeyValue{Key: "life", Value: &cpb.KeyValue_IntValue{42}},
 				}
 
-				Eventually(func() []*collectorpb.KeyValue {
-					spans := (<-reportChan).GetSpans()
+				Eventually(func() []*cpb.KeyValue {
+					spans := latestSpans()
 					if len(spans) > 0 {
 						return spans[0].GetLogs()[0].GetKeyvalues()
 					}
-					return []*collectorpb.KeyValue{}
+					return []*cpb.KeyValue{}
 				}).Should(BeEquivalentTo(expected))
 
 			})
