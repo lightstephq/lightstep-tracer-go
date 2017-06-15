@@ -2,7 +2,6 @@ package lightstep_test
 
 import (
 	"encoding/json"
-	"fmt"
 	"strings"
 	"time"
 
@@ -10,6 +9,7 @@ import (
 	"google.golang.org/grpc"
 
 	. "github.com/lightstep/lightstep-tracer-go"
+	bt "github.com/lightstep/lightstep-tracer-go/basictracer"
 	cpb "github.com/lightstep/lightstep-tracer-go/collectorpb"
 	cpbfakes "github.com/lightstep/lightstep-tracer-go/collectorpb/collectorpbfakes"
 	. "github.com/onsi/ginkgo"
@@ -153,7 +153,6 @@ var _ = Describe("Recorder", func() {
 				Eventually(func() []*cpb.KeyValue {
 					spans := latestSpans()
 					if len(spans) > 0 && len(spans[0].GetLogs()) > 0 {
-						fmt.Println(spans[0].GetLogs())
 						return spans[0].GetLogs()[0].GetKeyvalues()
 					}
 					return []*cpb.KeyValue{}
@@ -229,6 +228,103 @@ var _ = Describe("Recorder", func() {
 			})
 		})
 
+		Describe("Binary Carriers", func() {
+			const knownCarrier1 = "EigJOjioEaYHBgcRNmifUO7/xlgYASISCgdjaGVja2VkEgdiYWdnYWdl"
+			const knownCarrier2 = "EigJEX+FpwZ/EmYR2gfYQbxCMskYASISCgdjaGVja2VkEgdiYWdnYWdl"
+			const badCarrier1 = "Y3QbxCMskYASISCgdjaGVja2VkEgd"
+
+			var knownContext1 = bt.SpanContext{
+				SpanID:  6397081719746291766,
+				TraceID: 506100417967962170,
+				Baggage: map[string]string{"checked": "baggage"},
+			}
+			var knownContext2 = bt.SpanContext{
+				SpanID:  14497723526785009626,
+				TraceID: 7355080808006516497,
+				Baggage: map[string]string{"checked": "baggage"},
+			}
+			var testContext1 = bt.SpanContext{
+				SpanID:  123,
+				TraceID: 456,
+				Baggage: nil,
+			}
+			var testContext2 = bt.SpanContext{
+				SpanID:  123000000000,
+				TraceID: 456000000000,
+				Baggage: map[string]string{"a": "1", "b": "2", "c": "3"},
+			}
+
+			Context("tracer inject", func() {
+				var carrierString string
+				var carrierBytes []byte
+
+				BeforeEach(func() {
+					carrierString = ""
+					carrierBytes = []byte{}
+				})
+
+				It("Should support injecting into strings ", func() {
+					for _, origContext := range []bt.SpanContext{knownContext1, knownContext2, testContext1, testContext2} {
+						err := tracer.Inject(origContext, BinaryCarrier, &carrierString)
+						Expect(err).ToNot(HaveOccurred())
+
+						context, err := tracer.Extract(BinaryCarrier, carrierString)
+						Expect(err).ToNot(HaveOccurred())
+						Expect(context).To(BeEquivalentTo(origContext))
+					}
+				})
+
+				It("Should support infjecting into byte arrays", func() {
+					for _, origContext := range []bt.SpanContext{knownContext1, knownContext2, testContext1, testContext2} {
+						err := tracer.Inject(origContext, BinaryCarrier, &carrierBytes)
+						Expect(err).ToNot(HaveOccurred())
+
+						context, err := tracer.Extract(BinaryCarrier, carrierBytes)
+						Expect(err).ToNot(HaveOccurred())
+						Expect(context).To(BeEquivalentTo(origContext))
+					}
+				})
+
+				It("Should return nil for nil contexts", func() {
+					err := tracer.Inject(nil, BinaryCarrier, carrierString)
+					Expect(err).To(HaveOccurred())
+
+					err = tracer.Inject(nil, BinaryCarrier, carrierBytes)
+					Expect(err).To(HaveOccurred())
+				})
+			})
+
+			Context("tracer extract", func() {
+				It("Should extract SpanContext from carrier as string", func() {
+					context, err := tracer.Extract(BinaryCarrier, knownCarrier1)
+					Expect(context).To(BeEquivalentTo(knownContext1))
+					Expect(err).To(BeNil())
+
+					context, err = tracer.Extract(BinaryCarrier, knownCarrier2)
+					Expect(context).To(BeEquivalentTo(knownContext2))
+					Expect(err).To(BeNil())
+				})
+
+				It("Should extract SpanContext from carrier as []byte", func() {
+					context, err := tracer.Extract(BinaryCarrier, []byte(knownCarrier1))
+					Expect(context).To(BeEquivalentTo(knownContext1))
+					Expect(err).To(BeNil())
+
+					context, err = tracer.Extract(BinaryCarrier, []byte(knownCarrier2))
+					Expect(context).To(BeEquivalentTo(knownContext2))
+					Expect(err).To(BeNil())
+				})
+
+				It("Should return nil for bad carriers", func() {
+					for _, carrier := range []interface{}{badCarrier1, []byte(badCarrier1), "", []byte(nil)} {
+						context, err := tracer.Extract(BinaryCarrier, carrier)
+						Expect(context).To(BeNil())
+						Expect(err).To(HaveOccurred())
+					}
+				})
+			})
+
+		})
 	})
 
 	Context("With thrift enabled", func() {
