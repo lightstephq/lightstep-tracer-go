@@ -6,14 +6,16 @@ import (
 
 	"github.com/lightstep/lightstep-tracer-go/collectorpb"
 	"golang.org/x/net/context"
+	"google.golang.org/grpc"
 )
 
-type FakeCollectorServiceServer struct {
-	ReportStub        func(context.Context, *collectorpb.ReportRequest) (*collectorpb.ReportResponse, error)
+type FakeCollectorServiceClient struct {
+	ReportStub        func(ctx context.Context, in *collectorpb.ReportRequest, opts ...grpc.CallOption) (*collectorpb.ReportResponse, error)
 	reportMutex       sync.RWMutex
 	reportArgsForCall []struct {
-		arg1 context.Context
-		arg2 *collectorpb.ReportRequest
+		ctx  context.Context
+		in   *collectorpb.ReportRequest
+		opts []grpc.CallOption
 	}
 	reportReturns struct {
 		result1 *collectorpb.ReportResponse
@@ -27,17 +29,18 @@ type FakeCollectorServiceServer struct {
 	invocationsMutex sync.RWMutex
 }
 
-func (fake *FakeCollectorServiceServer) Report(arg1 context.Context, arg2 *collectorpb.ReportRequest) (*collectorpb.ReportResponse, error) {
+func (fake *FakeCollectorServiceClient) Report(ctx context.Context, in *collectorpb.ReportRequest, opts ...grpc.CallOption) (*collectorpb.ReportResponse, error) {
 	fake.reportMutex.Lock()
 	ret, specificReturn := fake.reportReturnsOnCall[len(fake.reportArgsForCall)]
 	fake.reportArgsForCall = append(fake.reportArgsForCall, struct {
-		arg1 context.Context
-		arg2 *collectorpb.ReportRequest
-	}{arg1, arg2})
-	fake.recordInvocation("Report", []interface{}{arg1, arg2})
+		ctx  context.Context
+		in   *collectorpb.ReportRequest
+		opts []grpc.CallOption
+	}{ctx, in, opts})
+	fake.recordInvocation("Report", []interface{}{ctx, in, opts})
 	fake.reportMutex.Unlock()
 	if fake.ReportStub != nil {
-		return fake.ReportStub(arg1, arg2)
+		return fake.ReportStub(ctx, in, opts...)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
@@ -45,19 +48,19 @@ func (fake *FakeCollectorServiceServer) Report(arg1 context.Context, arg2 *colle
 	return fake.reportReturns.result1, fake.reportReturns.result2
 }
 
-func (fake *FakeCollectorServiceServer) ReportCallCount() int {
+func (fake *FakeCollectorServiceClient) ReportCallCount() int {
 	fake.reportMutex.RLock()
 	defer fake.reportMutex.RUnlock()
 	return len(fake.reportArgsForCall)
 }
 
-func (fake *FakeCollectorServiceServer) ReportArgsForCall(i int) (context.Context, *collectorpb.ReportRequest) {
+func (fake *FakeCollectorServiceClient) ReportArgsForCall(i int) (context.Context, *collectorpb.ReportRequest, []grpc.CallOption) {
 	fake.reportMutex.RLock()
 	defer fake.reportMutex.RUnlock()
-	return fake.reportArgsForCall[i].arg1, fake.reportArgsForCall[i].arg2
+	return fake.reportArgsForCall[i].ctx, fake.reportArgsForCall[i].in, fake.reportArgsForCall[i].opts
 }
 
-func (fake *FakeCollectorServiceServer) ReportReturns(result1 *collectorpb.ReportResponse, result2 error) {
+func (fake *FakeCollectorServiceClient) ReportReturns(result1 *collectorpb.ReportResponse, result2 error) {
 	fake.ReportStub = nil
 	fake.reportReturns = struct {
 		result1 *collectorpb.ReportResponse
@@ -65,7 +68,7 @@ func (fake *FakeCollectorServiceServer) ReportReturns(result1 *collectorpb.Repor
 	}{result1, result2}
 }
 
-func (fake *FakeCollectorServiceServer) ReportReturnsOnCall(i int, result1 *collectorpb.ReportResponse, result2 error) {
+func (fake *FakeCollectorServiceClient) ReportReturnsOnCall(i int, result1 *collectorpb.ReportResponse, result2 error) {
 	fake.ReportStub = nil
 	if fake.reportReturnsOnCall == nil {
 		fake.reportReturnsOnCall = make(map[int]struct {
@@ -79,7 +82,7 @@ func (fake *FakeCollectorServiceServer) ReportReturnsOnCall(i int, result1 *coll
 	}{result1, result2}
 }
 
-func (fake *FakeCollectorServiceServer) Invocations() map[string][][]interface{} {
+func (fake *FakeCollectorServiceClient) Invocations() map[string][][]interface{} {
 	fake.invocationsMutex.RLock()
 	defer fake.invocationsMutex.RUnlock()
 	fake.reportMutex.RLock()
@@ -91,7 +94,7 @@ func (fake *FakeCollectorServiceServer) Invocations() map[string][][]interface{}
 	return copiedInvocations
 }
 
-func (fake *FakeCollectorServiceServer) recordInvocation(key string, args []interface{}) {
+func (fake *FakeCollectorServiceClient) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
 	if fake.invocations == nil {
@@ -103,4 +106,4 @@ func (fake *FakeCollectorServiceServer) recordInvocation(key string, args []inte
 	fake.invocations[key] = append(fake.invocations[key], args)
 }
 
-var _ collectorpb.CollectorServiceServer = new(FakeCollectorServiceServer)
+var _ collectorpb.CollectorServiceClient = new(FakeCollectorServiceClient)

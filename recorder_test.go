@@ -3,10 +3,10 @@ package lightstep_test
 import (
 	"encoding/json"
 	"fmt"
-	"net"
 	"strings"
 	"time"
 
+	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 
 	. "github.com/lightstep/lightstep-tracer-go"
@@ -16,19 +16,7 @@ import (
 	. "github.com/onsi/gomega"
 	ot "github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/log"
-	"golang.org/x/net/context"
 )
-
-func newGrpcServer(port int) (net.Listener, *cpbfakes.FakeCollectorServiceServer, *grpc.Server, error) {
-	listener, err := net.Listen("tcp", fmt.Sprintf(":%v", port))
-	if err != nil {
-		return listener, nil, nil, err
-	}
-	fakeCollector := new(cpbfakes.FakeCollectorServiceServer)
-	grpcServer := grpc.NewServer()
-	cpb.RegisterCollectorServiceServer(grpcServer, fakeCollector)
-	return listener, fakeCollector, grpcServer, nil
-}
 
 func startNSpans(n int, tracer ot.Tracer) {
 	for i := 0; i < n; i++ {
@@ -36,33 +24,40 @@ func startNSpans(n int, tracer ot.Tracer) {
 	}
 }
 
+func attachSpanListener(fakeClient *cpbfakes.FakeCollectorServiceClient) func() []*cpb.Span {
+	reportChan := make(chan *cpb.ReportRequest)
+	fakeClient.ReportStub = func(context context.Context, reportResponse *cpb.ReportRequest, options ...grpc.CallOption) (*cpb.ReportResponse, error) {
+		select {
+		case reportChan <- reportResponse:
+		case <-time.After(1 * time.Second):
+		}
+		return &cpb.ReportResponse{}, nil
+	}
+	return func() []*cpb.Span { return (<-reportChan).GetSpans() }
+}
+
+func FakeGrpcConnection(fakeClient *cpbfakes.FakeCollectorServiceClient) func() (GrpcConnection, cpb.CollectorServiceClient, error) {
+	return func() (GrpcConnection, cpb.CollectorServiceClient, error) {
+		return new(dummyConn), fakeClient, nil
+	}
+}
+
+type dummyConn struct{}
+
+func (*dummyConn) Close() error                               { return nil }
+func (*dummyConn) GetMethodConfig(_ string) grpc.MethodConfig { return grpc.MethodConfig{} }
+
 var _ = Describe("Recorder", func() {
 	var tracer ot.Tracer
 
 	Context("With grpc enabled", func() {
 		var port int = 9090 + GinkgoParallelNode()
-		var fakeCollector *cpbfakes.FakeCollectorServiceServer
-		var grpcServer *grpc.Server
 		var latestSpans func() []*cpb.Span
+		var fakeClient *cpbfakes.FakeCollectorServiceClient
 
 		BeforeEach(func() {
-			var listener net.Listener
-			var err error
-			if listener, fakeCollector, grpcServer, err = newGrpcServer(port); err != nil {
-				Fail("failed to start grpc server")
-			}
-
-			// setup a channel to grab the latest report to the Collector
-			reportChan := make(chan *cpb.ReportRequest)
-			fakeCollector.ReportStub = func(context context.Context, reportRequest *cpb.ReportRequest) (*cpb.ReportResponse, error) {
-				reportChan <- reportRequest
-				return nil, nil
-			}
-			latestSpans = func() []*cpb.Span { return (<-reportChan).GetSpans() }
-			// NOTE: pretty sure we don't have to check if grpcServer is serving
-			// since if we get err then err == nil in which case listener will buffer data
-			go grpcServer.Serve(listener)
-
+			fakeClient = new(cpbfakes.FakeCollectorServiceClient)
+			latestSpans = attachSpanListener(fakeClient)
 			tracer = NewTracer(Options{
 				AccessToken:      "0987654321",
 				Collector:        Endpoint{"localhost", port, true},
@@ -71,19 +66,17 @@ var _ = Describe("Recorder", func() {
 				MaxLogKeyLen:     10,
 				MaxLogValueLen:   11,
 				MaxBufferedSpans: 10,
+				GrpcConnector:    FakeGrpcConnection(fakeClient),
 			})
 
-			// make sure the grpcServer is serving
-			Eventually(func() int {
-				return fakeCollector.ReportCallCount()
-			}).ShouldNot(BeZero())
+			// make sure the fake client is working
+			Eventually(fakeClient.ReportCallCount).ShouldNot(BeZero())
 		})
 
 		AfterEach(func() {
 			errChan := make(chan error)
 			go func() { errChan <- CloseTracer(tracer) }()
 			Eventually(errChan).Should(Receive(BeNil()))
-			grpcServer.Stop()
 		})
 
 		Describe("CloseTracer", func() {
@@ -104,8 +97,8 @@ var _ = Describe("Recorder", func() {
 				Eventually(errChan).Should(Receive(BeNil()))
 
 				By("Stop communication with server")
-				lastCallCount := fakeCollector.ReportCallCount()
-				Consistently(fakeCollector.ReportCallCount, 3, 0.05).Should(Equal(lastCallCount))
+				lastCallCount := fakeClient.ReportCallCount()
+				Consistently(fakeClient.ReportCallCount, 2, 0.05).Should(Equal(lastCallCount))
 
 				By("Allowing other tracers to reconnect to the server")
 				tracer = NewTracer(Options{
@@ -113,9 +106,12 @@ var _ = Describe("Recorder", func() {
 					Collector:       Endpoint{"localhost", port, true},
 					ReportingPeriod: 1 * time.Millisecond,
 					ReportTimeout:   10 * time.Millisecond,
+					GrpcConnector: func() (GrpcConnection, cpb.CollectorServiceClient, error) {
+						return new(dummyConn), fakeClient, nil
+					},
 				})
 
-				Eventually(fakeCollector.ReportCallCount).ShouldNot(Equal(lastCallCount))
+				Eventually(fakeClient.ReportCallCount).ShouldNot(Equal(lastCallCount))
 			})
 		})
 
@@ -152,14 +148,84 @@ var _ = Describe("Recorder", func() {
 					&cpb.KeyValue{Key: "life", Value: &cpb.KeyValue_IntValue{42}},
 				}
 
+				_ = expected
+
 				Eventually(func() []*cpb.KeyValue {
 					spans := latestSpans()
-					if len(spans) > 0 {
+					if len(spans) > 0 && len(spans[0].GetLogs()) > 0 {
+						fmt.Println(spans[0].GetLogs())
 						return spans[0].GetLogs()[0].GetKeyvalues()
 					}
 					return []*cpb.KeyValue{}
 				}).Should(BeEquivalentTo(expected))
 
+			})
+		})
+
+		Describe("Options", func() {
+			const expectedTraceID uint64 = 1
+			const expectedSpanID uint64 = 2
+			const expectedParentSpanID uint64 = 3
+
+			Context("When only the TraceID is set", func() {
+				BeforeEach(func() {
+					tracer.StartSpan("x", SetTraceID(expectedTraceID)).Finish()
+				})
+
+				It("Should set the options appropriately", func() {
+					By("Only running one span")
+					var spans []*cpb.Span
+					Eventually(func() []*cpb.Span {
+						spans = latestSpans()
+						return spans
+					}).Should(HaveLen(1))
+
+					By("Appropriately setting TraceID")
+					Expect(spans[0].GetSpanContext().GetTraceId()).To(Equal(expectedTraceID))
+					Expect(spans[0].GetSpanContext().GetSpanId()).ToNot(Equal(uint64(0)))
+					Expect(spans[0].GetReferences()).To(BeEmpty())
+				})
+			})
+
+			Context("When both the TraceID and SpanID are set", func() {
+				BeforeEach(func() {
+					tracer.StartSpan("x", SetTraceID(expectedTraceID), SetSpanID(expectedSpanID)).Finish()
+				})
+
+				It("Should set the options appropriately", func() {
+					By("Only running one span")
+					var spans []*cpb.Span
+					Eventually(func() []*cpb.Span {
+						spans = latestSpans()
+						return spans
+					}).Should(HaveLen(1))
+
+					By("Appropriately setting the TraceID and SpanID")
+					Expect(spans[0].GetSpanContext().TraceId).To(Equal(expectedTraceID))
+					Expect(spans[0].GetSpanContext().SpanId).To(Equal(expectedSpanID))
+					Expect(spans[0].GetReferences()).To(BeEmpty())
+				})
+			})
+
+			Context("When TraceID, SpanID, and ParentSpanID are set", func() {
+				BeforeEach(func() {
+					tracer.StartSpan("x", SetTraceID(expectedTraceID), SetSpanID(expectedSpanID), SetParentSpanID(expectedParentSpanID)).Finish()
+				})
+
+				It("Should set the options appropriately", func() {
+					By("Only running one span")
+					var spans []*cpb.Span
+					Eventually(func() []*cpb.Span {
+						spans = latestSpans()
+						return spans
+					}).Should(HaveLen(1))
+
+					By("Appropriately setting TraceID, SpanID, and ParentSpanID")
+					Expect(spans[0].GetSpanContext().TraceId).To(Equal(expectedTraceID))
+					Expect(spans[0].GetSpanContext().SpanId).To(Equal(expectedSpanID))
+					Expect(spans[0].GetReferences()).ToNot(BeEmpty())
+					Expect(spans[0].GetReferences()[0].GetSpanContext().SpanId).To(Equal(expectedParentSpanID))
+				})
 			})
 		})
 

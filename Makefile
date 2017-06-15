@@ -22,7 +22,7 @@ lightstep_thrift/lightstep_thriftfakes/fake_reporting_service.go: lightstep_thri
 	counterfeiter lightstep_thrift/reportingservice.go ReportingService
 
 collectorpb/collectorpbfakes/fake_collector_service_server.go: collectorpb/collector.pb.go
-	counterfeiter collectorpb/collector.pb.go CollectorServiceServer
+	counterfeiter collectorpb/collector.pb.go CollectorServiceClient
 
 # gRPC
 ifeq (,$(wildcard lightstep-tracer-common/collector.proto))

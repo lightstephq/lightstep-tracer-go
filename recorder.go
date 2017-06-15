@@ -80,6 +80,11 @@ var (
 	BinaryCarrier = basictracer.BinaryCarrier
 )
 
+type GrpcConnection interface {
+	Close() error
+	GetMethodConfig(string) grpc.MethodConfig
+}
+
 // A set of counter values for a given time window
 type counterSet struct {
 	droppedSpans int64
@@ -146,6 +151,9 @@ type Options struct {
 	UseThrift bool `yaml:"use_thrift"`
 
 	ReconnectPeriod time.Duration `yaml:"reconnect_period"`
+
+	// For testing purposes only
+	GrpcConnector func() (GrpcConnection, cpb.CollectorServiceClient, error)
 }
 
 func (opts *Options) setDefaults() {
@@ -299,7 +307,7 @@ type Recorder struct {
 	// Remote service that will receive reports.
 	hostPort      string
 	backend       cpb.CollectorServiceClient
-	conn          *grpc.ClientConn
+	conn          GrpcConnection
 	connTimestamp time.Time
 	creds         grpc.DialOption
 	closech       chan struct{}
@@ -383,8 +391,15 @@ func NewRecorder(opts Options) *Recorder {
 	} else {
 		rec.creds = grpc.WithTransportCredentials(credentials.NewClientTLSFromCert(nil, ""))
 	}
+	var conn GrpcConnection
+	var backend cpb.CollectorServiceClient
+	var err error
+	if opts.GrpcConnector != nil {
+		conn, backend, err = opts.GrpcConnector()
+	} else {
+		conn, backend, err = rec.connectClient()
+	}
 
-	conn, backend, err := rec.connectClient()
 	if err != nil {
 		fmt.Println("grpc.Dial failed permanently:", err)
 		return nil
@@ -400,7 +415,7 @@ func NewRecorder(opts Options) *Recorder {
 	return rec
 }
 
-func (r *Recorder) connectClient() (*grpc.ClientConn, cpb.CollectorServiceClient, error) {
+func (r *Recorder) connectClient() (GrpcConnection, cpb.CollectorServiceClient, error) {
 	conn, err := grpc.Dial(r.hostPort, r.creds)
 	if err != nil {
 		return nil, nil, err
