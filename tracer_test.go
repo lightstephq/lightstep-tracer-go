@@ -20,9 +20,7 @@ import (
 
 func startNSpans(n int, tracer ot.Tracer) {
 	for i := 0; i < n; i++ {
-		span := tracer.StartSpan(string(i))
-		span.LogKV("id", i)
-		span.Finish()
+		tracer.StartSpan(string(i)).Finish()
 	}
 }
 
@@ -35,7 +33,20 @@ func attachSpanListener(fakeClient *cpbfakes.FakeCollectorServiceClient) func() 
 		}
 		return &cpb.ReportResponse{}, nil
 	}
-	return func() []*cpb.Span { return (<-reportChan).GetSpans() }
+
+	return func() []*cpb.Span {
+		timeout := time.After(5 * time.Second)
+		for {
+			select {
+			case report := <-reportChan:
+				if len(report.GetSpans()) > 0 {
+					return report.GetSpans()
+				}
+			case <-timeout:
+				Fail("timed out trying to get spans")
+			}
+		}
+	}
 }
 
 func FakeGrpcConnection(fakeClient *cpbfakes.FakeCollectorServiceClient) func() (GrpcConnection, cpb.CollectorServiceClient, error) {
@@ -49,11 +60,11 @@ type dummyConn struct{}
 func (*dummyConn) Close() error                               { return nil }
 func (*dummyConn) GetMethodConfig(_ string) grpc.MethodConfig { return grpc.MethodConfig{} }
 
-var _ = Describe("Recorder", func() {
+var _ = Describe("Tracer", func() {
 	var tracer ot.Tracer
+	const port = 9090
 
 	Context("With grpc enabled", func() {
-		var port int = 9090 + GinkgoParallelNode()
 		var latestSpans func() []*cpb.Span
 		var fakeClient *cpbfakes.FakeCollectorServiceClient
 
@@ -91,11 +102,8 @@ var _ = Describe("Recorder", func() {
 			It("Should send span operation names to the collector", func() {
 				tracer.StartSpan("smooth").Finish()
 
-				var spans []*cpb.Span
-				Eventually(func() []*cpb.Span {
-					spans = latestSpans()
-					return spans
-				}).Should(HaveLen(1))
+				spans := latestSpans()
+				Expect(spans).To(HaveLen(1))
 
 				Expect(spans[0].OperationName).To(Equal("smooth"))
 			})
@@ -105,11 +113,8 @@ var _ = Describe("Recorder", func() {
 				span.SetTag("tag", "you're it!")
 				span.Finish()
 
-				var spans []*cpb.Span
-				Eventually(func() []*cpb.Span {
-					spans = latestSpans()
-					return spans
-				}).Should(HaveLen(1))
+				spans := latestSpans()
+				Expect(spans).To(HaveLen(1))
 
 				Expect(spans[0].GetTags()).To(BeEquivalentTo(
 					[]*cpb.KeyValue{
@@ -125,11 +130,8 @@ var _ = Describe("Recorder", func() {
 				span.SetBaggageItem("x", "y")
 				span.Finish()
 
-				var spans []*cpb.Span
-				Eventually(func() []*cpb.Span {
-					spans = latestSpans()
-					return spans
-				}).Should(HaveLen(1))
+				spans := latestSpans()
+				Expect(spans).To(HaveLen(1))
 
 				Expect(spans[0].GetSpanContext().GetBaggage()).To(BeEquivalentTo(map[string]string{"x": "y"}))
 			})
@@ -153,11 +155,8 @@ var _ = Describe("Recorder", func() {
 				Expect(baggage).To(HaveLen(1))
 				span.Finish()
 
-				var spans []*cpb.Span
-				Eventually(func() []*cpb.Span {
-					spans = latestSpans()
-					return spans
-				}).Should(HaveLen(1))
+				spans := latestSpans()
+				Expect(spans).To(HaveLen(1))
 
 				Expect(spans[0].GetSpanContext().GetBaggage()).To(HaveLen(2))
 			})
@@ -462,11 +461,8 @@ var _ = Describe("Recorder", func() {
 				span.SetTag("tag", "value")
 				span.Finish()
 
-				var spans []*cpb.Span
-				Eventually(func() []*cpb.Span {
-					spans = latestSpans()
-					return spans
-				}).Should(HaveLen(1))
+				spans := latestSpans()
+				Expect(spans).To(HaveLen(1))
 				Expect(spans[0].GetOperationName()).To(Equal("x"))
 				Expect(spans[0].GetTags()).To(BeEquivalentTo([]*cpb.KeyValue{
 					&cpb.KeyValue{
@@ -500,11 +496,8 @@ var _ = Describe("Recorder", func() {
 				}
 				span.Finish()
 
-				var spans []*cpb.Span
-				Eventually(func() []*cpb.Span {
-					spans = latestSpans()
-					return spans
-				}).Should(HaveLen(1))
+				spans := latestSpans()
+				Expect(spans).To(HaveLen(1))
 				Expect(spans[0].OperationName).To(Equal("span"))
 				Expect(spans[0].GetLogs()).To(HaveLen(10))
 
@@ -547,62 +540,4 @@ var _ = Describe("Recorder", func() {
 			})
 		})
 	})
-
-	Context("With thrift enabled", func() {
-		// var thriftServer *thrift.TSimpleServer
-		// var fakeReportingHandler *lightstep_thriftfakes.FakeReportingService
-		// var transport *thrift.TServerSocket
-
-		BeforeEach(func() {
-			// addr := "localhost:9090"
-			// var err error
-			// transport, err = thrift.NewTServerSocket(addr)
-			// if err != nil {
-			// 	Fail("failed to start thrift test server")
-			// }
-			// fakeReportingHandler = new(lightstep_thriftfakes.FakeReportingService)
-			//
-			// processor := lightstep_thrift.NewReportingServiceProcessor(fakeReportingHandler)
-			// protocolFactory := thrift.NewTBinaryProtocolFactoryDefault()
-			//
-			// transportFactory := thrift.NewTTransportFactory()
-			// thriftServer = thrift.NewTSimpleServer4(processor, transport, transportFactory, protocolFactory)
-			//
-			// go func() {
-			// 	if err := thriftServer.Serve(); err != nil {
-			// 		fmt.Println("Error running server: ", err)
-			// 	}
-			// }()
-			//
-			// time.Sleep(1000 * time.Millisecond)
-			//
-			// tracer = NewTracer(Options{
-			// 	AccessToken: "0987654321",
-			// 	Collector:   Endpoint{"localhost", 9090, true},
-			// 	UseThrift:   true,
-			// 	Verbose:     true,
-			// })
-			// span := tracer.StartSpan("span spun spunt")
-			// time.Sleep(1000 * time.Millisecond)
-			// span.Finish()
-			// time.Sleep(1000 * time.Millisecond)
-			// if err := FlushLightStepTracer(tracer); err != nil {
-			// 	panic(err)
-			// }
-		})
-
-		It("Should behave nicely", func() {
-			// TODO: tracer cannot yet connect to thrift server
-		})
-
-		AfterEach(func() {
-			// if err := thriftServer.Stop(); err != nil {
-			// 	Fail("Failed to stop THIFT server")
-			// }
-			// if err := transport.Close(); err != nil {
-			// 	Fail("Failed to close server port")
-			// }
-		})
-	})
-
 })
