@@ -2,6 +2,8 @@ package lightstep_test
 
 import (
 	"encoding/json"
+	"fmt"
+	"reflect"
 	"strings"
 	"time"
 
@@ -14,9 +16,71 @@ import (
 	cpbfakes "github.com/lightstep/lightstep-tracer-go/collectorpb/collectorpbfakes"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/onsi/gomega/types"
 	ot "github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/log"
 )
+
+type haveKeyValuesMatcher []*cpb.KeyValue
+
+func HaveKeyValues(keyValues ...*cpb.KeyValue) types.GomegaMatcher {
+	return haveKeyValuesMatcher(keyValues)
+}
+
+func (matcher haveKeyValuesMatcher) Match(actual interface{}) (bool, error) {
+	var actualKeyValues []*cpb.KeyValue
+
+	switch v := actual.(type) {
+	case []*cpb.KeyValue:
+		actualKeyValues = v
+	case *cpb.Log:
+		actualKeyValues = v.GetKeyvalues()
+	default:
+		return false, fmt.Errorf("HaveKeyValues matcher expects either a []*KeyValue or a *Log")
+	}
+
+	expectedKeyValues := []*cpb.KeyValue(matcher)
+	if len(expectedKeyValues) != len(actualKeyValues) {
+		return false, nil
+	}
+
+	for i, _ := range actualKeyValues {
+		if !reflect.DeepEqual(actualKeyValues[i], expectedKeyValues[i]) {
+			return false, nil
+		}
+	}
+
+	return true, nil
+}
+
+func (matcher haveKeyValuesMatcher) FailureMessage(actual interface{}) string {
+	return fmt.Sprintf("Expected '%v' to have key values '%v'", actual, matcher)
+}
+
+func (matcher haveKeyValuesMatcher) NegatedFailureMessage(actual interface{}) string {
+	return fmt.Sprintf("Expected '%v' to not have key values '%v'", actual, matcher)
+}
+
+func KeyValue(key string, value interface{}, storeAsJson ...bool) *cpb.KeyValue {
+	tag := &cpb.KeyValue{Key: key}
+	switch typedValue := value.(type) {
+	case int:
+		tag.Value = &cpb.KeyValue_IntValue{int64(typedValue)}
+	case string:
+		if len(storeAsJson) > 0 && storeAsJson[0] {
+			tag.Value = &cpb.KeyValue_JsonValue{typedValue}
+		} else {
+			tag.Value = &cpb.KeyValue_StringValue{typedValue}
+		}
+	case bool:
+		tag.Value = &cpb.KeyValue_BoolValue{typedValue}
+	case float32:
+		tag.Value = &cpb.KeyValue_DoubleValue{float64(typedValue)}
+	case float64:
+		tag.Value = &cpb.KeyValue_DoubleValue{typedValue}
+	}
+	return tag
+}
 
 func startNSpans(n int, tracer ot.Tracer) {
 	for i := 0; i < n; i++ {
@@ -116,13 +180,7 @@ var _ = Describe("Tracer", func() {
 				spans := latestSpans()
 				Expect(spans).To(HaveLen(1))
 
-				Expect(spans[0].GetTags()).To(BeEquivalentTo(
-					[]*cpb.KeyValue{
-						&cpb.KeyValue{
-							Key:   "tag",
-							Value: &cpb.KeyValue_StringValue{"you're it!"},
-						},
-					}))
+				Expect(spans[0].GetTags()).To(HaveKeyValues(KeyValue("tag", "you're it!")))
 			})
 
 			It("Should send baggage info to the collector", func() {
@@ -393,21 +451,16 @@ var _ = Describe("Tracer", func() {
 					span.Finish()
 
 					obj, _ := json.Marshal([]interface{}{"gr", 8})
-					expected := []*cpb.KeyValue{
-						&cpb.KeyValue{Key: "donut", Value: &cpb.KeyValue_StringValue{"bacon"}},
-						&cpb.KeyValue{Key: "key", Value: &cpb.KeyValue_JsonValue{string(obj)}},
-						&cpb.KeyValue{Key: "donut arm…", Value: &cpb.KeyValue_StringValue{"OOOOOOOOOO…"}},
-						&cpb.KeyValue{Key: "life", Value: &cpb.KeyValue_IntValue{42}},
-					}
 
-					Eventually(func() []*cpb.KeyValue {
-						spans := latestSpans()
-						if len(spans) > 0 && len(spans[0].GetLogs()) > 0 {
-							return spans[0].GetLogs()[0].GetKeyvalues()
-						}
-						return []*cpb.KeyValue{}
-					}).Should(BeEquivalentTo(expected))
-
+					spans := latestSpans()
+					Expect(spans).To(HaveLen(1))
+					Expect(spans[0].GetLogs()).To(HaveLen(1))
+					Expect(spans[0].GetLogs()[0]).To(HaveKeyValues(
+						KeyValue("donut", "bacon"),
+						KeyValue("key", string(obj), true),
+						KeyValue("donut arm…", "OOOOOOOOOO…"),
+						KeyValue("life", 42),
+					))
 				})
 			})
 		})
@@ -464,11 +517,7 @@ var _ = Describe("Tracer", func() {
 				spans := latestSpans()
 				Expect(spans).To(HaveLen(1))
 				Expect(spans[0].GetOperationName()).To(Equal("x"))
-				Expect(spans[0].GetTags()).To(BeEquivalentTo([]*cpb.KeyValue{
-					&cpb.KeyValue{
-						Key:   "tag",
-						Value: &cpb.KeyValue_StringValue{"value"},
-					}}))
+				Expect(spans[0].GetTags()).To(HaveKeyValues(KeyValue("tag", "value")))
 				Expect(spans[0].GetLogs()).To(BeEmpty())
 			})
 		})
@@ -488,7 +537,25 @@ var _ = Describe("Tracer", func() {
 				Eventually(fakeClient.ReportCallCount).ShouldNot(BeZero())
 			})
 
-			It("", func() {
+			It("keeps all logs if they don't exceed MaxLogsPerSpan", func() {
+				const logCount = 10
+				span := tracer.StartSpan("span")
+				for i := 0; i < logCount; i++ {
+					span.LogKV("id", i)
+				}
+				span.Finish()
+
+				spans := latestSpans()
+				Expect(spans).To(HaveLen(1))
+				Expect(spans[0].OperationName).To(Equal("span"))
+				Expect(spans[0].GetLogs()).To(HaveLen(10))
+
+				for i, log := range spans[0].GetLogs() {
+					Expect(log).To(HaveKeyValues(KeyValue("id", i)))
+				}
+			})
+
+			It("throws away the middle logs when they exceed MaxLogsPerSpan", func() {
 				const logCount = 50
 				span := tracer.StartSpan("span")
 				for i := 0; i < logCount; i++ {
@@ -504,38 +571,19 @@ var _ = Describe("Tracer", func() {
 				split := (len(spans[0].GetLogs()) - 1) / 2
 				firstLogs := spans[0].GetLogs()[:split]
 				for i, log := range firstLogs {
-					Expect(log.GetKeyvalues()).To(BeEquivalentTo([]*cpb.KeyValue{
-						&cpb.KeyValue{
-							Key:   "id",
-							Value: &cpb.KeyValue_IntValue{int64(i)},
-						},
-					}))
+					Expect(log).To(HaveKeyValues(KeyValue("id", i)))
 				}
 
 				warnLog := spans[0].GetLogs()[split]
-				Expect(warnLog.GetKeyvalues()).To(BeEquivalentTo([]*cpb.KeyValue{
-					&cpb.KeyValue{
-						Key:   "event",
-						Value: &cpb.KeyValue_StringValue{"dropped Span logs"},
-					},
-					&cpb.KeyValue{
-						Key:   "dropped_log_count",
-						Value: &cpb.KeyValue_IntValue{int64(logCount - len(spans[0].GetLogs()) + 1)},
-					},
-					&cpb.KeyValue{
-						Key:   "component",
-						Value: &cpb.KeyValue_StringValue{"basictracer"},
-					},
-				}))
+				Expect(warnLog).To(HaveKeyValues(
+					KeyValue("event", "dropped Span logs"),
+					KeyValue("dropped_log_count", logCount-len(spans[0].GetLogs())+1),
+					KeyValue("component", "basictracer"),
+				))
 
 				lastLogs := spans[0].GetLogs()[split+1:]
 				for i, log := range lastLogs {
-					Expect(log.GetKeyvalues()).To(BeEquivalentTo([]*cpb.KeyValue{
-						&cpb.KeyValue{
-							Key:   "id",
-							Value: &cpb.KeyValue_IntValue{int64(logCount - len(lastLogs) + i)},
-						},
-					}))
+					Expect(log).To(HaveKeyValues(KeyValue("id", logCount-len(lastLogs)+i)))
 				}
 			})
 		})
