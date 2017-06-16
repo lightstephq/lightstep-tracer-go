@@ -168,7 +168,6 @@ var _ = Describe("Tracer", func() {
 
 				spans := latestSpans()
 				Expect(spans).To(HaveLen(1))
-
 				Expect(spans[0].OperationName).To(Equal("smooth"))
 			})
 
@@ -179,7 +178,6 @@ var _ = Describe("Tracer", func() {
 
 				spans := latestSpans()
 				Expect(spans).To(HaveLen(1))
-
 				Expect(spans[0].GetTags()).To(HaveKeyValues(KeyValue("tag", "you're it!")))
 			})
 
@@ -190,7 +188,6 @@ var _ = Describe("Tracer", func() {
 
 				spans := latestSpans()
 				Expect(spans).To(HaveLen(1))
-
 				Expect(spans[0].GetSpanContext().GetBaggage()).To(BeEquivalentTo(map[string]string{"x": "y"}))
 			})
 
@@ -215,7 +212,6 @@ var _ = Describe("Tracer", func() {
 
 				spans := latestSpans()
 				Expect(spans).To(HaveLen(1))
-
 				Expect(spans[0].GetSpanContext().GetBaggage()).To(HaveLen(2))
 			})
 
@@ -233,7 +229,6 @@ var _ = Describe("Tracer", func() {
 					By("Not hanging")
 					errChan := make(chan error)
 					go func() { errChan <- CloseTracer(tracer) }()
-
 					Eventually(errChan).Should(Receive(BeNil()))
 
 					By("Stop communication with server")
@@ -250,7 +245,6 @@ var _ = Describe("Tracer", func() {
 							return new(dummyConn), fakeClient, nil
 						},
 					})
-
 					Eventually(fakeClient.ReportCallCount).ShouldNot(Equal(lastCallCount))
 				})
 			})
@@ -260,20 +254,14 @@ var _ = Describe("Tracer", func() {
 				const expectedSpanID uint64 = 2
 				const expectedParentSpanID uint64 = 3
 
-				Context("When only the TraceID is set", func() {
+				Context("When the TraceID is set", func() {
 					BeforeEach(func() {
 						tracer.StartSpan("x", SetTraceID(expectedTraceID)).Finish()
 					})
 
-					It("Should set the options appropriately", func() {
-						By("Only running one span")
-						var spans []*cpb.Span
-						Eventually(func() []*cpb.Span {
-							spans = latestSpans()
-							return spans
-						}).Should(HaveLen(1))
-
-						By("Appropriately setting TraceID")
+					It("Should set the specified options", func() {
+						spans := latestSpans()
+						Expect(spans).To(HaveLen(1))
 						Expect(spans[0].GetSpanContext().GetTraceId()).To(Equal(expectedTraceID))
 						Expect(spans[0].GetSpanContext().GetSpanId()).ToNot(Equal(uint64(0)))
 						Expect(spans[0].GetReferences()).To(BeEmpty())
@@ -285,15 +273,9 @@ var _ = Describe("Tracer", func() {
 						tracer.StartSpan("x", SetTraceID(expectedTraceID), SetSpanID(expectedSpanID)).Finish()
 					})
 
-					It("Should set the options appropriately", func() {
-						By("Only running one span")
-						var spans []*cpb.Span
-						Eventually(func() []*cpb.Span {
-							spans = latestSpans()
-							return spans
-						}).Should(HaveLen(1))
-
-						By("Appropriately setting the TraceID and SpanID")
+					It("Should set the specified options", func() {
+						spans := latestSpans()
+						Expect(spans).To(HaveLen(1))
 						Expect(spans[0].GetSpanContext().TraceId).To(Equal(expectedTraceID))
 						Expect(spans[0].GetSpanContext().SpanId).To(Equal(expectedSpanID))
 						Expect(spans[0].GetReferences()).To(BeEmpty())
@@ -305,15 +287,9 @@ var _ = Describe("Tracer", func() {
 						tracer.StartSpan("x", SetTraceID(expectedTraceID), SetSpanID(expectedSpanID), SetParentSpanID(expectedParentSpanID)).Finish()
 					})
 
-					It("Should set the options appropriately", func() {
-						By("Only running one span")
-						var spans []*cpb.Span
-						Eventually(func() []*cpb.Span {
-							spans = latestSpans()
-							return spans
-						}).Should(HaveLen(1))
-
-						By("Appropriately setting TraceID, SpanID, and ParentSpanID")
+					It("Should set the specified options", func() {
+						spans := latestSpans()
+						Expect(spans).To(HaveLen(1))
 						Expect(spans[0].GetSpanContext().TraceId).To(Equal(expectedTraceID))
 						Expect(spans[0].GetSpanContext().SpanId).To(Equal(expectedSpanID))
 						Expect(spans[0].GetReferences()).ToNot(BeEmpty())
@@ -451,7 +427,6 @@ var _ = Describe("Tracer", func() {
 					span.Finish()
 
 					obj, _ := json.Marshal([]interface{}{"gr", 8})
-
 					spans := latestSpans()
 					Expect(spans).To(HaveLen(1))
 					Expect(spans[0].GetLogs()).To(HaveLen(1))
