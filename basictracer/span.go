@@ -59,7 +59,7 @@ func (s *spanImpl) LogKV(keyValues ...interface{}) {
 }
 
 func (s *spanImpl) appendLog(lr opentracing.LogRecord) {
-	maxLogs := s.tracer.options.MaxLogsPerSpan
+	maxLogs := s.tracer.config.MaxLogsPerSpan
 	if maxLogs == 0 || len(s.raw.Logs) < maxLogs {
 		s.raw.Logs = append(s.raw.Logs, lr)
 		return
@@ -79,7 +79,7 @@ func (s *spanImpl) LogFields(fields ...log.Field) {
 	}
 	s.Lock()
 	defer s.Unlock()
-	if s.tracer.options.DropAllLogs {
+	if s.tracer.config.DropAllLogs {
 		return
 	}
 	if lr.Timestamp.IsZero() {
@@ -104,7 +104,7 @@ func (s *spanImpl) LogEventWithPayload(event string, payload interface{}) {
 func (s *spanImpl) Log(ld opentracing.LogData) {
 	s.Lock()
 	defer s.Unlock()
-	if s.tracer.options.DropAllLogs {
+	if s.tracer.config.DropAllLogs {
 		return
 	}
 
@@ -177,7 +177,7 @@ func (s *spanImpl) FinishWithOptions(opts opentracing.FinishOptions) {
 
 	s.raw.Duration = duration
 
-	s.tracer.options.Recorder.RecordSpan(s.raw)
+	s.tracer.config.Recorder.RecordSpan(s.raw)
 }
 
 func (s *spanImpl) Tracer() opentracing.Tracer {

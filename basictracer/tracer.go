@@ -12,12 +12,12 @@ type Tracer interface {
 	opentracing.Tracer
 
 	// Options gets the Options used in New() or NewWithOptions().
-	Options() Options
+	Config() TracerConfig
 }
 
 // Options allows creating a customized Tracer via NewWithOptions. The object
 // must not be updated when there is an active tracer using it.
-type Options struct {
+type TracerConfig struct {
 	// Recorder receives Spans which have been finished.
 	Recorder SpanRecorder
 	// DropAllLogs turns log events on all Spans into no-ops.
@@ -50,35 +50,35 @@ type LightStepStartSpanOption interface {
 	ApplyLS(*StartSpanOptions)
 }
 
-// DefaultOptions returns an Options object with a 1 in 64 sampling rate and
+// Implements the `Tracer` interface.
+type tracerImpl struct {
+	config           TracerConfig
+	textPropagator   textMapPropagator
+	binaryPropagator lightstepBinaryPropagator
+}
+
+// DefaultTracerConfig returns an Options object with a 1 in 64 sampling rate and
 // all options disabled. A Recorder needs to be set manually before using the
 // returned object with a Tracer.
-func DefaultOptions() Options {
-	return Options{
+func DefaultTracerConfig() TracerConfig {
+	return TracerConfig{
 		MaxLogsPerSpan: 100,
 	}
 }
 
 // NewWithOptions creates a customized Tracer.
-func NewWithOptions(opts Options) opentracing.Tracer {
-	return &tracerImpl{options: opts}
+func NewTracerImplWithConfig(opts TracerConfig) opentracing.Tracer {
+	return &tracerImpl{config: opts}
 }
 
 // New creates and returns a standard Tracer which defers completed Spans to
 // `recorder`.
 // Spans created by this Tracer support the ext.SamplingPriority tag: Setting
 // ext.SamplingPriority causes the Span to be Sampled from that point on.
-func New(recorder SpanRecorder) opentracing.Tracer {
-	opts := DefaultOptions()
+func NewTracerImpl(recorder SpanRecorder) opentracing.Tracer {
+	opts := DefaultTracerConfig()
 	opts.Recorder = recorder
-	return NewWithOptions(opts)
-}
-
-// Implements the `Tracer` interface.
-type tracerImpl struct {
-	options          Options
-	textPropagator   textMapPropagator
-	binaryPropagator lightstepBinaryPropagator
+	return NewTracerImplWithConfig(opts)
 }
 
 func (t *tracerImpl) StartSpan(
@@ -195,6 +195,6 @@ func (t *tracerImpl) Extract(format interface{}, carrier interface{}) (opentraci
 	return nil, opentracing.ErrUnsupportedFormat
 }
 
-func (t *tracerImpl) Options() Options {
-	return t.options
+func (t *tracerImpl) Config() TracerConfig {
+	return t.config
 }

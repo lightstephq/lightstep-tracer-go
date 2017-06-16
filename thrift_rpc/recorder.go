@@ -105,11 +105,11 @@ type Options struct {
 // NewTracer returns a new Tracer that reports spans to a LightStep
 // collector.
 func NewTracer(opts Options) ot.Tracer {
-	options := basictracer.DefaultOptions()
+	options := basictracer.DefaultTracerConfig()
 	options.Recorder = NewRecorder(opts)
 	options.DropAllLogs = opts.DropSpanLogs
 	options.MaxLogsPerSpan = opts.MaxLogsPerSpan
-	return basictracer.NewWithOptions(options)
+	return basictracer.NewTracerImplWithConfig(options)
 }
 
 func FlushLightStepTracer(lsTracer ot.Tracer) error {
@@ -118,7 +118,7 @@ func FlushLightStepTracer(lsTracer ot.Tracer) error {
 		return fmt.Errorf("Not a LightStep Tracer type: %v", reflect.TypeOf(lsTracer))
 	}
 
-	basicRecorder := basicTracer.Options().Recorder
+	basicRecorder := basicTracer.Config().Recorder
 	lsRecorder, ok := basicRecorder.(*Recorder)
 	if !ok {
 		return fmt.Errorf("Not a LightStep Recorder type: %v", reflect.TypeOf(basicRecorder))

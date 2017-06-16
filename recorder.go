@@ -184,7 +184,7 @@ func (opts *Options) setDefaults() {
 // NewTracer returns a new Tracer that reports spans to a LightStep
 // collector.
 func NewTracer(opts Options) ot.Tracer {
-	options := basictracer.DefaultOptions()
+	options := basictracer.DefaultTracerConfig()
 
 	if !opts.UseThrift {
 		r := NewRecorder(opts)
@@ -216,7 +216,7 @@ func NewTracer(opts Options) ot.Tracer {
 	}
 	options.DropAllLogs = opts.DropSpanLogs
 	options.MaxLogsPerSpan = opts.MaxLogsPerSpan
-	return basictracer.NewWithOptions(options)
+	return basictracer.NewTracerImplWithConfig(options)
 }
 
 func FlushLightStepTracer(lsTracer ot.Tracer) error {
@@ -225,7 +225,7 @@ func FlushLightStepTracer(lsTracer ot.Tracer) error {
 		return fmt.Errorf("Not a LightStep Tracer type: %v", reflect.TypeOf(lsTracer))
 	}
 
-	basicRecorder := basicTracer.Options().Recorder
+	basicRecorder := basicTracer.Config().Recorder
 
 	switch t := basicRecorder.(type) {
 	case *Recorder:
@@ -244,7 +244,7 @@ func GetLightStepAccessToken(lsTracer ot.Tracer) (string, error) {
 		return "", fmt.Errorf("Not a LightStep Tracer type: %v", reflect.TypeOf(lsTracer))
 	}
 
-	basicRecorder := basicTracer.Options().Recorder
+	basicRecorder := basicTracer.Config().Recorder
 
 	switch t := basicRecorder.(type) {
 	case *Recorder:
@@ -261,7 +261,7 @@ func CloseTracer(tracer ot.Tracer) error {
 	if !ok {
 		return fmt.Errorf("Not a LightStep Tracer type: %v", reflect.TypeOf(tracer))
 	}
-	recorder, ok := lsTracer.Options().Recorder.(io.Closer)
+	recorder, ok := lsTracer.Config().Recorder.(io.Closer)
 	if !ok {
 		return fmt.Errorf("Recorder does not implement Close: %v", reflect.TypeOf(recorder))
 	}

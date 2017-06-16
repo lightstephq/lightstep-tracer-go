@@ -49,7 +49,7 @@ func assembleTraceBy(span opentracing.Span, payload func(span basictracer.Span) 
 	if !ok {
 		return ErrNotLightStepTracer
 	}
-	recorder, ok := btracer.Options().Recorder.(*Recorder)
+	recorder, ok := btracer.Config().Recorder.(*Recorder)
 	if !ok {
 		return ErrNotLightStepTracer
 	}
