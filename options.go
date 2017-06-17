@@ -1,9 +1,6 @@
 package lightstep
 
-import (
-	"github.com/lightstep/lightstep-tracer-go/basictracer"
-	opentracing "github.com/opentracing/opentracing-go"
-)
+import opentracing "github.com/opentracing/opentracing-go"
 
 type (
 	// SetSpanID is a opentracing.StartSpanOption that sets an
@@ -32,12 +29,12 @@ func (sid SetTraceID) Apply(sso *opentracing.StartSpanOptions)      {}
 func (sid SetSpanID) Apply(sso *opentracing.StartSpanOptions)       {}
 func (sid SetParentSpanID) Apply(sso *opentracing.StartSpanOptions) {}
 
-func (sid SetTraceID) ApplyLS(sso *basictracer.StartSpanOptions) {
+func (sid SetTraceID) ApplyLS(sso *StartSpanOptions) {
 	sso.SetTraceID = uint64(sid)
 }
-func (sid SetSpanID) ApplyLS(sso *basictracer.StartSpanOptions) {
+func (sid SetSpanID) ApplyLS(sso *StartSpanOptions) {
 	sso.SetSpanID = uint64(sid)
 }
-func (sid SetParentSpanID) ApplyLS(sso *basictracer.StartSpanOptions) {
+func (sid SetParentSpanID) ApplyLS(sso *StartSpanOptions) {
 	sso.SetParentSpanID = uint64(sid)
 }

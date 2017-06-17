@@ -45,7 +45,7 @@ func assembleTraceBy(span opentracing.Span, payload func(span basictracer.Span) 
 	if !ok {
 		return ErrNotLightStepTracer
 	}
-	btracer, ok := span.Tracer().(basictracer.Tracer)
+	btracer, ok := span.Tracer().(Tracer)
 	if !ok {
 		return ErrNotLightStepTracer
 	}

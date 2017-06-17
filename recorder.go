@@ -76,8 +76,6 @@ var (
 
 	errPreviousReportInFlight = fmt.Errorf("a previous Report is still in flight; aborting Flush()")
 	errConnectionWasClosed    = fmt.Errorf("the connection was closed")
-
-	BinaryCarrier = basictracer.BinaryCarrier
 )
 
 type GrpcConnection interface {
@@ -184,7 +182,7 @@ func (opts *Options) setDefaults() {
 // NewTracer returns a new Tracer that reports spans to a LightStep
 // collector.
 func NewTracer(opts Options) ot.Tracer {
-	options := basictracer.DefaultTracerConfig()
+	options := DefaultTracerConfig()
 
 	if !opts.UseThrift {
 		r := NewRecorder(opts)
@@ -216,11 +214,11 @@ func NewTracer(opts Options) ot.Tracer {
 	}
 	options.DropAllLogs = opts.DropSpanLogs
 	options.MaxLogsPerSpan = opts.MaxLogsPerSpan
-	return basictracer.NewTracerImplWithConfig(options)
+	return NewTracerImplWithConfig(options)
 }
 
 func FlushLightStepTracer(lsTracer ot.Tracer) error {
-	basicTracer, ok := lsTracer.(basictracer.Tracer)
+	basicTracer, ok := lsTracer.(Tracer)
 	if !ok {
 		return fmt.Errorf("Not a LightStep Tracer type: %v", reflect.TypeOf(lsTracer))
 	}
@@ -239,7 +237,7 @@ func FlushLightStepTracer(lsTracer ot.Tracer) error {
 }
 
 func GetLightStepAccessToken(lsTracer ot.Tracer) (string, error) {
-	basicTracer, ok := lsTracer.(basictracer.Tracer)
+	basicTracer, ok := lsTracer.(Tracer)
 	if !ok {
 		return "", fmt.Errorf("Not a LightStep Tracer type: %v", reflect.TypeOf(lsTracer))
 	}
@@ -257,7 +255,7 @@ func GetLightStepAccessToken(lsTracer ot.Tracer) (string, error) {
 }
 
 func CloseTracer(tracer ot.Tracer) error {
-	lsTracer, ok := tracer.(basictracer.Tracer)
+	lsTracer, ok := tracer.(Tracer)
 	if !ok {
 		return fmt.Errorf("Not a LightStep Tracer type: %v", reflect.TypeOf(tracer))
 	}

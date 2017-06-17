@@ -1,8 +1,9 @@
-package basictracer
+package lightstep
 
 import (
 	"time"
 
+	"github.com/lightstep/lightstep-tracer-go/basictracer"
 	opentracing "github.com/opentracing/opentracing-go"
 )
 
@@ -19,7 +20,7 @@ type Tracer interface {
 // must not be updated when there is an active tracer using it.
 type TracerConfig struct {
 	// Recorder receives Spans which have been finished.
-	Recorder SpanRecorder
+	Recorder basictracer.SpanRecorder
 	// DropAllLogs turns log events on all Spans into no-ops.
 	// If NewSpanEventListener is set, the callbacks will still fire.
 	DropAllLogs bool
@@ -75,7 +76,7 @@ func NewTracerImplWithConfig(opts TracerConfig) opentracing.Tracer {
 // `recorder`.
 // Spans created by this Tracer support the ext.SamplingPriority tag: Setting
 // ext.SamplingPriority causes the Span to be Sampled from that point on.
-func NewTracerImpl(recorder SpanRecorder) opentracing.Tracer {
+func NewTracerImpl(recorder basictracer.SpanRecorder) opentracing.Tracer {
 	opts := DefaultTracerConfig()
 	opts.Recorder = recorder
 	return NewTracerImplWithConfig(opts)
@@ -132,7 +133,7 @@ ReferencesLoop:
 		case opentracing.ChildOfRef,
 			opentracing.FollowsFromRef:
 
-			refCtx := ref.ReferencedContext.(SpanContext)
+			refCtx := ref.ReferencedContext.(basictracer.SpanContext)
 			sp.raw.Context.TraceID = refCtx.TraceID
 			sp.raw.ParentSpanID = refCtx.SpanID
 
@@ -147,10 +148,10 @@ ReferencesLoop:
 	}
 	if sp.raw.Context.TraceID == 0 {
 		// TraceID not set by parent reference or explicitly
-		sp.raw.Context.TraceID, sp.raw.Context.SpanID = randomID2()
+		sp.raw.Context.TraceID, sp.raw.Context.SpanID = basictracer.RandomID2()
 	} else if sp.raw.Context.SpanID == 0 {
 		// TraceID set but SpanID not set
-		sp.raw.Context.SpanID = randomID()
+		sp.raw.Context.SpanID = basictracer.RandomID()
 	}
 
 	return t.startSpanInternal(

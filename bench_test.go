@@ -1,4 +1,4 @@
-package basictracer
+package lightstep
 
 import (
 	"bytes"
@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/lightstep/lightstep-tracer-go/basictracer"
 	opentracing "github.com/opentracing/opentracing-go"
 )
 
@@ -14,7 +15,7 @@ var tags []string
 func init() {
 	tags = make([]string, 1000)
 	for j := 0; j < len(tags); j++ {
-		tags[j] = fmt.Sprintf("%d", randomID())
+		tags[j] = fmt.Sprintf("%d", basictracer.RandomID())
 	}
 }
 

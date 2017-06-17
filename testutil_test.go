@@ -1,4 +1,4 @@
-package basictracer
+package lightstep
 
 import (
 	"fmt"
@@ -7,12 +7,13 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/lightstep/lightstep-tracer-go/basictracer"
 	"github.com/opentracing/opentracing-go/log"
 )
 
 type CountingRecorder int32
 
-func (c *CountingRecorder) RecordSpan(r RawSpan) {
+func (c *CountingRecorder) RecordSpan(r basictracer.RawSpan) {
 	atomic.AddInt32((*int32)(c), 1)
 }
 

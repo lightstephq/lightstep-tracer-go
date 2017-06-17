@@ -1,9 +1,10 @@
-package basictracer
+package lightstep
 
 import (
 	"strconv"
 	"strings"
 
+	"github.com/lightstep/lightstep-tracer-go/basictracer"
 	opentracing "github.com/opentracing/opentracing-go"
 )
 
@@ -24,7 +25,7 @@ func (_ *textMapPropagator) Inject(
 	spanContext opentracing.SpanContext,
 	opaqueCarrier interface{},
 ) error {
-	sc, ok := spanContext.(SpanContext)
+	sc, ok := spanContext.(basictracer.SpanContext)
 	if !ok {
 		return opentracing.ErrInvalidSpanContext
 	}
@@ -87,7 +88,7 @@ func (_ *textMapPropagator) Extract(
 		return nil, opentracing.ErrSpanContextCorrupted
 	}
 
-	return SpanContext{
+	return basictracer.SpanContext{
 		TraceID: traceID,
 		SpanID:  spanID,
 		Baggage: decodedBaggage,

@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"path"
-	"reflect"
 	"runtime"
 	"strconv"
 	"strings"
@@ -100,31 +99,6 @@ type Options struct {
 
 	// MaxLogsPerSpan limits the number of logs in a single span.
 	MaxLogsPerSpan int `yaml:"max_logs_per_span"`
-}
-
-// NewTracer returns a new Tracer that reports spans to a LightStep
-// collector.
-func NewTracer(opts Options) ot.Tracer {
-	options := basictracer.DefaultTracerConfig()
-	options.Recorder = NewRecorder(opts)
-	options.DropAllLogs = opts.DropSpanLogs
-	options.MaxLogsPerSpan = opts.MaxLogsPerSpan
-	return basictracer.NewTracerImplWithConfig(options)
-}
-
-func FlushLightStepTracer(lsTracer ot.Tracer) error {
-	basicTracer, ok := lsTracer.(basictracer.Tracer)
-	if !ok {
-		return fmt.Errorf("Not a LightStep Tracer type: %v", reflect.TypeOf(lsTracer))
-	}
-
-	basicRecorder := basicTracer.Config().Recorder
-	lsRecorder, ok := basicRecorder.(*Recorder)
-	if !ok {
-		return fmt.Errorf("Not a LightStep Recorder type: %v", reflect.TypeOf(basicRecorder))
-	}
-	lsRecorder.Flush()
-	return nil
 }
 
 // Recorder buffers spans and forwards them to a LightStep collector.
