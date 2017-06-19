@@ -64,6 +64,7 @@ func NewTracer(opts GrpcOptions) ot.Tracer {
 			MaxLogsPerSpan:   opts.MaxLogsPerSpan,
 			Verbose:          opts.Verbose,
 			MaxLogMessageLen: opts.MaxLogValueLen,
+			ThriftConnector:  opts.ThriftConnector,
 		}
 		r := NewThriftRecorder(thriftOpts)
 		if r == nil {

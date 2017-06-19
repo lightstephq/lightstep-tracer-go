@@ -56,6 +56,9 @@ type ThriftOptions struct {
 
 	// MaxLogsPerSpan limits the number of logs in a single span.
 	MaxLogsPerSpan int `yaml:"max_logs_per_span"`
+
+	// For testing purposes only
+	ThriftConnector func() lightstep_thrift.ReportingService
 }
 
 // ThriftRecorder buffers spans and forwards them to a LightStep collector.
@@ -158,13 +161,18 @@ func NewThriftRecorder(opts ThriftOptions) *ThriftRecorder {
 	if opts.ReportTimeout > 0 {
 		timeout = opts.ReportTimeout
 	}
-	transport, err := thrift.NewTHttpPostClient(getThriftCollectorURL(opts), timeout)
-	if err != nil {
-		rec.maybeLogError(err)
-		return nil
+
+	if opts.ThriftConnector != nil {
+		rec.backend = opts.ThriftConnector()
+	} else {
+		transport, err := thrift.NewTHttpPostClient(getThriftCollectorURL(opts), timeout)
+		if err != nil {
+			rec.maybeLogError(err)
+			return nil
+		}
+		rec.backend = lightstep_thrift.NewReportingServiceClientFactory(
+			transport, thrift.NewTBinaryProtocolFactoryDefault())
 	}
-	rec.backend = lightstep_thrift.NewReportingServiceClientFactory(
-		transport, thrift.NewTBinaryProtocolFactoryDefault())
 
 	rec.closech = make(chan struct{})
 	go rec.reportLoop(rec.closech)

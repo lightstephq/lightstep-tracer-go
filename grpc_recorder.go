@@ -19,8 +19,8 @@ import (
 	// N.B.(jmacd): Do not use google.golang.org/glog in this package.
 
 	google_protobuf "github.com/golang/protobuf/ptypes/timestamp"
-
 	cpb "github.com/lightstep/lightstep-tracer-go/collectorpb"
+	"github.com/lightstep/lightstep-tracer-go/lightstep_thrift"
 	ot "github.com/opentracing/opentracing-go"
 )
 
@@ -158,6 +158,9 @@ type GrpcOptions struct {
 
 	// For testing purposes only
 	GrpcConnector func() (GrpcConnection, cpb.CollectorServiceClient, error)
+
+	// For testing purposes only
+	ThriftConnector func() lightstep_thrift.ReportingService
 }
 
 func (opts *GrpcOptions) setDefaults() {
