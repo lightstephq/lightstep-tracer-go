@@ -1,4 +1,4 @@
-package lightstep
+package basictracer
 
 import (
 	"bytes"
@@ -14,7 +14,7 @@ var tags []string
 func init() {
 	tags = make([]string, 1000)
 	for j := 0; j < len(tags); j++ {
-		tags[j] = fmt.Sprintf("%d", genSeededGUID())
+		tags[j] = fmt.Sprintf("%d", randomID())
 	}
 }
 
@@ -32,7 +32,7 @@ func executeOps(sp opentracing.Span, numEvent, numTag, numItems int) {
 
 func benchmarkWithOps(b *testing.B, numEvent, numTag, numItems int) {
 	var r CountingRecorder
-	t := NewTracerImpl(&r)
+	t := New(&r)
 	benchmarkWithOpsAndCB(b, func() opentracing.Span {
 		return t.StartSpan("test")
 	}, numEvent, numTag, numItems)
@@ -78,9 +78,9 @@ func BenchmarkSpan_100BaggageItems(b *testing.B) {
 
 func BenchmarkSpan_100Events_100Tags_100BaggageItems(b *testing.B) {
 	var r CountingRecorder
-	opts := DefaultTracerConfig()
+	opts := DefaultOptions()
 	opts.Recorder = &r
-	t := NewTracerImplWithConfig(opts)
+	t := NewWithOptions(opts)
 	benchmarkWithOpsAndCB(b, func() opentracing.Span {
 		sp := t.StartSpan("test")
 		return sp
@@ -92,7 +92,7 @@ func BenchmarkSpan_100Events_100Tags_100BaggageItems(b *testing.B) {
 
 func benchmarkInject(b *testing.B, format opentracing.BuiltinFormat, numItems int) {
 	var r CountingRecorder
-	tracer := NewTracerImpl(&r)
+	tracer := New(&r)
 	sp := tracer.StartSpan("testing")
 	executeOps(sp, 0, 0, numItems)
 	var carrier interface{}
@@ -115,7 +115,7 @@ func benchmarkInject(b *testing.B, format opentracing.BuiltinFormat, numItems in
 
 func benchmarkExtract(b *testing.B, format opentracing.BuiltinFormat, numItems int) {
 	var r CountingRecorder
-	tracer := NewTracerImpl(&r)
+	tracer := New(&r)
 	sp := tracer.StartSpan("testing")
 	executeOps(sp, 0, 0, numItems)
 	var carrier interface{}

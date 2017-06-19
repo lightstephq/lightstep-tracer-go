@@ -1,28 +1,23 @@
-package lightstep
+package basictracer
 
 import (
-	"fmt"
-	"io"
-	"reflect"
 	"time"
 
-	"github.com/lightstep/lightstep-tracer-go/basictracer"
-	"github.com/lightstep/lightstep-tracer-go/thrift_rpc"
-	ot "github.com/opentracing/opentracing-go"
+	opentracing "github.com/opentracing/opentracing-go"
 )
 
 // Tracer extends the opentracing.Tracer interface with methods to
 // probe implementation state, for use by basictracer consumers.
 type Tracer interface {
-	ot.Tracer
+	opentracing.Tracer
 
 	// Options gets the Options used in New() or NewWithOptions().
-	Config() TracerConfig
+	Options() Options
 }
 
 // Options allows creating a customized Tracer via NewWithOptions. The object
 // must not be updated when there is an active tracer using it.
-type TracerConfig struct {
+type Options struct {
 	// Recorder receives Spans which have been finished.
 	Recorder SpanRecorder
 	// DropAllLogs turns log events on all Spans into no-ops.
@@ -40,96 +35,8 @@ type TracerConfig struct {
 	MaxLogsPerSpan int
 }
 
-// NewTracer returns a new Tracer that reports spans to a LightStep
-// collector.
-func NewTracer(opts Options) ot.Tracer {
-	options := DefaultTracerConfig()
-
-	if !opts.UseThrift {
-		r := NewRecorder(opts)
-		if r == nil {
-			return ot.NoopTracer{}
-		}
-		options.Recorder = r
-	} else {
-		opts.setDefaults()
-		// convert opts to thrift_rpc.Options
-		thriftOpts := thrift_rpc.Options{
-			AccessToken:      opts.AccessToken,
-			Collector:        thrift_rpc.Endpoint{opts.Collector.Host, opts.Collector.Port, opts.Collector.Plaintext},
-			Tags:             opts.Tags,
-			LightStepAPI:     thrift_rpc.Endpoint{opts.LightStepAPI.Host, opts.LightStepAPI.Port, opts.LightStepAPI.Plaintext},
-			MaxBufferedSpans: opts.MaxBufferedSpans,
-			ReportingPeriod:  opts.ReportingPeriod,
-			ReportTimeout:    opts.ReportTimeout,
-			DropSpanLogs:     opts.DropSpanLogs,
-			MaxLogsPerSpan:   opts.MaxLogsPerSpan,
-			Verbose:          opts.Verbose,
-			MaxLogMessageLen: opts.MaxLogValueLen,
-		}
-		r := thrift_rpc.NewRecorder(thriftOpts)
-		if r == nil {
-			return ot.NoopTracer{}
-		}
-		options.Recorder = r
-	}
-	options.DropAllLogs = opts.DropSpanLogs
-	options.MaxLogsPerSpan = opts.MaxLogsPerSpan
-	return NewTracerImplWithConfig(options)
-}
-
-func FlushLightStepTracer(lsTracer ot.Tracer) error {
-	basicTracer, ok := lsTracer.(Tracer)
-	if !ok {
-		return fmt.Errorf("Not a LightStep Tracer type: %v", reflect.TypeOf(lsTracer))
-	}
-
-	basicRecorder := basicTracer.Config().Recorder
-
-	switch t := basicRecorder.(type) {
-	case *Recorder:
-		t.Flush()
-	case *thrift_rpc.Recorder:
-		t.Flush()
-	default:
-		return fmt.Errorf("Not a LightStep Recorder type: %v", reflect.TypeOf(basicRecorder))
-	}
-	return nil
-}
-
-func GetLightStepAccessToken(lsTracer ot.Tracer) (string, error) {
-	basicTracer, ok := lsTracer.(Tracer)
-	if !ok {
-		return "", fmt.Errorf("Not a LightStep Tracer type: %v", reflect.TypeOf(lsTracer))
-	}
-
-	basicRecorder := basicTracer.Config().Recorder
-
-	switch t := basicRecorder.(type) {
-	case *Recorder:
-		return t.accessToken, nil
-	case *thrift_rpc.Recorder:
-		return t.AccessToken, nil
-	default:
-		return "", fmt.Errorf("Not a LightStep Recorder type: %v", reflect.TypeOf(basicRecorder))
-	}
-}
-
-func CloseTracer(tracer ot.Tracer) error {
-	lsTracer, ok := tracer.(Tracer)
-	if !ok {
-		return fmt.Errorf("Not a LightStep Tracer type: %v", reflect.TypeOf(tracer))
-	}
-	recorder, ok := lsTracer.Config().Recorder.(io.Closer)
-	if !ok {
-		return fmt.Errorf("Recorder does not implement Close: %v", reflect.TypeOf(recorder))
-	}
-
-	return recorder.Close()
-}
-
 type StartSpanOptions struct {
-	Options ot.StartSpanOptions
+	Options opentracing.StartSpanOptions
 
 	// Options to explicitly set span_id, trace_id,
 	// parent_span_id, expected to be used when exporting spans
@@ -143,41 +50,41 @@ type LightStepStartSpanOption interface {
 	ApplyLS(*StartSpanOptions)
 }
 
-// Implements the `Tracer` interface.
-type tracerImpl struct {
-	config           TracerConfig
-	textPropagator   textMapPropagator
-	binaryPropagator lightstepBinaryPropagator
-}
-
-// DefaultTracerConfig returns an Options object with a 1 in 64 sampling rate and
+// DefaultOptions returns an Options object with a 1 in 64 sampling rate and
 // all options disabled. A Recorder needs to be set manually before using the
 // returned object with a Tracer.
-func DefaultTracerConfig() TracerConfig {
-	return TracerConfig{
+func DefaultOptions() Options {
+	return Options{
 		MaxLogsPerSpan: 100,
 	}
 }
 
 // NewWithOptions creates a customized Tracer.
-func NewTracerImplWithConfig(opts TracerConfig) ot.Tracer {
-	return &tracerImpl{config: opts}
+func NewWithOptions(opts Options) opentracing.Tracer {
+	return &tracerImpl{options: opts}
 }
 
 // New creates and returns a standard Tracer which defers completed Spans to
 // `recorder`.
 // Spans created by this Tracer support the ext.SamplingPriority tag: Setting
 // ext.SamplingPriority causes the Span to be Sampled from that point on.
-func NewTracerImpl(recorder SpanRecorder) ot.Tracer {
-	opts := DefaultTracerConfig()
+func New(recorder SpanRecorder) opentracing.Tracer {
+	opts := DefaultOptions()
 	opts.Recorder = recorder
-	return NewTracerImplWithConfig(opts)
+	return NewWithOptions(opts)
+}
+
+// Implements the `Tracer` interface.
+type tracerImpl struct {
+	options          Options
+	textPropagator   textMapPropagator
+	binaryPropagator lightstepBinaryPropagator
 }
 
 func (t *tracerImpl) StartSpan(
 	operationName string,
-	opts ...ot.StartSpanOption,
-) ot.Span {
+	opts ...opentracing.StartSpanOption,
+) opentracing.Span {
 	sso := StartSpanOptions{}
 	for _, o := range opts {
 		switch o := o.(type) {
@@ -193,7 +100,7 @@ func (t *tracerImpl) StartSpan(
 func (t *tracerImpl) startSpanWithOptions(
 	operationName string,
 	opts *StartSpanOptions,
-) ot.Span {
+) opentracing.Span {
 	// Start time.
 	startTime := opts.Options.StartTime
 	if startTime.IsZero() {
@@ -222,10 +129,10 @@ func (t *tracerImpl) startSpanWithOptions(
 ReferencesLoop:
 	for _, ref := range opts.Options.References {
 		switch ref.Type {
-		case ot.ChildOfRef,
-			ot.FollowsFromRef:
+		case opentracing.ChildOfRef,
+			opentracing.FollowsFromRef:
 
-			refCtx := ref.ReferencedContext.(basictracer.SpanContext)
+			refCtx := ref.ReferencedContext.(SpanContext)
 			sp.raw.Context.TraceID = refCtx.TraceID
 			sp.raw.ParentSpanID = refCtx.SpanID
 
@@ -240,10 +147,10 @@ ReferencesLoop:
 	}
 	if sp.raw.Context.TraceID == 0 {
 		// TraceID not set by parent reference or explicitly
-		sp.raw.Context.TraceID, sp.raw.Context.SpanID = genSeededGUID2()
+		sp.raw.Context.TraceID, sp.raw.Context.SpanID = randomID2()
 	} else if sp.raw.Context.SpanID == 0 {
 		// TraceID set but SpanID not set
-		sp.raw.Context.SpanID = genSeededGUID()
+		sp.raw.Context.SpanID = randomID()
 	}
 
 	return t.startSpanInternal(
@@ -258,8 +165,8 @@ func (t *tracerImpl) startSpanInternal(
 	sp *spanImpl,
 	operationName string,
 	startTime time.Time,
-	tags ot.Tags,
-) ot.Span {
+	tags opentracing.Tags,
+) opentracing.Span {
 	sp.tracer = t
 	sp.raw.Operation = operationName
 	sp.raw.Start = startTime
@@ -268,26 +175,26 @@ func (t *tracerImpl) startSpanInternal(
 	return sp
 }
 
-func (t *tracerImpl) Inject(sc ot.SpanContext, format interface{}, carrier interface{}) error {
+func (t *tracerImpl) Inject(sc opentracing.SpanContext, format interface{}, carrier interface{}) error {
 	switch format {
-	case ot.TextMap, ot.HTTPHeaders:
+	case opentracing.TextMap, opentracing.HTTPHeaders:
 		return t.textPropagator.Inject(sc, carrier)
 	case BinaryCarrier:
 		return t.binaryPropagator.Inject(sc, carrier)
 	}
-	return ot.ErrUnsupportedFormat
+	return opentracing.ErrUnsupportedFormat
 }
 
-func (t *tracerImpl) Extract(format interface{}, carrier interface{}) (ot.SpanContext, error) {
+func (t *tracerImpl) Extract(format interface{}, carrier interface{}) (opentracing.SpanContext, error) {
 	switch format {
-	case ot.TextMap, ot.HTTPHeaders:
+	case opentracing.TextMap, opentracing.HTTPHeaders:
 		return t.textPropagator.Extract(carrier)
 	case BinaryCarrier:
 		return t.binaryPropagator.Extract(carrier)
 	}
-	return nil, ot.ErrUnsupportedFormat
+	return nil, opentracing.ErrUnsupportedFormat
 }
 
-func (t *tracerImpl) Config() TracerConfig {
-	return t.config
+func (t *tracerImpl) Options() Options {
+	return t.options
 }

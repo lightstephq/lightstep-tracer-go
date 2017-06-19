@@ -31,8 +31,8 @@ type httpError string
 
 // AssembleTraceForSpan requests trace assembly given a span of
 // interest to the caller.  The span may not have had Finish() called.
-func AssembleTraceForSpan(span basictracer.Span) error {
-	return assembleTraceBy(span, func(span basictracer.Span) []byte {
+func AssembleTraceForSpan(span Span) error {
+	return assembleTraceBy(span, func(span Span) []byte {
 		// Note: API handler expects span_guid to be a string,
 		// for consistency with other handlers.
 		return []byte(fmt.Sprint(`{"span_guid":"`, span.Context().(*basictracer.SpanContext).SpanID,
@@ -40,8 +40,8 @@ func AssembleTraceForSpan(span basictracer.Span) error {
 	})
 }
 
-func assembleTraceBy(span opentracing.Span, payload func(span basictracer.Span) []byte) error {
-	bspan, ok := span.(basictracer.Span)
+func assembleTraceBy(span opentracing.Span, payload func(span Span) []byte) error {
+	bspan, ok := span.(Span)
 	if !ok {
 		return ErrNotLightStepTracer
 	}

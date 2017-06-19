@@ -26,6 +26,17 @@ func genSeededGUID() uint64 {
 	return uint64(seededGUIDGen.Int63())
 }
 
+func genSeededGUID2() (uint64, uint64) {
+	// Golang does not seed the rng for us. Make sure it happens.
+	seededGUIDGenOnce.Do(func() {
+		seededGUIDGen = rand.New(rand.NewSource(time.Now().UnixNano()))
+	})
+
+	seededGUIDLock.Lock()
+	defer seededGUIDLock.Unlock()
+	return uint64(seededGUIDGen.Int63()), uint64(seededGUIDGen.Int63())
+}
+
 var logOneError sync.Once
 
 // maybeLogError logs the first error it receives using the standard log

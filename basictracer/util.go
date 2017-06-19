@@ -12,13 +12,13 @@ var (
 	seededIDLock sync.Mutex
 )
 
-func RandomID() uint64 {
+func randomID() uint64 {
 	seededIDLock.Lock()
 	defer seededIDLock.Unlock()
 	return uint64(seededIDGen.Int63())
 }
 
-func RandomID2() (uint64, uint64) {
+func randomID2() (uint64, uint64) {
 	seededIDLock.Lock()
 	defer seededIDLock.Unlock()
 	return uint64(seededIDGen.Int63()), uint64(seededIDGen.Int63())

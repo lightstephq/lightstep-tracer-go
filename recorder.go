@@ -2,7 +2,6 @@ package lightstep
 
 import (
 	"fmt"
-	"io"
 	"math/rand"
 	"os"
 	"path"
@@ -22,7 +21,6 @@ import (
 	google_protobuf "github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/lightstep/lightstep-tracer-go/basictracer"
 	cpb "github.com/lightstep/lightstep-tracer-go/collectorpb"
-	"github.com/lightstep/lightstep-tracer-go/thrift_rpc"
 	ot "github.com/opentracing/opentracing-go"
 )
 
@@ -94,6 +92,14 @@ type Endpoint struct {
 	Host      string `yaml:"host" usage:"host on which the endpoint is running"`
 	Port      int    `yaml:"port" usage:"port on which the endpoint is listening"`
 	Plaintext bool   `yaml:"plaintext" usage:"whether or not to encrypt data send to the endpoint"`
+}
+
+// A SpanRecorder handles all of the `RawSpan` data generated via an
+// associated `Tracer` (see `NewStandardTracer`) instance. It also names
+// the containing process and provides access to a straightforward tag map.
+type SpanRecorder interface {
+	// Implementations must determine whether and where to store `span`.
+	RecordSpan(span basictracer.RawSpan)
 }
 
 // Options control how the LightStep Tracer behaves.
@@ -177,94 +183,6 @@ func (opts *Options) setDefaults() {
 	if opts.ReconnectPeriod == 0 {
 		opts.ReconnectPeriod = defaultReconnectPeriod
 	}
-}
-
-// NewTracer returns a new Tracer that reports spans to a LightStep
-// collector.
-func NewTracer(opts Options) ot.Tracer {
-	options := DefaultTracerConfig()
-
-	if !opts.UseThrift {
-		r := NewRecorder(opts)
-		if r == nil {
-			return ot.NoopTracer{}
-		}
-		options.Recorder = r
-	} else {
-		opts.setDefaults()
-		// convert opts to thrift_rpc.Options
-		thriftOpts := thrift_rpc.Options{
-			AccessToken:      opts.AccessToken,
-			Collector:        thrift_rpc.Endpoint{opts.Collector.Host, opts.Collector.Port, opts.Collector.Plaintext},
-			Tags:             opts.Tags,
-			LightStepAPI:     thrift_rpc.Endpoint{opts.LightStepAPI.Host, opts.LightStepAPI.Port, opts.LightStepAPI.Plaintext},
-			MaxBufferedSpans: opts.MaxBufferedSpans,
-			ReportingPeriod:  opts.ReportingPeriod,
-			ReportTimeout:    opts.ReportTimeout,
-			DropSpanLogs:     opts.DropSpanLogs,
-			MaxLogsPerSpan:   opts.MaxLogsPerSpan,
-			Verbose:          opts.Verbose,
-			MaxLogMessageLen: opts.MaxLogValueLen,
-		}
-		r := thrift_rpc.NewRecorder(thriftOpts)
-		if r == nil {
-			return ot.NoopTracer{}
-		}
-		options.Recorder = r
-	}
-	options.DropAllLogs = opts.DropSpanLogs
-	options.MaxLogsPerSpan = opts.MaxLogsPerSpan
-	return NewTracerImplWithConfig(options)
-}
-
-func FlushLightStepTracer(lsTracer ot.Tracer) error {
-	basicTracer, ok := lsTracer.(Tracer)
-	if !ok {
-		return fmt.Errorf("Not a LightStep Tracer type: %v", reflect.TypeOf(lsTracer))
-	}
-
-	basicRecorder := basicTracer.Config().Recorder
-
-	switch t := basicRecorder.(type) {
-	case *Recorder:
-		t.Flush()
-	case *thrift_rpc.Recorder:
-		t.Flush()
-	default:
-		return fmt.Errorf("Not a LightStep Recorder type: %v", reflect.TypeOf(basicRecorder))
-	}
-	return nil
-}
-
-func GetLightStepAccessToken(lsTracer ot.Tracer) (string, error) {
-	basicTracer, ok := lsTracer.(Tracer)
-	if !ok {
-		return "", fmt.Errorf("Not a LightStep Tracer type: %v", reflect.TypeOf(lsTracer))
-	}
-
-	basicRecorder := basicTracer.Config().Recorder
-
-	switch t := basicRecorder.(type) {
-	case *Recorder:
-		return t.accessToken, nil
-	case *thrift_rpc.Recorder:
-		return t.AccessToken, nil
-	default:
-		return "", fmt.Errorf("Not a LightStep Recorder type: %v", reflect.TypeOf(basicRecorder))
-	}
-}
-
-func CloseTracer(tracer ot.Tracer) error {
-	lsTracer, ok := tracer.(Tracer)
-	if !ok {
-		return fmt.Errorf("Not a LightStep Tracer type: %v", reflect.TypeOf(tracer))
-	}
-	recorder, ok := lsTracer.Config().Recorder.(io.Closer)
-	if !ok {
-		return fmt.Errorf("Recorder does not implement Close: %v", reflect.TypeOf(recorder))
-	}
-
-	return recorder.Close()
 }
 
 // Recorder buffers spans and forwards them to a LightStep collector.
