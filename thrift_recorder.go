@@ -1,7 +1,8 @@
-package thrift_rpc
+package lightstep
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"path"
 	"runtime"
@@ -11,57 +12,13 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/lightstep/lightstep-tracer-go/basictracer"
 	"github.com/lightstep/lightstep-tracer-go/lightstep_thrift"
 	"github.com/lightstep/lightstep-tracer-go/thrift_0_9_2/lib/go/thrift"
 	ot "github.com/opentracing/opentracing-go"
 )
 
-const (
-	collectorPath = "/_rpc/v1/reports/binary"
-
-	defaultPlainPort  = 80
-	defaultSecurePort = 443
-
-	defaultCollectorHost = "collector.lightstep.com"
-	defaultAPIHost       = "api.lightstep.com"
-
-	// See the comment for shouldFlush() for more about these tuning
-	// parameters.
-	defaultMaxReportingPeriod = 2500 * time.Millisecond
-	minReportingPeriod        = 500 * time.Millisecond
-
-	// ParentSpanGUIDKey is the tag key used to record the relationship
-	// between child and parent spans.
-	ParentSpanGUIDKey = "parent_span_guid"
-
-	TracerPlatformValue = "go"
-	TracerVersionValue  = "0.9.1"
-
-	TracerPlatformKey        = "lightstep.tracer_platform"
-	TracerPlatformVersionKey = "lightstep.tracer_platform_version"
-	TracerVersionKey         = "lightstep.tracer_version"
-	ComponentNameKey         = "lightstep.component_name"
-	GUIDKey                  = "lightstep.guid" // <- runtime guid, not span guid
-	HostnameKey              = "lightstep.hostname"
-	CommandLineKey           = "lightstep.command_line"
-)
-
-// Endpoint describes a collection or web API host/port and whether or
-// not to use plaintext communicatation.
-type Endpoint struct {
-	Host      string `yaml:"host" usage:"host on which the endpoint is running"`
-	Port      int    `yaml:"port" usage:"port on which the endpoint is listening"`
-	Plaintext bool   `yaml:"plaintext" usage:"whether or not to encrypt data send to the endpoint"`
-}
-
-// A set of counter values for a given time window
-type counterSet struct {
-	droppedSpans int64
-}
-
-// Options control how the LightStep Tracer behaves.
-type Options struct {
+// ThriftOptions control how the LightStep Tracer behaves.
+type ThriftOptions struct {
 	// AccessToken is the unique API key for your LightStep project.  It is
 	// available on your account page at https://app.lightstep.com/account
 	AccessToken string `yaml:"access_token" usage:"access token for reporting to LightStep"`
@@ -101,8 +58,8 @@ type Options struct {
 	MaxLogsPerSpan int `yaml:"max_logs_per_span"`
 }
 
-// Recorder buffers spans and forwards them to a LightStep collector.
-type Recorder struct {
+// ThriftRecorder buffers spans and forwards them to a LightStep collector.
+type ThriftRecorder struct {
 	lock sync.Mutex
 
 	// auth and runtime information
@@ -144,7 +101,7 @@ type Recorder struct {
 	maxLogMessageLen int
 }
 
-func NewRecorder(opts Options) *Recorder {
+func NewThriftRecorder(opts ThriftOptions) *ThriftRecorder {
 	if len(opts.AccessToken) == 0 {
 		// TODO maybe return a no-op recorder instead?
 		panic("LightStep Recorder options.AccessToken must not be empty")
@@ -177,7 +134,7 @@ func NewRecorder(opts Options) *Recorder {
 	attributes[TracerVersionKey] = TracerVersionValue
 
 	now := time.Now()
-	rec := &Recorder{
+	rec := &ThriftRecorder{
 		auth: &lightstep_thrift.Auth{
 			AccessToken: thrift.StringPtr(opts.AccessToken),
 		},
@@ -187,7 +144,7 @@ func NewRecorder(opts Options) *Recorder {
 		reportYoungest:     now,
 		maxReportingPeriod: defaultMaxReportingPeriod,
 		verbose:            opts.Verbose,
-		apiURL:             getAPIURL(opts),
+		apiURL:             getThriftAPIURL(opts),
 		AccessToken:        opts.AccessToken,
 		maxLogMessageLen:   opts.MaxLogMessageLen,
 	}
@@ -201,7 +158,7 @@ func NewRecorder(opts Options) *Recorder {
 	if opts.ReportTimeout > 0 {
 		timeout = opts.ReportTimeout
 	}
-	transport, err := thrift.NewTHttpPostClient(getCollectorURL(opts), timeout)
+	transport, err := thrift.NewTHttpPostClient(getThriftCollectorURL(opts), timeout)
 	if err != nil {
 		rec.maybeLogError(err)
 		return nil
@@ -215,7 +172,7 @@ func NewRecorder(opts Options) *Recorder {
 	return rec
 }
 
-func (r *Recorder) RecordSpan(raw basictracer.RawSpan) {
+func (r *ThriftRecorder) RecordSpan(raw RawSpan) {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 
@@ -224,10 +181,10 @@ func (r *Recorder) RecordSpan(raw basictracer.RawSpan) {
 		return
 	}
 
-	atomic.AddInt64(&r.counters.droppedSpans, int64(r.buffer.addSpans([]basictracer.RawSpan{raw})))
+	atomic.AddInt64(&r.counters.droppedSpans, int64(r.buffer.addSpans([]RawSpan{raw})))
 }
 
-func (r *Recorder) Flush() {
+func (r *ThriftRecorder) Flush() {
 	r.lock.Lock()
 
 	if r.disabled {
@@ -266,7 +223,7 @@ func (r *Recorder) Flush() {
 			}
 			// In the deprecated thrift case, we can reuse a single "field"
 			// encoder across all of the N log fields.
-			lfe := logFieldEncoder{thriftLogRecord, r}
+			lfe := thriftLogFieldEncoder{thriftLogRecord, r}
 			for _, f := range log.Fields {
 				f.Marshal(&lfe)
 			}
@@ -361,7 +318,7 @@ func (r *Recorder) Flush() {
 	}
 }
 
-func (r *Recorder) Close() error {
+func (r *ThriftRecorder) Close() error {
 	r.lock.Lock()
 	closech := r.closech
 	r.closech = nil
@@ -375,7 +332,7 @@ func (r *Recorder) Close() error {
 }
 
 // caller must hold r.lock
-func (r *Recorder) thriftRuntime() *lightstep_thrift.Runtime {
+func (r *ThriftRecorder) thriftRuntime() *lightstep_thrift.Runtime {
 	runtimeAttrs := []*lightstep_thrift.KeyValue{}
 	for k, v := range r.attributes {
 		runtimeAttrs = append(runtimeAttrs, &lightstep_thrift.KeyValue{k, v})
@@ -386,7 +343,7 @@ func (r *Recorder) thriftRuntime() *lightstep_thrift.Runtime {
 	}
 }
 
-func (r *Recorder) Disable() {
+func (r *ThriftRecorder) Disable() {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 
@@ -413,7 +370,7 @@ func (r *Recorder) Disable() {
 // runtime library, and we want to avoid that at all costs (even dropping data,
 // which can certainly happen with high data rates and/or unresponsive remote
 // peers).
-func (r *Recorder) shouldFlush() bool {
+func (r *ThriftRecorder) shouldFlush() bool {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 
@@ -429,7 +386,7 @@ func (r *Recorder) shouldFlush() bool {
 	return false
 }
 
-func (r *Recorder) reportLoop(closech chan struct{}) {
+func (r *ThriftRecorder) reportLoop(closech chan struct{}) {
 	// (Thrift really should do this internally, but we saw some too-many-fd's
 	// errors and thrift is the most likely culprit.)
 	switch b := r.backend.(type) {
@@ -464,17 +421,38 @@ func (r *Recorder) reportLoop(closech chan struct{}) {
 	}
 }
 
-func getCollectorURL(opts Options) string {
+// maybeLogError logs the first error it receives using the standard log
+// package and may also log subsequent errors based on verboseFlag.
+func (r *ThriftRecorder) maybeLogError(err error) {
+	if r.verbose {
+		log.Printf("LightStep error: %v\n", err)
+	} else {
+		// Even if the flag is not set, always log at least one error.
+		logOneError.Do(func() {
+			log.Printf("LightStep instrumentation error (%v). Set the Verbose option to enable more logging.\n", err)
+		})
+	}
+}
+
+// maybeLogInfof may format and log its arguments if verboseFlag is set.
+func (r *ThriftRecorder) maybeLogInfof(format string, args ...interface{}) {
+	if r.verbose {
+		s := fmt.Sprintf(format, args...)
+		log.Printf("LightStep info: %s\n", s)
+	}
+}
+
+func getThriftCollectorURL(opts ThriftOptions) string {
 	return getURL(opts.Collector,
 		defaultCollectorHost,
 		collectorPath)
 }
 
-func getAPIURL(opts Options) string {
+func getThriftAPIURL(opts ThriftOptions) string {
 	return getURL(opts.LightStepAPI, defaultAPIHost, "")
 }
 
-func getURL(e Endpoint, host, path string) string {
+func getThriftURL(e Endpoint, host, path string) string {
 	if e.Host != "" {
 		host = e.Host
 	}

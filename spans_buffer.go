@@ -1,17 +1,13 @@
-package thrift_rpc
-
-import "github.com/lightstep/lightstep-tracer-go/basictracer"
-
-const defaultMaxSpans = 1000
+package lightstep
 
 type spansBuffer struct {
-	rawSpans      []basictracer.RawSpan
+	rawSpans      []RawSpan
 	maxBufferSize int
 }
 
 func (b *spansBuffer) setDefaults() {
 	b.maxBufferSize = defaultMaxSpans
-	b.rawSpans = make([]basictracer.RawSpan, 0, b.maxBufferSize)
+	b.rawSpans = make([]RawSpan, 0, b.maxBufferSize)
 }
 
 func (b *spansBuffer) setMaxBufferSize(size int) {
@@ -31,19 +27,19 @@ func (b *spansBuffer) reset() {
 	if cap(b.rawSpans) == b.maxBufferSize {
 		b.rawSpans = b.rawSpans[:0]
 	} else {
-		b.rawSpans = make([]basictracer.RawSpan, 0, b.maxBufferSize)
+		b.rawSpans = make([]RawSpan, 0, b.maxBufferSize)
 	}
 }
 
-func (b *spansBuffer) current() []basictracer.RawSpan {
-	dst := make([]basictracer.RawSpan, len(b.rawSpans))
+func (b *spansBuffer) current() []RawSpan {
+	dst := make([]RawSpan, len(b.rawSpans))
 	copy(dst, b.rawSpans)
 	return dst
 }
 
 // addSpans returns the number of spans dropped (0 if all were added to the
 // buffer).
-func (b *spansBuffer) addSpans(spans []basictracer.RawSpan) (droppedSpans int) {
+func (b *spansBuffer) addSpans(spans []RawSpan) (droppedSpans int) {
 	space := b.maxBufferSize - len(b.rawSpans)
 	count := space
 	if len(spans) < count {

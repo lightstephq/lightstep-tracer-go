@@ -4,7 +4,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/lightstep/lightstep-tracer-go/basictracer"
 	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/log"
 )
@@ -27,7 +26,7 @@ type Span interface {
 type spanImpl struct {
 	tracer     *tracerImpl
 	sync.Mutex // protects the fields below
-	raw        basictracer.RawSpan
+	raw        RawSpan
 	// The number of logs dropped because of MaxLogsPerSpan.
 	numDroppedLogs int
 }

@@ -41,7 +41,7 @@ var logOneError sync.Once
 
 // maybeLogError logs the first error it receives using the standard log
 // package and may also log subsequent errors based on verboseFlag.
-func (r *Recorder) maybeLogError(err error) {
+func (r *GrpcRecorder) maybeLogError(err error) {
 	if r.verbose {
 		log.Printf("LightStep error: %v\n", err)
 	} else {
@@ -53,7 +53,7 @@ func (r *Recorder) maybeLogError(err error) {
 }
 
 // maybeLogInfof may format and log its arguments if verboseFlag is set.
-func (r *Recorder) maybeLogInfof(format string, args ...interface{}) {
+func (r *GrpcRecorder) maybeLogInfof(format string, args ...interface{}) {
 	if r.verbose {
 		s := fmt.Sprintf(format, args...)
 		log.Printf("LightStep info: %s\n", s)

@@ -11,7 +11,6 @@ import (
 	"google.golang.org/grpc"
 
 	. "github.com/lightstep/lightstep-tracer-go"
-	bt "github.com/lightstep/lightstep-tracer-go/basictracer"
 	cpb "github.com/lightstep/lightstep-tracer-go/collectorpb"
 	cpbfakes "github.com/lightstep/lightstep-tracer-go/collectorpb/collectorpbfakes"
 	. "github.com/onsi/ginkgo"
@@ -145,7 +144,7 @@ var _ = Describe("Tracer", func() {
 
 		Context("With default options", func() {
 			BeforeEach(func() {
-				tracer = NewTracer(Options{
+				tracer = NewTracer(GrpcOptions{
 					AccessToken:     "0987654321",
 					Collector:       Endpoint{"localhost", port, true},
 					ReportingPeriod: 1 * time.Millisecond,
@@ -236,7 +235,7 @@ var _ = Describe("Tracer", func() {
 					Consistently(fakeClient.ReportCallCount, 2, 0.05).Should(Equal(lastCallCount))
 
 					By("Allowing other tracers to reconnect to the server")
-					tracer = NewTracer(Options{
+					tracer = NewTracer(GrpcOptions{
 						AccessToken:     "0987654321",
 						Collector:       Endpoint{"localhost", port, true},
 						ReportingPeriod: 1 * time.Millisecond,
@@ -249,7 +248,7 @@ var _ = Describe("Tracer", func() {
 				})
 			})
 
-			Describe("Options", func() {
+			Describe("GrpcOptions", func() {
 				const expectedTraceID uint64 = 1
 				const expectedSpanID uint64 = 2
 				const expectedParentSpanID uint64 = 3
@@ -303,22 +302,22 @@ var _ = Describe("Tracer", func() {
 				const knownCarrier2 = "EigJEX+FpwZ/EmYR2gfYQbxCMskYASISCgdjaGVja2VkEgdiYWdnYWdl"
 				const badCarrier1 = "Y3QbxCMskYASISCgdjaGVja2VkEgd"
 
-				var knownContext1 = bt.SpanContext{
+				var knownContext1 = SpanContext{
 					SpanID:  6397081719746291766,
 					TraceID: 506100417967962170,
 					Baggage: map[string]string{"checked": "baggage"},
 				}
-				var knownContext2 = bt.SpanContext{
+				var knownContext2 = SpanContext{
 					SpanID:  14497723526785009626,
 					TraceID: 7355080808006516497,
 					Baggage: map[string]string{"checked": "baggage"},
 				}
-				var testContext1 = bt.SpanContext{
+				var testContext1 = SpanContext{
 					SpanID:  123,
 					TraceID: 456,
 					Baggage: nil,
 				}
-				var testContext2 = bt.SpanContext{
+				var testContext2 = SpanContext{
 					SpanID:  123000000000,
 					TraceID: 456000000000,
 					Baggage: map[string]string{"a": "1", "b": "2", "c": "3"},
@@ -334,7 +333,7 @@ var _ = Describe("Tracer", func() {
 					})
 
 					It("Should support injecting into strings ", func() {
-						for _, origContext := range []bt.SpanContext{knownContext1, knownContext2, testContext1, testContext2} {
+						for _, origContext := range []SpanContext{knownContext1, knownContext2, testContext1, testContext2} {
 							err := tracer.Inject(origContext, BinaryCarrier, &carrierString)
 							Expect(err).ToNot(HaveOccurred())
 
@@ -345,7 +344,7 @@ var _ = Describe("Tracer", func() {
 					})
 
 					It("Should support infjecting into byte arrays", func() {
-						for _, origContext := range []bt.SpanContext{knownContext1, knownContext2, testContext1, testContext2} {
+						for _, origContext := range []SpanContext{knownContext1, knownContext2, testContext1, testContext2} {
 							err := tracer.Inject(origContext, BinaryCarrier, &carrierBytes)
 							Expect(err).ToNot(HaveOccurred())
 
@@ -398,7 +397,7 @@ var _ = Describe("Tracer", func() {
 
 		Context("With custom log length", func() {
 			BeforeEach(func() {
-				tracer = NewTracer(Options{
+				tracer = NewTracer(GrpcOptions{
 					AccessToken:     "0987654321",
 					Collector:       Endpoint{"localhost", port, true},
 					ReportingPeriod: 1 * time.Millisecond,
@@ -442,7 +441,7 @@ var _ = Describe("Tracer", func() {
 
 		Context("With custom MaxBufferedSpans", func() {
 			BeforeEach(func() {
-				tracer = NewTracer(Options{
+				tracer = NewTracer(GrpcOptions{
 					AccessToken:      "0987654321",
 					Collector:        Endpoint{"localhost", port, true},
 					ReportingPeriod:  1 * time.Millisecond,
@@ -470,7 +469,7 @@ var _ = Describe("Tracer", func() {
 
 		Context("With DropSpanLogs set", func() {
 			BeforeEach(func() {
-				tracer = NewTracer(Options{
+				tracer = NewTracer(GrpcOptions{
 					AccessToken:     "0987654321",
 					Collector:       Endpoint{"localhost", port, true},
 					ReportingPeriod: 1 * time.Millisecond,
@@ -499,7 +498,7 @@ var _ = Describe("Tracer", func() {
 
 		Context("With MaxLogsPerSpan set", func() {
 			BeforeEach(func() {
-				tracer = NewTracer(Options{
+				tracer = NewTracer(GrpcOptions{
 					AccessToken:     "0987654321",
 					Collector:       Endpoint{"localhost", port, true},
 					ReportingPeriod: 1 * time.Millisecond,

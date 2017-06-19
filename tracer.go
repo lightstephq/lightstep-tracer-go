@@ -6,8 +6,6 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/lightstep/lightstep-tracer-go/basictracer"
-	"github.com/lightstep/lightstep-tracer-go/thrift_rpc"
 	ot "github.com/opentracing/opentracing-go"
 )
 
@@ -42,7 +40,7 @@ type TracerConfig struct {
 
 // NewTracer returns a new Tracer that reports spans to a LightStep
 // collector.
-func NewTracer(opts Options) ot.Tracer {
+func NewTracer(opts GrpcOptions) ot.Tracer {
 	options := DefaultTracerConfig()
 
 	if !opts.UseThrift {
@@ -53,12 +51,12 @@ func NewTracer(opts Options) ot.Tracer {
 		options.Recorder = r
 	} else {
 		opts.setDefaults()
-		// convert opts to thrift_rpc.Options
-		thriftOpts := thrift_rpc.Options{
+		// convert opts to ThriftOptions
+		thriftOpts := ThriftOptions{
 			AccessToken:      opts.AccessToken,
-			Collector:        thrift_rpc.Endpoint{opts.Collector.Host, opts.Collector.Port, opts.Collector.Plaintext},
+			Collector:        Endpoint{opts.Collector.Host, opts.Collector.Port, opts.Collector.Plaintext},
 			Tags:             opts.Tags,
-			LightStepAPI:     thrift_rpc.Endpoint{opts.LightStepAPI.Host, opts.LightStepAPI.Port, opts.LightStepAPI.Plaintext},
+			LightStepAPI:     Endpoint{opts.LightStepAPI.Host, opts.LightStepAPI.Port, opts.LightStepAPI.Plaintext},
 			MaxBufferedSpans: opts.MaxBufferedSpans,
 			ReportingPeriod:  opts.ReportingPeriod,
 			ReportTimeout:    opts.ReportTimeout,
@@ -67,7 +65,7 @@ func NewTracer(opts Options) ot.Tracer {
 			Verbose:          opts.Verbose,
 			MaxLogMessageLen: opts.MaxLogValueLen,
 		}
-		r := thrift_rpc.NewRecorder(thriftOpts)
+		r := NewThriftRecorder(thriftOpts)
 		if r == nil {
 			return ot.NoopTracer{}
 		}
@@ -87,9 +85,9 @@ func FlushLightStepTracer(lsTracer ot.Tracer) error {
 	basicRecorder := basicTracer.Config().Recorder
 
 	switch t := basicRecorder.(type) {
-	case *Recorder:
+	case *GrpcRecorder:
 		t.Flush()
-	case *thrift_rpc.Recorder:
+	case *ThriftRecorder:
 		t.Flush()
 	default:
 		return fmt.Errorf("Not a LightStep Recorder type: %v", reflect.TypeOf(basicRecorder))
@@ -106,9 +104,9 @@ func GetLightStepAccessToken(lsTracer ot.Tracer) (string, error) {
 	basicRecorder := basicTracer.Config().Recorder
 
 	switch t := basicRecorder.(type) {
-	case *Recorder:
+	case *GrpcRecorder:
 		return t.accessToken, nil
-	case *thrift_rpc.Recorder:
+	case *ThriftRecorder:
 		return t.AccessToken, nil
 	default:
 		return "", fmt.Errorf("Not a LightStep Recorder type: %v", reflect.TypeOf(basicRecorder))
@@ -225,7 +223,7 @@ ReferencesLoop:
 		case ot.ChildOfRef,
 			ot.FollowsFromRef:
 
-			refCtx := ref.ReferencedContext.(basictracer.SpanContext)
+			refCtx := ref.ReferencedContext.(SpanContext)
 			sp.raw.Context.TraceID = refCtx.TraceID
 			sp.raw.ParentSpanID = refCtx.SpanID
 

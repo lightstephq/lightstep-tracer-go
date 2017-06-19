@@ -4,7 +4,6 @@ import (
 	"encoding/base64"
 
 	"github.com/gogo/protobuf/proto"
-	"github.com/lightstep/lightstep-tracer-go/basictracer"
 	lightstep "github.com/lightstep/lightstep-tracer-go/lightsteppb"
 	opentracing "github.com/opentracing/opentracing-go"
 )
@@ -23,7 +22,7 @@ func (_ lightstepBinaryPropagator) Inject(
 	spanContext opentracing.SpanContext,
 	opaqueCarrier interface{},
 ) error {
-	sc, ok := spanContext.(basictracer.SpanContext)
+	sc, ok := spanContext.(SpanContext)
 	if !ok {
 		return opentracing.ErrInvalidSpanContext
 	}
@@ -93,7 +92,7 @@ func (_ lightstepBinaryPropagator) Extract(
 		return nil, opentracing.ErrInvalidCarrier
 	}
 
-	return basictracer.SpanContext{
+	return SpanContext{
 		TraceID: pb.BasicCtx.TraceId,
 		SpanID:  pb.BasicCtx.SpanId,
 		Baggage: pb.BasicCtx.BaggageItems,

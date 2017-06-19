@@ -1,4 +1,4 @@
-package basictracer
+package lightstep
 
 import (
 	"time"

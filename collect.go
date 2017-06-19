@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/lightstep/lightstep-tracer-go/basictracer"
 	"github.com/opentracing/opentracing-go"
 )
 
@@ -35,7 +34,7 @@ func AssembleTraceForSpan(span Span) error {
 	return assembleTraceBy(span, func(span Span) []byte {
 		// Note: API handler expects span_guid to be a string,
 		// for consistency with other handlers.
-		return []byte(fmt.Sprint(`{"span_guid":"`, span.Context().(*basictracer.SpanContext).SpanID,
+		return []byte(fmt.Sprint(`{"span_guid":"`, span.Context().(*SpanContext).SpanID,
 			`","at_micros": `, time.Now().UnixNano()/nanosPerMicro, `}`))
 	})
 }
@@ -49,7 +48,7 @@ func assembleTraceBy(span opentracing.Span, payload func(span Span) []byte) erro
 	if !ok {
 		return ErrNotLightStepTracer
 	}
-	recorder, ok := btracer.Config().Recorder.(*Recorder)
+	recorder, ok := btracer.Config().Recorder.(*GrpcRecorder)
 	if !ok {
 		return ErrNotLightStepTracer
 	}

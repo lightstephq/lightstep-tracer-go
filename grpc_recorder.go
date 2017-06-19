@@ -19,7 +19,7 @@ import (
 	// N.B.(jmacd): Do not use google.golang.org/glog in this package.
 
 	google_protobuf "github.com/golang/protobuf/ptypes/timestamp"
-	"github.com/lightstep/lightstep-tracer-go/basictracer"
+
 	cpb "github.com/lightstep/lightstep-tracer-go/collectorpb"
 	ot "github.com/opentracing/opentracing-go"
 )
@@ -99,11 +99,11 @@ type Endpoint struct {
 // the containing process and provides access to a straightforward tag map.
 type SpanRecorder interface {
 	// Implementations must determine whether and where to store `span`.
-	RecordSpan(span basictracer.RawSpan)
+	RecordSpan(span RawSpan)
 }
 
-// Options control how the LightStep Tracer behaves.
-type Options struct {
+// GrpcOptions control how the LightStep Tracer behaves.
+type GrpcOptions struct {
 	// AccessToken is the unique API key for your LightStep project.  It is
 	// available on your account page at https://app.lightstep.com/account
 	AccessToken string `yaml:"access_token" usage:"access token for reporting to LightStep"`
@@ -160,7 +160,7 @@ type Options struct {
 	GrpcConnector func() (GrpcConnection, cpb.CollectorServiceClient, error)
 }
 
-func (opts *Options) setDefaults() {
+func (opts *GrpcOptions) setDefaults() {
 	// Note: opts is a copy of the user's data, ok to modify.
 	if opts.MaxBufferedSpans == 0 {
 		opts.MaxBufferedSpans = defaultMaxSpans
@@ -186,7 +186,7 @@ func (opts *Options) setDefaults() {
 }
 
 // Recorder buffers spans and forwards them to a LightStep collector.
-type Recorder struct {
+type GrpcRecorder struct {
 	lock sync.Mutex
 
 	// Note: the following are divided into immutable fields and
@@ -214,11 +214,11 @@ type Recorder struct {
 
 	reporterID         uint64        // the LightStep tracer guid
 	verbose            bool          // whether to print verbose messages
-	maxLogKeyLen       int           // see Options.MaxLogKeyLen
-	maxLogValueLen     int           // see Options.MaxLogValueLen
-	maxReportingPeriod time.Duration // set by Options.MaxReportingPeriod
-	reconnectPeriod    time.Duration // set by Options.ReconnectPeriod
-	reportingTimeout   time.Duration // set by Options.ReportTimeout
+	maxLogKeyLen       int           // see GrpcOptions.MaxLogKeyLen
+	maxLogValueLen     int           // see GrpcOptions.MaxLogValueLen
+	maxReportingPeriod time.Duration // set by GrpcOptions.MaxReportingPeriod
+	reconnectPeriod    time.Duration // set by GrpcOptions.ReconnectPeriod
+	reportingTimeout   time.Duration // set by GrpcOptions.ReportTimeout
 
 	// Remote service that will receive reports.
 	hostPort      string
@@ -249,7 +249,7 @@ type Recorder struct {
 	disabled bool
 }
 
-func NewRecorder(opts Options) *Recorder {
+func NewRecorder(opts GrpcOptions) *GrpcRecorder {
 	opts.setDefaults()
 	if len(opts.AccessToken) == 0 {
 		fmt.Println("LightStep Recorder options.AccessToken must not be empty")
@@ -277,13 +277,13 @@ func NewRecorder(opts Options) *Recorder {
 	for k, v := range opts.Tags {
 		attributes[k] = fmt.Sprint(v)
 	}
-	// Don't let the Options override these values. That would be confusing.
+	// Don't let the GrpcOptions override these values. That would be confusing.
 	attributes[TracerPlatformKey] = TracerPlatformValue
 	attributes[TracerPlatformVersionKey] = runtime.Version()
 	attributes[TracerVersionKey] = TracerVersionValue
 
 	now := time.Now()
-	rec := &Recorder{
+	rec := &GrpcRecorder{
 		accessToken:        opts.AccessToken,
 		attributes:         attributes,
 		startTime:          now,
@@ -331,7 +331,7 @@ func NewRecorder(opts Options) *Recorder {
 	return rec
 }
 
-func (r *Recorder) connectClient() (GrpcConnection, cpb.CollectorServiceClient, error) {
+func (r *GrpcRecorder) connectClient() (GrpcConnection, cpb.CollectorServiceClient, error) {
 	conn, err := grpc.Dial(r.hostPort, r.creds)
 	if err != nil {
 		return nil, nil, err
@@ -339,7 +339,7 @@ func (r *Recorder) connectClient() (GrpcConnection, cpb.CollectorServiceClient, 
 	return conn, cpb.NewCollectorServiceClient(conn), nil
 }
 
-func (r *Recorder) reconnectClient(now time.Time) {
+func (r *GrpcRecorder) reconnectClient(now time.Time) {
 	conn, backend, err := r.connectClient()
 	if err != nil {
 		r.maybeLogInfof("could not reconnect client")
@@ -356,11 +356,11 @@ func (r *Recorder) reconnectClient(now time.Time) {
 	}
 }
 
-func (r *Recorder) ReporterID() uint64 {
+func (r *GrpcRecorder) ReporterID() uint64 {
 	return r.reporterID
 }
 
-func (r *Recorder) Close() error {
+func (r *GrpcRecorder) Close() error {
 	r.lock.Lock()
 	conn := r.conn
 	closech := r.closech
@@ -378,7 +378,7 @@ func (r *Recorder) Close() error {
 	return conn.Close()
 }
 
-func (r *Recorder) RecordSpan(raw basictracer.RawSpan) {
+func (r *GrpcRecorder) RecordSpan(raw RawSpan) {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 
@@ -390,7 +390,7 @@ func (r *Recorder) RecordSpan(raw basictracer.RawSpan) {
 	r.buffer.addSpan(raw)
 }
 
-func translateSpanContext(sc basictracer.SpanContext) *cpb.SpanContext {
+func translateSpanContext(sc SpanContext) *cpb.SpanContext {
 	return &cpb.SpanContext{
 		TraceId: sc.TraceID,
 		SpanId:  sc.SpanID,
@@ -425,7 +425,7 @@ func translateDurationFromOldestYoungest(ot time.Time, yt time.Time) uint64 {
 	return translateDuration(yt.Sub(ot))
 }
 
-func (r *Recorder) translateTags(tags ot.Tags) []*cpb.KeyValue {
+func (r *GrpcRecorder) translateTags(tags ot.Tags) []*cpb.KeyValue {
 	kvs := make([]*cpb.KeyValue, 0, len(tags))
 	for key, tag := range tags {
 		kv := r.convertToKeyValue(key, tag)
@@ -434,7 +434,7 @@ func (r *Recorder) translateTags(tags ot.Tags) []*cpb.KeyValue {
 	return kvs
 }
 
-func (r *Recorder) convertToKeyValue(key string, value interface{}) *cpb.KeyValue {
+func (r *GrpcRecorder) convertToKeyValue(key string, value interface{}) *cpb.KeyValue {
 	kv := cpb.KeyValue{Key: key}
 	v := reflect.ValueOf(value)
 	k := v.Kind()
@@ -454,7 +454,7 @@ func (r *Recorder) convertToKeyValue(key string, value interface{}) *cpb.KeyValu
 	return &kv
 }
 
-func (r *Recorder) translateLogs(lrs []ot.LogRecord, buffer *reportBuffer) []*cpb.Log {
+func (r *GrpcRecorder) translateLogs(lrs []ot.LogRecord, buffer *reportBuffer) []*cpb.Log {
 	logs := make([]*cpb.Log, len(lrs))
 	for i, lr := range lrs {
 		logs[i] = &cpb.Log{
@@ -465,7 +465,7 @@ func (r *Recorder) translateLogs(lrs []ot.LogRecord, buffer *reportBuffer) []*cp
 	return logs
 }
 
-func (r *Recorder) translateRawSpan(rs basictracer.RawSpan, buffer *reportBuffer) *cpb.Span {
+func (r *GrpcRecorder) translateRawSpan(rs RawSpan, buffer *reportBuffer) *cpb.Span {
 	s := &cpb.Span{
 		SpanContext:    translateSpanContext(rs.Context),
 		OperationName:  rs.Operation,
@@ -478,7 +478,7 @@ func (r *Recorder) translateRawSpan(rs basictracer.RawSpan, buffer *reportBuffer
 	return s
 }
 
-func (r *Recorder) convertRawSpans(buffer *reportBuffer) []*cpb.Span {
+func (r *GrpcRecorder) convertRawSpans(buffer *reportBuffer) []*cpb.Span {
 	spans := make([]*cpb.Span, len(buffer.rawSpans))
 	for i, rs := range buffer.rawSpans {
 		s := r.translateRawSpan(rs, buffer)
@@ -523,7 +523,7 @@ func (b *reportBuffer) convertToInternalMetrics() *cpb.InternalMetrics {
 	}
 }
 
-func (r *Recorder) makeReportRequest(buffer *reportBuffer) *cpb.ReportRequest {
+func (r *GrpcRecorder) makeReportRequest(buffer *reportBuffer) *cpb.ReportRequest {
 	spans := r.convertRawSpans(buffer)
 	reporter := convertToReporter(r.attributes, r.reporterID)
 
@@ -537,7 +537,7 @@ func (r *Recorder) makeReportRequest(buffer *reportBuffer) *cpb.ReportRequest {
 
 }
 
-func (r *Recorder) Flush() {
+func (r *GrpcRecorder) Flush() {
 	r.lock.Lock()
 
 	if r.disabled {
@@ -609,7 +609,7 @@ func (r *Recorder) Flush() {
 	}
 }
 
-func (r *Recorder) Disable() {
+func (r *GrpcRecorder) Disable() {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 
@@ -636,7 +636,7 @@ func (r *Recorder) Disable() {
 // runtime library, and we want to avoid that at all costs (even dropping data,
 // which can certainly happen with high data rates and/or unresponsive remote
 // peers).
-func (r *Recorder) shouldFlushLocked(now time.Time) bool {
+func (r *GrpcRecorder) shouldFlushLocked(now time.Time) bool {
 	if now.Add(minReportingPeriod).Sub(r.lastReportAttempt) > r.maxReportingPeriod {
 		// Flush timeout.
 		r.maybeLogInfof("--> timeout")
@@ -649,7 +649,7 @@ func (r *Recorder) shouldFlushLocked(now time.Time) bool {
 	return false
 }
 
-func (r *Recorder) reportLoop(closech chan struct{}) {
+func (r *GrpcRecorder) reportLoop(closech chan struct{}) {
 	tickerChan := time.Tick(minReportingPeriod)
 	for {
 		select {
@@ -678,7 +678,7 @@ func (r *Recorder) reportLoop(closech chan struct{}) {
 	}
 }
 
-func getCollectorHostPort(opts Options) string {
+func getCollectorHostPort(opts GrpcOptions) string {
 	e := opts.Collector
 	host := e.Host
 	if host == "" {
@@ -699,14 +699,14 @@ func getCollectorHostPort(opts Options) string {
 	return fmt.Sprintf("%s:%d", host, port)
 }
 
-func getCollectorURL(opts Options) string {
+func getCollectorURL(opts GrpcOptions) string {
 	// TODO This is dead code, remove?
 	return getURL(opts.Collector,
 		defaultCollectorHost,
 		collectorPath)
 }
 
-func getAPIURL(opts Options) string {
+func getAPIURL(opts GrpcOptions) string {
 	return getURL(opts.LightStepAPI, defaultAPIHost, "")
 }
 
