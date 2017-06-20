@@ -9,8 +9,9 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
+
+	"golang.org/x/net/context"
 
 	"github.com/lightstep/lightstep-tracer-go/lightstep_thrift"
 	"github.com/lightstep/lightstep-tracer-go/thrift_0_9_2/lib/go/thrift"
@@ -102,9 +103,11 @@ type ThriftRecorder struct {
 
 	// flags replacement
 	maxLogMessageLen int
+
+	reportTimeout time.Duration
 }
 
-func NewThriftRecorder(opts ThriftOptions) *ThriftRecorder {
+func NewThriftRecorder(opts Options) *ThriftRecorder {
 	if len(opts.AccessToken) == 0 {
 		// TODO maybe return a no-op recorder instead?
 		panic("LightStep Recorder options.AccessToken must not be empty")
@@ -149,12 +152,8 @@ func NewThriftRecorder(opts ThriftOptions) *ThriftRecorder {
 		verbose:            opts.Verbose,
 		apiURL:             getThriftAPIURL(opts),
 		AccessToken:        opts.AccessToken,
-		maxLogMessageLen:   opts.MaxLogMessageLen,
-	}
-	rec.buffer.setDefaults()
-
-	if opts.MaxBufferedSpans > 0 {
-		rec.buffer.setMaxBufferSize(opts.MaxBufferedSpans)
+		maxLogMessageLen:   opts.MaxLogValueLen,
+		reportTimeout:      opts.ReportTimeout,
 	}
 
 	timeout := 60 * time.Second
@@ -170,47 +169,24 @@ func NewThriftRecorder(opts ThriftOptions) *ThriftRecorder {
 			rec.maybeLogError(err)
 			return nil
 		}
+
 		rec.backend = lightstep_thrift.NewReportingServiceClientFactory(
 			transport, thrift.NewTBinaryProtocolFactoryDefault())
 	}
 
-	rec.closech = make(chan struct{})
-	go rec.reportLoop(rec.closech)
-
 	return rec
 }
 
-func (r *ThriftRecorder) RecordSpan(raw RawSpan) {
-	r.lock.Lock()
-	defer r.lock.Unlock()
+type DummyConnection struct{}
 
-	// Early-out for disabled runtimes.
-	if r.disabled {
-		return
-	}
+func (x *DummyConnection) Close() error { return nil }
 
-	atomic.AddInt64(&r.counters.droppedSpans, int64(r.buffer.addSpans([]RawSpan{raw})))
+func (client *ThriftRecorder) ConnectClient() (Connection, error) {
+	return &DummyConnection{}, nil
 }
 
-func (r *ThriftRecorder) Flush() {
-	r.lock.Lock()
-
-	if r.disabled {
-		r.lock.Unlock()
-		return
-	}
-
-	if r.reportInFlight == true {
-		r.maybeLogError(fmt.Errorf("A previous Report is still in flight; aborting Flush()."))
-		r.lock.Unlock()
-		return
-	}
-
-	now := time.Now()
-	r.lastReportAttempt = now
-	r.reportYoungest = now
-
-	rawSpans := r.buffer.current()
+func (client *ThriftRecorder) Report(_ context.Context, buffer *reportBuffer) (*CollectorResponse, error) {
+	rawSpans := buffer.rawSpans
 	// Convert them to thrift.
 	recs := make([]*lightstep_thrift.SpanRecord, len(rawSpans))
 	// TODO: could pool lightstep_thrift.SpanRecords
@@ -231,7 +207,7 @@ func (r *ThriftRecorder) Flush() {
 			}
 			// In the deprecated thrift case, we can reuse a single "field"
 			// encoder across all of the N log fields.
-			lfe := thriftLogFieldEncoder{thriftLogRecord, r}
+			lfe := thriftLogFieldEncoder{thriftLogRecord, client}
 			for _, f := range log.Fields {
 				f.Marshal(&lfe)
 			}
@@ -259,84 +235,30 @@ func (r *ThriftRecorder) Flush() {
 	// TODO the handling of droppedPending / droppedSpans is very
 	// manual. Add abstraction for the second client-side count to
 	// avoid duplicating all the atomic ops.
-	droppedPending := atomic.SwapInt64(&r.counters.droppedSpans, 0)
-
-	metrics := lightstep_thrift.Metrics{
-		Counts: []*lightstep_thrift.MetricsSample{
-			&lightstep_thrift.MetricsSample{
-				Name:       "spans.dropped",
-				Int64Value: &droppedPending,
-			},
-		},
-	}
+	// droppedPending := atomic.SwapInt64(&r.counters.droppedSpans, 0)
+	//
+	// metrics := lightstep_thrift.Metrics{
+	// 	Counts: []*lightstep_thrift.MetricsSample{
+	// 		&lightstep_thrift.MetricsSample{
+	// 			Name:       "spans.dropped",
+	// 			Int64Value: &droppedPending,
+	// 		},
+	// 	},
+	// }
 	req := &lightstep_thrift.ReportRequest{
-		OldestMicros:    thrift.Int64Ptr(r.reportOldest.UnixNano() / 1000),
-		YoungestMicros:  thrift.Int64Ptr(r.reportYoungest.UnixNano() / 1000),
-		Runtime:         r.thriftRuntime(),
-		SpanRecords:     recs,
-		InternalMetrics: &metrics,
+		// OldestMicros:   thrift.Int64Ptr(r.reportOldest.UnixNano() / 1000),
+		// YoungestMicros: thrift.Int64Ptr(r.reportYoungest.UnixNano() / 1000),
+		Runtime:     client.thriftRuntime(),
+		SpanRecords: recs,
+		// InternalMetrics: &metrics,
 	}
 
-	// Do *not* wait until the report RPC finishes to clear the buffer.
-	// Consider the case of a new span coming in during the RPC: it'll be
-	// discarded along with the data that was just sent if the buffers are
-	// cleared later.
-	r.buffer.reset()
-
-	r.reportInFlight = true
-	r.lock.Unlock() // unlock before making the RPC itself
-
-	resp, err := r.backend.Report(r.auth, req)
-	if err != nil {
-		r.maybeLogError(err)
-	} else if len(resp.Errors) > 0 {
-		// These should never occur, since this library should understand what
-		// makes for valid logs and spans, but just in case, log it anyway.
-		for _, err := range resp.Errors {
-			r.maybeLogError(fmt.Errorf("Remote report returned error: %s", err))
-		}
-	} else {
-		r.maybeLogInfof("Report: resp=%v, err=%v", resp, err)
+	resp, err := client.backend.Report(client.auth, req)
+	commands := make([]*Command, len(resp.Commands))
+	for i, command := range resp.GetCommands() {
+		commands[i] = &Command{command.GetDisable()}
 	}
-
-	r.lock.Lock()
-	r.reportInFlight = false
-	if err != nil {
-		// Restore the records that did not get sent correctly
-		atomic.AddInt64(&r.counters.droppedSpans, int64(r.buffer.addSpans(rawSpans))+droppedPending)
-		r.lock.Unlock()
-		return
-	}
-
-	// Reset the buffers
-	r.reportOldest = now
-	r.reportYoungest = now
-
-	// TODO something about timing
-	r.lock.Unlock()
-
-	if droppedPending != 0 {
-		r.maybeLogInfof("client reported %d dropped spans", droppedPending)
-	}
-
-	for _, c := range resp.Commands {
-		if c.Disable != nil && *c.Disable {
-			r.Disable()
-		}
-	}
-}
-
-func (r *ThriftRecorder) Close() error {
-	r.lock.Lock()
-	closech := r.closech
-	r.closech = nil
-	r.lock.Unlock()
-
-	if closech != nil {
-		close(closech)
-	}
-
-	return nil
+	return &CollectorResponse{Errors: resp.GetErrors(), Commands: commands}, err
 }
 
 // caller must hold r.lock
@@ -348,84 +270,6 @@ func (r *ThriftRecorder) thriftRuntime() *lightstep_thrift.Runtime {
 	return &lightstep_thrift.Runtime{
 		StartMicros: thrift.Int64Ptr(r.startTime.UnixNano() / 1000),
 		Attrs:       runtimeAttrs,
-	}
-}
-
-func (r *ThriftRecorder) Disable() {
-	r.lock.Lock()
-	defer r.lock.Unlock()
-
-	if r.disabled {
-		return
-	}
-
-	fmt.Printf("Disabling Runtime instance: %p", r)
-
-	r.buffer.reset()
-	r.disabled = true
-}
-
-// Every minReportingPeriod the reporting loop wakes up and checks to see if
-// either (a) the Runtime's max reporting period is about to expire (see
-// maxReportingPeriod()), (b) the number of buffered log records is
-// approaching kMaxBufferedLogs, or if (c) the number of buffered span records
-// is approaching kMaxBufferedSpans. If any of those conditions are true,
-// pending data is flushed to the remote peer. If not, the reporting loop waits
-// until the next cycle. See Runtime.maybeFlush() for details.
-//
-// This could alternatively be implemented using flush channels and so forth,
-// but that would introduce opportunities for client code to block on the
-// runtime library, and we want to avoid that at all costs (even dropping data,
-// which can certainly happen with high data rates and/or unresponsive remote
-// peers).
-func (r *ThriftRecorder) shouldFlush() bool {
-	r.lock.Lock()
-	defer r.lock.Unlock()
-
-	if time.Now().Add(minReportingPeriod).Sub(r.lastReportAttempt) > r.maxReportingPeriod {
-		// Flush timeout.
-		r.maybeLogInfof("--> timeout")
-		return true
-	} else if r.buffer.len() > r.buffer.cap()/2 {
-		// Too many queued span records.
-		r.maybeLogInfof("--> span queue")
-		return true
-	}
-	return false
-}
-
-func (r *ThriftRecorder) reportLoop(closech chan struct{}) {
-	// (Thrift really should do this internally, but we saw some too-many-fd's
-	// errors and thrift is the most likely culprit.)
-	switch b := r.backend.(type) {
-	case *lightstep_thrift.ReportingServiceClient:
-		// TODO This is a bit racy with other calls to Flush, but we're
-		// currently assuming that no one calls Flush after Disable.
-		defer b.Transport.Close()
-	}
-
-	tickerChan := time.Tick(minReportingPeriod)
-	for {
-		select {
-		case <-tickerChan:
-			r.maybeLogInfof("reporting alarm fired")
-
-			// Kill the reportLoop() if we've been disabled.
-			r.lock.Lock()
-			if r.disabled {
-				r.lock.Unlock()
-				break
-			}
-			r.lock.Unlock()
-
-			if r.shouldFlush() {
-				r.Flush()
-			}
-
-		case <-closech:
-			r.Flush()
-			return
-		}
 	}
 }
 
@@ -450,13 +294,13 @@ func (r *ThriftRecorder) maybeLogInfof(format string, args ...interface{}) {
 	}
 }
 
-func getThriftCollectorURL(opts ThriftOptions) string {
+func getThriftCollectorURL(opts Options) string {
 	return getURL(opts.Collector,
 		defaultCollectorHost,
 		collectorPath)
 }
 
-func getThriftAPIURL(opts ThriftOptions) string {
+func getThriftAPIURL(opts Options) string {
 	return getURL(opts.LightStepAPI, defaultAPIHost, "")
 }
 

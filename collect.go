@@ -48,7 +48,7 @@ func assembleTraceBy(span opentracing.Span, payload func(span Span) []byte) erro
 	if !ok {
 		return ErrNotLightStepTracer
 	}
-	recorder, ok := btracer.Config().Recorder.(*GrpcRecorder)
+	recorder, ok := btracer.Config().Recorder.backend.(*GrpcRecorder)
 	if !ok {
 		return ErrNotLightStepTracer
 	}

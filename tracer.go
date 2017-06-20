@@ -2,7 +2,6 @@ package lightstep
 
 import (
 	"fmt"
-	"io"
 	"reflect"
 	"time"
 
@@ -22,7 +21,7 @@ type Tracer interface {
 // must not be updated when there is an active tracer using it.
 type TracerConfig struct {
 	// Recorder receives Spans which have been finished.
-	Recorder SpanRecorder
+	Recorder *LightStepRecorder
 	// DropAllLogs turns log events on all Spans into no-ops.
 	// If NewSpanEventListener is set, the callbacks will still fire.
 	DropAllLogs bool
@@ -40,38 +39,38 @@ type TracerConfig struct {
 
 // NewTracer returns a new Tracer that reports spans to a LightStep
 // collector.
-func NewTracer(opts GrpcOptions) ot.Tracer {
+func NewTracer(opts Options) ot.Tracer {
 	options := DefaultTracerConfig()
-
-	if !opts.UseThrift {
-		r := NewRecorder(opts)
-		if r == nil {
-			return ot.NoopTracer{}
-		}
-		options.Recorder = r
-	} else {
-		opts.setDefaults()
-		// convert opts to ThriftOptions
-		thriftOpts := ThriftOptions{
-			AccessToken:      opts.AccessToken,
-			Collector:        Endpoint{opts.Collector.Host, opts.Collector.Port, opts.Collector.Plaintext},
-			Tags:             opts.Tags,
-			LightStepAPI:     Endpoint{opts.LightStepAPI.Host, opts.LightStepAPI.Port, opts.LightStepAPI.Plaintext},
-			MaxBufferedSpans: opts.MaxBufferedSpans,
-			ReportingPeriod:  opts.ReportingPeriod,
-			ReportTimeout:    opts.ReportTimeout,
-			DropSpanLogs:     opts.DropSpanLogs,
-			MaxLogsPerSpan:   opts.MaxLogsPerSpan,
-			Verbose:          opts.Verbose,
-			MaxLogMessageLen: opts.MaxLogValueLen,
-			ThriftConnector:  opts.ThriftConnector,
-		}
-		r := NewThriftRecorder(thriftOpts)
-		if r == nil {
-			return ot.NoopTracer{}
-		}
-		options.Recorder = r
-	}
+	options.Recorder = NewLightStepRecorder(opts)
+	// if !opts.UseThrift {
+	// 	r := NewRecorder(opts)
+	// 	if r == nil {
+	// 		return ot.NoopTracer{}
+	// 	}
+	// 	options.Recorder = r
+	// } else {
+	// 	opts.setDefaults()
+	// 	// convert opts to ThriftOptions
+	// 	thriftOpts := ThriftOptions{
+	// 		AccessToken:      opts.AccessToken,
+	// 		Collector:        Endpoint{opts.Collector.Host, opts.Collector.Port, opts.Collector.Plaintext},
+	// 		Tags:             opts.Tags,
+	// 		LightStepAPI:     Endpoint{opts.LightStepAPI.Host, opts.LightStepAPI.Port, opts.LightStepAPI.Plaintext},
+	// 		MaxBufferedSpans: opts.MaxBufferedSpans,
+	// 		ReportingPeriod:  opts.ReportingPeriod,
+	// 		ReportTimeout:    opts.ReportTimeout,
+	// 		DropSpanLogs:     opts.DropSpanLogs,
+	// 		MaxLogsPerSpan:   opts.MaxLogsPerSpan,
+	// 		Verbose:          opts.Verbose,
+	// 		MaxLogMessageLen: opts.MaxLogValueLen,
+	// 		ThriftConnector:  opts.ThriftConnector,
+	// 	}
+	// 	r := NewThriftRecorder(thriftOpts)
+	// 	if r == nil {
+	// 		return ot.NoopTracer{}
+	// 	}
+	// 	options.Recorder = r
+	// }
 	options.DropAllLogs = opts.DropSpanLogs
 	options.MaxLogsPerSpan = opts.MaxLogsPerSpan
 	return NewTracerImplWithConfig(options)
@@ -83,13 +82,13 @@ func FlushLightStepTracer(lsTracer ot.Tracer) error {
 		return fmt.Errorf("Not a LightStep Tracer type: %v", reflect.TypeOf(lsTracer))
 	}
 
-	basicRecorder := basicTracer.Config().Recorder
+	basicRecorder := basicTracer.Config().Recorder.backend
 
-	switch t := basicRecorder.(type) {
+	switch basicRecorder.(type) {
 	case *GrpcRecorder:
-		t.Flush()
+		basicTracer.Config().Recorder.Flush()
 	case *ThriftRecorder:
-		t.Flush()
+		basicTracer.Config().Recorder.Flush()
 	default:
 		return fmt.Errorf("Not a LightStep Recorder type: %v", reflect.TypeOf(basicRecorder))
 	}
@@ -102,7 +101,7 @@ func GetLightStepAccessToken(lsTracer ot.Tracer) (string, error) {
 		return "", fmt.Errorf("Not a LightStep Tracer type: %v", reflect.TypeOf(lsTracer))
 	}
 
-	basicRecorder := basicTracer.Config().Recorder
+	basicRecorder := basicTracer.Config().Recorder.backend
 
 	switch t := basicRecorder.(type) {
 	case *GrpcRecorder:
@@ -119,10 +118,7 @@ func CloseTracer(tracer ot.Tracer) error {
 	if !ok {
 		return fmt.Errorf("Not a LightStep Tracer type: %v", reflect.TypeOf(tracer))
 	}
-	recorder, ok := lsTracer.Config().Recorder.(io.Closer)
-	if !ok {
-		return fmt.Errorf("Recorder does not implement Close: %v", reflect.TypeOf(recorder))
-	}
+	recorder := lsTracer.Config().Recorder
 
 	return recorder.Close()
 }
@@ -167,7 +163,7 @@ func NewTracerImplWithConfig(opts TracerConfig) ot.Tracer {
 // `recorder`.
 // Spans created by this Tracer support the ext.SamplingPriority tag: Setting
 // ext.SamplingPriority causes the Span to be Sampled from that point on.
-func NewTracerImpl(recorder SpanRecorder) ot.Tracer {
+func NewTracerImpl(recorder *LightStepRecorder) ot.Tracer {
 	opts := DefaultTracerConfig()
 	opts.Recorder = recorder
 	return NewTracerImplWithConfig(opts)

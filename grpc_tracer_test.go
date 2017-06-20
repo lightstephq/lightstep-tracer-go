@@ -144,7 +144,7 @@ var _ = Describe("Tracer", func() {
 
 		Context("With default options", func() {
 			BeforeEach(func() {
-				tracer = NewTracer(GrpcOptions{
+				tracer = NewTracer(Options{
 					AccessToken:     "0987654321",
 					Collector:       Endpoint{"localhost", port, true},
 					ReportingPeriod: 1 * time.Millisecond,
@@ -235,7 +235,7 @@ var _ = Describe("Tracer", func() {
 					Consistently(fakeClient.ReportCallCount, 2, 0.05).Should(Equal(lastCallCount))
 
 					By("Allowing other tracers to reconnect to the server")
-					tracer = NewTracer(GrpcOptions{
+					tracer = NewTracer(Options{
 						AccessToken:     "0987654321",
 						Collector:       Endpoint{"localhost", port, true},
 						ReportingPeriod: 1 * time.Millisecond,
@@ -248,7 +248,7 @@ var _ = Describe("Tracer", func() {
 				})
 			})
 
-			Describe("GrpcOptions", func() {
+			Describe("Options", func() {
 				const expectedTraceID uint64 = 1
 				const expectedSpanID uint64 = 2
 				const expectedParentSpanID uint64 = 3
@@ -397,7 +397,7 @@ var _ = Describe("Tracer", func() {
 
 		Context("With custom log length", func() {
 			BeforeEach(func() {
-				tracer = NewTracer(GrpcOptions{
+				tracer = NewTracer(Options{
 					AccessToken:     "0987654321",
 					Collector:       Endpoint{"localhost", port, true},
 					ReportingPeriod: 1 * time.Millisecond,
@@ -441,7 +441,7 @@ var _ = Describe("Tracer", func() {
 
 		Context("With custom MaxBufferedSpans", func() {
 			BeforeEach(func() {
-				tracer = NewTracer(GrpcOptions{
+				tracer = NewTracer(Options{
 					AccessToken:      "0987654321",
 					Collector:        Endpoint{"localhost", port, true},
 					ReportingPeriod:  1 * time.Millisecond,
@@ -469,7 +469,7 @@ var _ = Describe("Tracer", func() {
 
 		Context("With DropSpanLogs set", func() {
 			BeforeEach(func() {
-				tracer = NewTracer(GrpcOptions{
+				tracer = NewTracer(Options{
 					AccessToken:     "0987654321",
 					Collector:       Endpoint{"localhost", port, true},
 					ReportingPeriod: 1 * time.Millisecond,
@@ -498,7 +498,7 @@ var _ = Describe("Tracer", func() {
 
 		Context("With MaxLogsPerSpan set", func() {
 			BeforeEach(func() {
-				tracer = NewTracer(GrpcOptions{
+				tracer = NewTracer(Options{
 					AccessToken:     "0987654321",
 					Collector:       Endpoint{"localhost", port, true},
 					ReportingPeriod: 1 * time.Millisecond,

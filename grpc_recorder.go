@@ -2,6 +2,7 @@ package lightstep
 
 import (
 	"fmt"
+	"log"
 	"math/rand"
 	"os"
 	"path"
@@ -74,6 +75,7 @@ var (
 
 	errPreviousReportInFlight = fmt.Errorf("a previous Report is still in flight; aborting Flush()")
 	errConnectionWasClosed    = fmt.Errorf("the connection was closed")
+	logOneError               sync.Once
 )
 
 type GrpcConnection interface {
@@ -250,9 +252,12 @@ type GrpcRecorder struct {
 	// TODO this should use atomic load/store to test disabled
 	// prior to taking the lock, do please.
 	disabled bool
+
+	// For testing purposes only
+	grpcConnector func() (GrpcConnection, cpb.CollectorServiceClient, error)
 }
 
-func NewRecorder(opts GrpcOptions) *GrpcRecorder {
+func NewRecorder(opts Options) *GrpcRecorder {
 	opts.setDefaults()
 	if len(opts.AccessToken) == 0 {
 		fmt.Println("LightStep Recorder options.AccessToken must not be empty")
@@ -301,6 +306,7 @@ func NewRecorder(opts GrpcOptions) *GrpcRecorder {
 		flushing:           newSpansBuffer(opts.MaxBufferedSpans),
 		hostPort:           getCollectorHostPort(opts),
 		reconnectPeriod:    time.Duration(float64(opts.ReconnectPeriod) * (1 + 0.2*rand.Float64())),
+		grpcConnector:      opts.GrpcConnector,
 	}
 
 	rec.buffer.setCurrent(now)
@@ -310,87 +316,25 @@ func NewRecorder(opts GrpcOptions) *GrpcRecorder {
 	} else {
 		rec.creds = grpc.WithTransportCredentials(credentials.NewClientTLSFromCert(nil, ""))
 	}
-	var conn GrpcConnection
-	var backend cpb.CollectorServiceClient
-	var err error
-	if opts.GrpcConnector != nil {
-		conn, backend, err = opts.GrpcConnector()
-	} else {
-		conn, backend, err = rec.connectClient()
-	}
-
-	if err != nil {
-		fmt.Println("grpc.Dial failed permanently:", err)
-		return nil
-	}
-
-	rec.conn = conn
-	rec.connTimestamp = now
-	rec.backend = backend
-	rec.closech = make(chan struct{})
-
-	go rec.reportLoop(rec.closech)
 
 	return rec
 }
 
-func (r *GrpcRecorder) connectClient() (GrpcConnection, cpb.CollectorServiceClient, error) {
-	conn, err := grpc.Dial(r.hostPort, r.creds)
-	if err != nil {
-		return nil, nil, err
-	}
-	return conn, cpb.NewCollectorServiceClient(conn), nil
-}
-
-func (r *GrpcRecorder) reconnectClient(now time.Time) {
-	conn, backend, err := r.connectClient()
-	if err != nil {
-		r.maybeLogInfof("could not reconnect client")
+func (client *GrpcRecorder) ConnectClient() (Connection, error) {
+	var conn Connection
+	var backend cpb.CollectorServiceClient
+	if client.grpcConnector != nil {
+		conn, backend, _ = client.grpcConnector()
 	} else {
-		r.lock.Lock()
-		oldConn := r.conn
-		r.conn = conn
-		r.connTimestamp = now
-		r.backend = backend
-		r.lock.Unlock()
-
-		oldConn.Close()
-		r.maybeLogInfof("reconnected client connection")
-	}
-}
-
-func (r *GrpcRecorder) ReporterID() uint64 {
-	return r.reporterID
-}
-
-func (r *GrpcRecorder) Close() error {
-	r.lock.Lock()
-	conn := r.conn
-	closech := r.closech
-	r.conn = nil
-	r.closech = nil
-	r.lock.Unlock()
-
-	if closech != nil {
-		close(closech)
+		conn, err := grpc.Dial(client.hostPort, client.creds)
+		if err != nil {
+			return nil, err
+		}
+		backend = cpb.NewCollectorServiceClient(conn)
 	}
 
-	if conn == nil {
-		return nil
-	}
-	return conn.Close()
-}
-
-func (r *GrpcRecorder) RecordSpan(raw RawSpan) {
-	r.lock.Lock()
-	defer r.lock.Unlock()
-
-	// Early-out for disabled runtimes
-	if r.disabled {
-		return
-	}
-
-	r.buffer.addSpan(raw)
+	client.backend = backend
+	return conn, nil
 }
 
 func translateSpanContext(sc SpanContext) *cpb.SpanContext {
@@ -540,148 +484,41 @@ func (r *GrpcRecorder) makeReportRequest(buffer *reportBuffer) *cpb.ReportReques
 
 }
 
-func (r *GrpcRecorder) Flush() {
-	r.lock.Lock()
-
-	if r.disabled {
-		r.lock.Unlock()
-		return
-	}
-
-	if r.conn == nil {
-		r.maybeLogError(errConnectionWasClosed)
-		r.lock.Unlock()
-		return
-	}
-
-	if r.reportInFlight == true {
-		r.maybeLogError(errPreviousReportInFlight)
-		r.lock.Unlock()
-		return
-	}
-
-	// There is not an in-flight report, therefore r.flushing has been reset and
-	// is ready to re-use.
-	now := time.Now()
-	r.buffer, r.flushing = r.flushing, r.buffer
-	r.reportInFlight = true
-	r.flushing.setFlushing(now)
-	r.buffer.setCurrent(now)
-	r.lastReportAttempt = now
-	r.lock.Unlock()
-
-	ctx, cancel := context.WithTimeout(context.Background(), r.reportingTimeout)
-	defer cancel()
-	resp, err := r.backend.Report(ctx, r.makeReportRequest(&r.flushing))
-
+func (client *GrpcRecorder) Report(ctx context.Context, buffer *reportBuffer) (*CollectorResponse, error) {
+	resp, err := client.backend.Report(ctx, client.makeReportRequest(buffer))
 	if err != nil {
-		r.maybeLogError(err)
-	} else if len(resp.Errors) > 0 {
-		// These should never occur, since this library should understand what
-		// makes for valid logs and spans, but just in case, log it anyway.
-		for _, err := range resp.Errors {
-			r.maybeLogError(fmt.Errorf("Remote report returned error: %s", err))
-		}
+		return nil, err
+	}
+
+	commands := make([]*Command, len(resp.Commands))
+	for i, command := range resp.Commands {
+		commands[i] = &Command{command.GetDisable()}
+	}
+	return &CollectorResponse{Errors: resp.Errors, Commands: commands}, nil
+}
+
+// maybeLogError logs the first error it receives using the standard log
+// package and may also log subsequent errors based on verboseFlag.
+func (r *GrpcRecorder) maybeLogError(err error) {
+	if r.verbose {
+		log.Printf("LightStep error: %v\n", err)
 	} else {
-		r.maybeLogInfof("Report: resp=%v, err=%v", resp, err)
-	}
-
-	var droppedSent int64
-	r.lock.Lock()
-	r.reportInFlight = false
-	if err != nil {
-		// Restore the records that did not get sent correctly
-		r.buffer.mergeFrom(&r.flushing)
-	} else {
-		droppedSent = r.flushing.droppedSpanCount
-		r.flushing.clear()
-	}
-	r.lock.Unlock()
-
-	if droppedSent != 0 {
-		r.maybeLogInfof("client reported %d dropped spans", droppedSent)
-	}
-
-	if err != nil {
-		return
-	}
-	for _, c := range resp.Commands {
-		if c.Disable {
-			r.Disable()
-		}
+		// Even if the flag is not set, always log at least one error.
+		logOneError.Do(func() {
+			log.Printf("LightStep instrumentation error (%v). Set the Verbose option to enable more logging.\n", err)
+		})
 	}
 }
 
-func (r *GrpcRecorder) Disable() {
-	r.lock.Lock()
-	defer r.lock.Unlock()
-
-	if r.disabled {
-		return
-	}
-
-	fmt.Printf("Disabling Runtime instance: %p", r)
-
-	r.buffer.clear()
-	r.disabled = true
-}
-
-// Every minReportingPeriod the reporting loop wakes up and checks to see if
-// either (a) the Runtime's max reporting period is about to expire (see
-// maxReportingPeriod()), (b) the number of buffered log records is
-// approaching kMaxBufferedLogs, or if (c) the number of buffered span records
-// is approaching kMaxBufferedSpans. If any of those conditions are true,
-// pending data is flushed to the remote peer. If not, the reporting loop waits
-// until the next cycle. See Runtime.maybeFlush() for details.
-//
-// This could alternatively be implemented using flush channels and so forth,
-// but that would introduce opportunities for client code to block on the
-// runtime library, and we want to avoid that at all costs (even dropping data,
-// which can certainly happen with high data rates and/or unresponsive remote
-// peers).
-func (r *GrpcRecorder) shouldFlushLocked(now time.Time) bool {
-	if now.Add(minReportingPeriod).Sub(r.lastReportAttempt) > r.maxReportingPeriod {
-		// Flush timeout.
-		r.maybeLogInfof("--> timeout")
-		return true
-	} else if r.buffer.isHalfFull() {
-		// Too many queued span records.
-		r.maybeLogInfof("--> span queue")
-		return true
-	}
-	return false
-}
-
-func (r *GrpcRecorder) reportLoop(closech chan struct{}) {
-	tickerChan := time.Tick(minReportingPeriod)
-	for {
-		select {
-		case <-tickerChan:
-			now := time.Now()
-
-			r.lock.Lock()
-			disabled := r.disabled
-			reconnect := !r.reportInFlight && now.Sub(r.connTimestamp) > r.reconnectPeriod
-			shouldFlush := r.shouldFlushLocked(now)
-			r.lock.Unlock()
-
-			if disabled {
-				return
-			}
-			if shouldFlush {
-				r.Flush()
-			}
-			if reconnect {
-				r.reconnectClient(now)
-			}
-		case <-closech:
-			r.Flush()
-			return
-		}
+// maybeLogInfof may format and log its arguments if verboseFlag is set.
+func (r *GrpcRecorder) maybeLogInfof(format string, args ...interface{}) {
+	if r.verbose {
+		s := fmt.Sprintf(format, args...)
+		log.Printf("LightStep info: %s\n", s)
 	}
 }
 
-func getCollectorHostPort(opts GrpcOptions) string {
+func getCollectorHostPort(opts Options) string {
 	e := opts.Collector
 	host := e.Host
 	if host == "" {
@@ -702,14 +539,14 @@ func getCollectorHostPort(opts GrpcOptions) string {
 	return fmt.Sprintf("%s:%d", host, port)
 }
 
-func getCollectorURL(opts GrpcOptions) string {
+func getCollectorURL(opts Options) string {
 	// TODO This is dead code, remove?
 	return getURL(opts.Collector,
 		defaultCollectorHost,
 		collectorPath)
 }
 
-func getAPIURL(opts GrpcOptions) string {
+func getAPIURL(opts Options) string {
 	return getURL(opts.LightStepAPI, defaultAPIHost, "")
 }
 
