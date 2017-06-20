@@ -449,7 +449,7 @@ func convertToReporter(atts map[string]string, id uint64) *cpb.Reporter {
 	}
 }
 
-func (b *reportBuffer) generateMetricsSample() []*cpb.MetricsSample {
+func generateMetricsSample(b *reportBuffer) []*cpb.MetricsSample {
 	return []*cpb.MetricsSample{
 		&cpb.MetricsSample{
 			Name:  spansDropped,
@@ -462,11 +462,11 @@ func (b *reportBuffer) generateMetricsSample() []*cpb.MetricsSample {
 	}
 }
 
-func (b *reportBuffer) convertToInternalMetrics() *cpb.InternalMetrics {
+func convertToInternalMetrics(b *reportBuffer) *cpb.InternalMetrics {
 	return &cpb.InternalMetrics{
 		StartTimestamp: translateTime(b.reportStart),
 		DurationMicros: translateDurationFromOldestYoungest(b.reportStart, b.reportEnd),
-		Counts:         b.generateMetricsSample(),
+		Counts:         generateMetricsSample(b),
 	}
 }
 
@@ -478,7 +478,7 @@ func (r *GrpcRecorder) makeReportRequest(buffer *reportBuffer) *cpb.ReportReques
 		Reporter:        reporter,
 		Auth:            &cpb.Auth{r.accessToken},
 		Spans:           spans,
-		InternalMetrics: buffer.convertToInternalMetrics(),
+		InternalMetrics: convertToInternalMetrics(buffer),
 	}
 	return &req
 

@@ -1,8 +1,6 @@
 package lightstep
 
-import (
-	"time"
-)
+import "time"
 
 type reportBuffer struct {
 	rawSpans             []RawSpan
