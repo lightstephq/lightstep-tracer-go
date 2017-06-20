@@ -40,7 +40,7 @@ type CollectorClient interface {
 	ConnectClient() (Connection, error)
 }
 
-// GrpcOptions control how the LightStep Tracer behaves.
+// Options control how the LightStep Tracer behaves.
 type Options struct {
 	// AccessToken is the unique API key for your LightStep project.  It is
 	// available on your account page at https://app.lightstep.com/account
@@ -141,28 +141,15 @@ type LightStepRecorder struct {
 	// at runtime, in which case suitable changes may be needed
 	// for variables accessed during Flush.
 
-	// auth and runtime information
-	attributes map[string]string
-	startTime  time.Time
-
-	// apiURL is the base URL of the LightStep web API, used for
-	// explicit trace collection requests.
-	apiURL string
-
-	// accessToken is the access token used for explicit trace
-	// collection requests.
-	accessToken string
+	startTime time.Time
 
 	reporterID         uint64        // the LightStep tracer guid
 	verbose            bool          // whether to print verbose messages
-	maxLogKeyLen       int           // see GrpcOptions.MaxLogKeyLen
-	maxLogValueLen     int           // see GrpcOptions.MaxLogValueLen
 	maxReportingPeriod time.Duration // set by GrpcOptions.MaxReportingPeriod
 	reconnectPeriod    time.Duration // set by GrpcOptions.ReconnectPeriod
 	reportingTimeout   time.Duration // set by GrpcOptions.ReportTimeout
 
 	// Remote service that will receive reports.
-	hostPort      string
 	backend       CollectorClient
 	conn          Connection
 	connTimestamp time.Time
@@ -188,8 +175,6 @@ type LightStepRecorder struct {
 	// TODO this should use atomic load/store to test disabled
 	// prior to taking the lock, do please.
 	disabled bool
-
-	opts Options
 }
 
 func NewLightStepRecorder(opts Options) *LightStepRecorder {
@@ -227,36 +212,28 @@ func NewLightStepRecorder(opts Options) *LightStepRecorder {
 
 	now := time.Now()
 	rec := &LightStepRecorder{
-		accessToken:        opts.AccessToken,
-		attributes:         attributes,
 		startTime:          now,
 		maxReportingPeriod: defaultMaxReportingPeriod,
 		reportingTimeout:   opts.ReportTimeout,
 		verbose:            opts.Verbose,
-		maxLogKeyLen:       opts.MaxLogKeyLen,
-		maxLogValueLen:     opts.MaxLogValueLen,
-		apiURL:             getLSAPIURL(opts),
 		reporterID:         genSeededGUID(),
 		buffer:             newSpansBuffer(opts.MaxBufferedSpans),
 		flushing:           newSpansBuffer(opts.MaxBufferedSpans),
-		hostPort:           getLSCollectorHostPort(opts),
 		reconnectPeriod:    time.Duration(float64(opts.ReconnectPeriod) * (1 + 0.2*rand.Float64())),
-		opts:               opts,
 	}
 
 	rec.buffer.setCurrent(now)
 
-	// TODO implement use_thrift and the defaul grpc
 	if opts.UseThrift {
-		rec.backend = NewThriftRecorder(opts)
+		rec.backend = NewThriftRecorder(opts, attributes)
 	} else {
-		rec.backend = NewRecorder(opts)
+		rec.backend = NewGrpcRecorder(opts, rec.reporterID, attributes)
 	}
 
 	conn, err := rec.backend.ConnectClient()
 
 	if err != nil {
-		fmt.Println("grpc.Dial failed permanently:", err)
+		fmt.Println("Failed to connect to Collector!", err)
 		return nil
 	}
 
@@ -267,14 +244,6 @@ func NewLightStepRecorder(opts Options) *LightStepRecorder {
 	go rec.reportLoop(rec.closech)
 
 	return rec
-}
-
-func (r *LightStepRecorder) connectClient() (GrpcConnection, cpb.CollectorServiceClient, error) {
-	conn, err := grpc.Dial(r.hostPort, r.creds)
-	if err != nil {
-		return nil, nil, err
-	}
-	return conn, cpb.NewCollectorServiceClient(conn), nil
 }
 
 func (r *LightStepRecorder) reconnectClient(now time.Time) {

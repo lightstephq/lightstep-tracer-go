@@ -3,9 +3,6 @@ package lightstep
 import (
 	"fmt"
 	"log"
-	"os"
-	"path"
-	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -62,37 +59,7 @@ type ThriftRecorder struct {
 	reportTimeout time.Duration
 }
 
-func NewThriftRecorder(opts Options) *ThriftRecorder {
-	if len(opts.AccessToken) == 0 {
-		// TODO maybe return a no-op recorder instead?
-		panic("LightStep Recorder options.AccessToken must not be empty")
-	}
-	if opts.Tags == nil {
-		opts.Tags = make(map[string]interface{})
-	}
-	// Set some default attributes if not found in options
-	if _, found := opts.Tags[ComponentNameKey]; !found {
-		opts.Tags[ComponentNameKey] = path.Base(os.Args[0])
-	}
-	if _, found := opts.Tags[GUIDKey]; !found {
-		opts.Tags[GUIDKey] = genSeededGUID()
-	}
-	if _, found := opts.Tags[HostnameKey]; !found {
-		hostname, _ := os.Hostname()
-		opts.Tags[HostnameKey] = hostname
-	}
-	if _, found := opts.Tags[CommandLineKey]; !found {
-		opts.Tags[CommandLineKey] = strings.Join(os.Args, " ")
-	}
-
-	attributes := make(map[string]string)
-	for k, v := range opts.Tags {
-		attributes[k] = fmt.Sprint(v)
-	}
-	// Don't let the Options override these values. That would be confusing.
-	attributes[TracerPlatformKey] = TracerPlatformValue
-	attributes[TracerPlatformVersionKey] = runtime.Version()
-	attributes[TracerVersionKey] = TracerVersionValue
+func NewThriftRecorder(opts Options, attributes map[string]string) *ThriftRecorder {
 
 	now := time.Now()
 	rec := &ThriftRecorder{
