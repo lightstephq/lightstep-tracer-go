@@ -23,9 +23,14 @@ type thriftLogFieldEncoder struct {
 }
 
 func (lfe *thriftLogFieldEncoder) EmitString(key, value string) {
+	if len(key) > lfe.recorder.maxLogMessageLen {
+		key = key[:(lfe.recorder.maxLogKeyLen-1)] + ellipsis
+	}
+
 	if len(value) > lfe.recorder.maxLogMessageLen {
 		value = value[:(lfe.recorder.maxLogMessageLen-1)] + ellipsis
 	}
+
 	lfe.logRecord.Fields = append(lfe.logRecord.Fields, &lightstep_thrift.KeyValue{
 		Key:   key,
 		Value: value,

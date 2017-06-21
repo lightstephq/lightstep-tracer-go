@@ -42,6 +42,7 @@ type ThriftCollectorClient struct {
 
 	// flags replacement
 	maxLogMessageLen int
+	maxLogKeyLen     int
 
 	reportTimeout time.Duration
 
@@ -66,6 +67,7 @@ func NewThriftCollectorClient(opts Options, attributes map[string]string) *Thrif
 		apiURL:             getThriftAPIURL(opts),
 		AccessToken:        opts.AccessToken,
 		maxLogMessageLen:   opts.MaxLogValueLen,
+		maxLogKeyLen:       opts.MaxLogKeyLen,
 		reportTimeout:      reportTimeout,
 		thriftConnector:    opts.ConnFactory,
 	}
