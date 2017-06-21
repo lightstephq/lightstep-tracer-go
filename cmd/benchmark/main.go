@@ -184,7 +184,10 @@ func (t *testClient) run(control *Control) (time.Duration, time.Duration, time.D
 	endTime := time.Now()
 	flushDur := time.Duration(0)
 	if control.Trace {
-		recorder := t.tracer.(ls.Tracer).Config().Recorder.(*ls.GrpcCollectorClient)
+		recorder, ok := t.tracer.(ls.Tracer).Config().Recorder.(*ls.Recorder)
+		if !ok {
+			panic("Tracer does not have a lightstep recorder")
+		}
 		recorder.Flush()
 		flushDur = time.Now().Sub(endTime)
 	}

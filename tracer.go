@@ -58,11 +58,15 @@ type Tracer interface {
 	Config() TracerConfig
 }
 
+type SpanRecorder interface {
+	RecordSpan(RawSpan)
+}
+
 // Options allows creating a customized Tracer via NewWithOptions. The object
 // must not be updated when there is an active tracer using it.
 type TracerConfig struct {
 	// Recorder receives Spans which have been finished.
-	Recorder *Recorder
+	Recorder SpanRecorder
 	// DropAllLogs turns log events on all Spans into no-ops.
 	// If NewSpanEventListener is set, the callbacks will still fire.
 	DropAllLogs bool
@@ -98,39 +102,45 @@ func NewTracer(opts Options) ot.Tracer {
 }
 
 func FlushLightStepTracer(lsTracer ot.Tracer) error {
-	basicTracer, ok := lsTracer.(Tracer)
+	tracer, ok := lsTracer.(Tracer)
 	if !ok {
 		return fmt.Errorf("Not a LightStep Tracer type: %v", reflect.TypeOf(lsTracer))
 	}
 
-	basicRecorder := basicTracer.Config().Recorder.client
+	recorder, ok := tracer.Config().Recorder.(*Recorder)
+	if !ok {
+		return fmt.Errorf("Not a LightStep Recorder type: %v", reflect.TypeOf(tracer.Config().Recorder))
+	}
 
-	switch basicRecorder.(type) {
+	switch recorder.client.(type) {
 	case *GrpcCollectorClient:
-		basicTracer.Config().Recorder.Flush()
+		recorder.Flush()
 	case *ThriftCollectorClient:
-		basicTracer.Config().Recorder.Flush()
+		recorder.Flush()
 	default:
-		return fmt.Errorf("Not a LightStep Recorder type: %v", reflect.TypeOf(basicRecorder))
+		return fmt.Errorf("Not a LightStep Recorder type: %v", reflect.TypeOf(recorder.client))
 	}
 	return nil
 }
 
 func GetLightStepAccessToken(lsTracer ot.Tracer) (string, error) {
-	basicTracer, ok := lsTracer.(Tracer)
+	tracer, ok := lsTracer.(Tracer)
 	if !ok {
 		return "", fmt.Errorf("Not a LightStep Tracer type: %v", reflect.TypeOf(lsTracer))
 	}
 
-	basicRecorder := basicTracer.Config().Recorder.client
+	recorder, ok := tracer.Config().Recorder.(*Recorder)
+	if !ok {
+		return "", fmt.Errorf("Not a LighStep Recorder type: %v", reflect.TypeOf(tracer.Config().Recorder))
+	}
 
-	switch t := basicRecorder.(type) {
+	switch t := recorder.client.(type) {
 	case *GrpcCollectorClient:
 		return t.accessToken, nil
 	case *ThriftCollectorClient:
 		return t.AccessToken, nil
 	default:
-		return "", fmt.Errorf("Not a LightStep Recorder type: %v", reflect.TypeOf(basicRecorder))
+		return "", fmt.Errorf("Not a LightStep Recorder type: %v", reflect.TypeOf(recorder))
 	}
 }
 
@@ -139,7 +149,10 @@ func CloseTracer(tracer ot.Tracer) error {
 	if !ok {
 		return fmt.Errorf("Not a LightStep Tracer type: %v", reflect.TypeOf(tracer))
 	}
-	recorder := lsTracer.Config().Recorder
+	recorder, ok := lsTracer.Config().Recorder.(*Recorder)
+	if !ok {
+		return fmt.Errorf("Not a LighStep Recorder Type: %v", reflect.TypeOf(lsTracer.Config().Recorder))
+	}
 
 	return recorder.Close()
 }
@@ -160,7 +173,7 @@ func NewTracerImplWithConfig(opts TracerConfig) ot.Tracer {
 // `recorder`.
 // Spans created by this Tracer support the ext.SamplingPriority tag: Setting
 // ext.SamplingPriority causes the Span to be Sampled from that point on.
-func NewTracerImpl(recorder *Recorder) ot.Tracer {
+func NewTracerImpl(recorder SpanRecorder) ot.Tracer {
 	opts := DefaultTracerConfig()
 	opts.Recorder = recorder
 	return NewTracerImplWithConfig(opts)
