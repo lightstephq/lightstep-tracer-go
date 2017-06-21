@@ -183,6 +183,7 @@ type Recorder struct {
 
 func NewRecorder(opts Options) *Recorder {
 	opts.setDefaults()
+
 	if len(opts.AccessToken) == 0 {
 		fmt.Println("LightStep Recorder options.AccessToken must not be empty")
 		return nil
@@ -190,6 +191,7 @@ func NewRecorder(opts Options) *Recorder {
 	if opts.Tags == nil {
 		opts.Tags = make(map[string]interface{})
 	}
+
 	// Set some default attributes if not found in options
 	if _, found := opts.Tags[ComponentNameKey]; !found {
 		opts.Tags[ComponentNameKey] = path.Base(os.Args[0])
@@ -228,7 +230,7 @@ func NewRecorder(opts Options) *Recorder {
 	rec.buffer.setCurrent(now)
 
 	if opts.UseThrift {
-		rec.client = NewThriftCollectorClient(opts, attributes)
+		rec.client = NewThriftCollectorClient(opts, rec.reporterID, attributes)
 	} else {
 		rec.client = NewGrpcCollectorClient(opts, rec.reporterID, attributes)
 	}

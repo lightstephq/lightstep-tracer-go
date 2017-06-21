@@ -32,11 +32,6 @@ var (
 type GrpcCollectorClient struct {
 	// auth and runtime information
 	attributes map[string]string
-
-	// apiURL is the base URL of the LightStep web API, used for
-	// explicit trace collection requests.
-	apiURL string
-
 	reporterID uint64
 
 	// accessToken is the access token used for explicit trace
@@ -69,7 +64,6 @@ func NewGrpcCollectorClient(opts Options, reporterID uint64, attributes map[stri
 		verbose:              opts.Verbose,
 		maxLogKeyLen:         opts.MaxLogKeyLen,
 		maxLogValueLen:       opts.MaxLogValueLen,
-		apiURL:               getGrpcAPIURL(opts),
 		reporterID:           reporterID,
 		hostPort:             getGrpcCollectorHostPort(opts),
 		reconnectPeriod:      time.Duration(float64(opts.ReconnectPeriod) * (1 + 0.2*rand.Float64())),
@@ -297,10 +291,6 @@ func getGrpcCollectorHostPort(opts Options) string {
 		}
 	}
 	return fmt.Sprintf("%s:%d", host, port)
-}
-
-func getGrpcAPIURL(opts Options) string {
-	return getGrpcURL(opts.LightStepAPI, defaultAPIHost, "")
 }
 
 func getGrpcURL(e Endpoint, host, path string) string {

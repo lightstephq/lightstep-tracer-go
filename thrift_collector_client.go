@@ -19,6 +19,7 @@ type ThriftCollectorClient struct {
 	auth       *lightstep_thrift.Auth
 	attributes map[string]string
 	startTime  time.Time
+	reporterID uint64
 
 	lastReportAttempt  time.Time
 	maxReportingPeriod time.Duration
@@ -28,7 +29,7 @@ type ThriftCollectorClient struct {
 
 	// apiURL is the base URL of the LightStep web API, used for
 	// explicit trace collection requests.
-	apiURL string
+	collectorURL string
 
 	// AccessToken is the access token used for explicit trace
 	// collection requests.
@@ -45,7 +46,7 @@ type ThriftCollectorClient struct {
 	thriftConnectorFactory ConnectorFactory
 }
 
-func NewThriftCollectorClient(opts Options, attributes map[string]string) *ThriftCollectorClient {
+func NewThriftCollectorClient(opts Options, guid uint64, attributes map[string]string) *ThriftCollectorClient {
 	reportTimeout := 60 * time.Second
 	if opts.ReportTimeout > 0 {
 		reportTimeout = opts.ReportTimeout
@@ -60,14 +61,14 @@ func NewThriftCollectorClient(opts Options, attributes map[string]string) *Thrif
 		startTime:              now,
 		maxReportingPeriod:     defaultMaxReportingPeriod,
 		verbose:                opts.Verbose,
-		apiURL:                 getThriftAPIURL(opts),
+		collectorURL:           getThriftCollectorURL(opts),
 		AccessToken:            opts.AccessToken,
 		maxLogMessageLen:       opts.MaxLogValueLen,
 		maxLogKeyLen:           opts.MaxLogKeyLen,
 		reportTimeout:          reportTimeout,
 		thriftConnectorFactory: opts.ConnFactory,
+		reporterID:             guid,
 	}
-
 	return rec
 }
 
@@ -88,7 +89,7 @@ func (client *ThriftCollectorClient) ConnectClient() (Connection, error) {
 		conn = transport
 		client.thriftClient = thriftClient
 	} else {
-		transport, err := thrift.NewTHttpPostClient(client.apiURL, client.reportTimeout)
+		transport, err := thrift.NewTHttpPostClient(client.collectorURL, client.reportTimeout)
 		if err != nil {
 			maybeLogError(err, client.verbose)
 			return nil, err
@@ -170,15 +171,20 @@ func (client *ThriftCollectorClient) Report(_ context.Context, buffer *reportBuf
 	}
 
 	resp, err := client.thriftClient.Report(client.auth, req)
+	if err != nil {
+		return nil, err
+	}
 	commands := make([]*Command, len(resp.Commands))
 	for i, command := range resp.GetCommands() {
 		commands[i] = &Command{command.GetDisable()}
 	}
+
 	return &CollectorResponse{Errors: resp.GetErrors(), Commands: commands}, err
 }
 
 // caller must hold r.lock
 func (r *ThriftCollectorClient) thriftRuntime() *lightstep_thrift.Runtime {
+	guid := strconv.FormatUint(r.reporterID, 10)
 	runtimeAttrs := []*lightstep_thrift.KeyValue{}
 	for k, v := range r.attributes {
 		runtimeAttrs = append(runtimeAttrs, &lightstep_thrift.KeyValue{k, v})
@@ -186,6 +192,7 @@ func (r *ThriftCollectorClient) thriftRuntime() *lightstep_thrift.Runtime {
 	return &lightstep_thrift.Runtime{
 		StartMicros: thrift.Int64Ptr(r.startTime.UnixNano() / 1000),
 		Attrs:       runtimeAttrs,
+		Guid:        &guid,
 	}
 }
 
@@ -193,10 +200,6 @@ func getThriftCollectorURL(opts Options) string {
 	return getThriftURL(opts.Collector,
 		defaultCollectorHost,
 		collectorPath)
-}
-
-func getThriftAPIURL(opts Options) string {
-	return getThriftURL(opts.LightStepAPI, defaultAPIHost, "")
 }
 
 func getThriftURL(e Endpoint, host, path string) string {
