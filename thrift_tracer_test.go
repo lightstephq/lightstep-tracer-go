@@ -89,7 +89,7 @@ func attachThriftSpanListener(fakeClient *thriftfakes.FakeReportingService) func
 
 func fakeThriftConnectionFactory(fakeClient lightstep_thrift.ReportingService) ConnectorFactory {
 	return func() (interface{}, Connection, error) {
-		return fakeClient, new(dummyConn), nil
+		return fakeClient, new(dummyConnection), nil
 	}
 }
 

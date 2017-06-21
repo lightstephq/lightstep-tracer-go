@@ -37,6 +37,14 @@ type CollectorClient interface {
 	ConnectClient() (Connection, error)
 }
 
+// Endpoint describes a collection or web API host/port and whether or
+// not to use plaintext communicatation.
+type Endpoint struct {
+	Host      string `yaml:"host" usage:"host on which the endpoint is running"`
+	Port      int    `yaml:"port" usage:"port on which the endpoint is listening"`
+	Plaintext bool   `yaml:"plaintext" usage:"whether or not to encrypt data send to the endpoint"`
+}
+
 type ConnectorFactory func() (interface{}, Connection, error)
 
 // Options control how the LightStep Tracer behaves.

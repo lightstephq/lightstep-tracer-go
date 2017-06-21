@@ -12,9 +12,9 @@ import (
 	"github.com/lightstep/lightstep-tracer-go/thrift_0_9_2/lib/go/thrift"
 )
 
-type DummyConnection struct{}
+type dummyConnectionection struct{}
 
-func (x *DummyConnection) Close() error { return nil }
+func (x *dummyConnectionection) Close() error { return nil }
 
 // ThriftCollectorClient buffers spans and forwards them to a LightStep collector.
 type ThriftCollectorClient struct {
@@ -190,13 +190,13 @@ func (r *ThriftCollectorClient) thriftRuntime() *lightstep_thrift.Runtime {
 }
 
 func getThriftCollectorURL(opts Options) string {
-	return getURL(opts.Collector,
+	return getThriftURL(opts.Collector,
 		defaultCollectorHost,
 		collectorPath)
 }
 
 func getThriftAPIURL(opts Options) string {
-	return getURL(opts.LightStepAPI, defaultAPIHost, "")
+	return getThriftURL(opts.LightStepAPI, defaultAPIHost, "")
 }
 
 func getThriftURL(e Endpoint, host, path string) string {

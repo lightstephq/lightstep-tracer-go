@@ -87,7 +87,7 @@ func startNSpans(n int, tracer ot.Tracer) {
 	}
 }
 
-func attachSpanListener(fakeClient *cpbfakes.FakeCollectorServiceClient) func() []*cpb.Span {
+func attachGrpcSpanListener(fakeClient *cpbfakes.FakeCollectorServiceClient) func() []*cpb.Span {
 	reportChan := make(chan *cpb.ReportRequest)
 	fakeClient.ReportStub = func(context context.Context, reportResponse *cpb.ReportRequest, options ...grpc.CallOption) (*cpb.ReportResponse, error) {
 		select {
@@ -112,16 +112,15 @@ func attachSpanListener(fakeClient *cpbfakes.FakeCollectorServiceClient) func() 
 	}
 }
 
-func FakeGrpcConnection(fakeClient *cpbfakes.FakeCollectorServiceClient) ConnectorFactory {
+type dummyConnection struct{}
+
+func (*dummyConnection) Close() error { return nil }
+
+func fakeGrpcConnection(fakeClient *cpbfakes.FakeCollectorServiceClient) ConnectorFactory {
 	return func() (interface{}, Connection, error) {
-		return fakeClient, new(dummyConn), nil
+		return fakeClient, new(dummyConnection), nil
 	}
 }
-
-type dummyConn struct{}
-
-func (*dummyConn) Close() error                               { return nil }
-func (*dummyConn) GetMethodConfig(_ string) grpc.MethodConfig { return grpc.MethodConfig{} }
 
 var _ = Describe("Tracer", func() {
 	var tracer ot.Tracer
@@ -133,7 +132,7 @@ var _ = Describe("Tracer", func() {
 
 		BeforeEach(func() {
 			fakeClient = new(cpbfakes.FakeCollectorServiceClient)
-			latestSpans = attachSpanListener(fakeClient)
+			latestSpans = attachGrpcSpanListener(fakeClient)
 		})
 
 		AfterEach(func() {
@@ -149,7 +148,7 @@ var _ = Describe("Tracer", func() {
 					Collector:       Endpoint{"localhost", port, true},
 					ReportingPeriod: 1 * time.Millisecond,
 					ReportTimeout:   10 * time.Millisecond,
-					ConnFactory:     FakeGrpcConnection(fakeClient),
+					ConnFactory:     fakeGrpcConnection(fakeClient),
 				})
 
 				// make sure the fake client is working
@@ -240,7 +239,7 @@ var _ = Describe("Tracer", func() {
 						Collector:       Endpoint{"localhost", port, true},
 						ReportingPeriod: 1 * time.Millisecond,
 						ReportTimeout:   10 * time.Millisecond,
-						ConnFactory:     FakeGrpcConnection(fakeClient),
+						ConnFactory:     fakeGrpcConnection(fakeClient),
 					})
 					Eventually(fakeClient.ReportCallCount).ShouldNot(Equal(lastCallCount))
 				})
@@ -402,7 +401,7 @@ var _ = Describe("Tracer", func() {
 					ReportTimeout:   10 * time.Millisecond,
 					MaxLogKeyLen:    10,
 					MaxLogValueLen:  11,
-					ConnFactory:     FakeGrpcConnection(fakeClient),
+					ConnFactory:     fakeGrpcConnection(fakeClient),
 				})
 				// make sure the fake client is working
 				Eventually(fakeClient.ReportCallCount).ShouldNot(BeZero())
@@ -447,7 +446,7 @@ var _ = Describe("Tracer", func() {
 					MaxLogKeyLen:     10,
 					MaxLogValueLen:   11,
 					MaxBufferedSpans: 10,
-					ConnFactory:      FakeGrpcConnection(fakeClient),
+					ConnFactory:      fakeGrpcConnection(fakeClient),
 				})
 
 				// make sure the fake client is working
@@ -473,7 +472,7 @@ var _ = Describe("Tracer", func() {
 					ReportingPeriod: 1 * time.Millisecond,
 					ReportTimeout:   10 * time.Millisecond,
 					DropSpanLogs:    true,
-					ConnFactory:     FakeGrpcConnection(fakeClient),
+					ConnFactory:     fakeGrpcConnection(fakeClient),
 				})
 
 				// make sure the fake client is working
@@ -502,7 +501,7 @@ var _ = Describe("Tracer", func() {
 					ReportingPeriod: 1 * time.Millisecond,
 					ReportTimeout:   10 * time.Millisecond,
 					MaxLogsPerSpan:  10,
-					ConnFactory:     FakeGrpcConnection(fakeClient),
+					ConnFactory:     fakeGrpcConnection(fakeClient),
 				})
 
 				// make sure the fake client is working

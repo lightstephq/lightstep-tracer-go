@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"math/rand"
 	"reflect"
-	"sync"
 	"time"
 
 	"golang.org/x/net/context"
@@ -28,34 +27,8 @@ var (
 	errConnectionWasClosed    = fmt.Errorf("the connection was closed")
 )
 
-type GrpcConnection interface {
-	Close() error
-	GetMethodConfig(string) grpc.MethodConfig
-}
-
-// A set of counter values for a given time window
-type counterSet struct {
-	droppedSpans int64
-}
-
-// Endpoint describes a collection or web API host/port and whether or
-// not to use plaintext communicatation.
-type Endpoint struct {
-	Host      string `yaml:"host" usage:"host on which the endpoint is running"`
-	Port      int    `yaml:"port" usage:"port on which the endpoint is listening"`
-	Plaintext bool   `yaml:"plaintext" usage:"whether or not to encrypt data send to the endpoint"`
-}
-
 // Recorder buffers spans and forwards them to a LightStep collector.
 type GrpcCollectorClient struct {
-	lock sync.Mutex
-
-	// Note: the following are divided into immutable fields and
-	// mutable fields. The mutable fields are modified under `lock`.
-
-	//////////////////////////////////////////////////////////////
-	// IMMUTABLE IMMUTABLE IMMUTABLE IMMUTABLE IMMUTABLE IMMUTABLE
-	//////////////////////////////////////////////////////////////
 	// auth and runtime information
 	attributes map[string]string
 
@@ -79,10 +52,8 @@ type GrpcCollectorClient struct {
 	// Remote service that will receive reports.
 	hostPort      string
 	grpcClient    cpb.CollectorServiceClient
-	conn          GrpcConnection
 	connTimestamp time.Time
 	creds         grpc.DialOption
-	closech       chan struct{}
 
 	// For testing purposes only
 	grpcConnector ConnectorFactory
@@ -97,9 +68,9 @@ func NewGrpcCollectorClient(opts Options, reporterID uint64, attributes map[stri
 		verbose:            opts.Verbose,
 		maxLogKeyLen:       opts.MaxLogKeyLen,
 		maxLogValueLen:     opts.MaxLogValueLen,
-		apiURL:             getAPIURL(opts),
+		apiURL:             getGrpcAPIURL(opts),
 		reporterID:         reporterID,
-		hostPort:           getCollectorHostPort(opts),
+		hostPort:           getGrpcCollectorHostPort(opts),
 		reconnectPeriod:    time.Duration(float64(opts.ReconnectPeriod) * (1 + 0.2*rand.Float64())),
 		grpcConnector:      opts.ConnFactory,
 	}
@@ -299,7 +270,7 @@ func translateDurationFromOldestYoungest(ot time.Time, yt time.Time) uint64 {
 	return translateDuration(yt.Sub(ot))
 }
 
-func getCollectorHostPort(opts Options) string {
+func getGrpcCollectorHostPort(opts Options) string {
 	e := opts.Collector
 	host := e.Host
 	if host == "" {
@@ -320,18 +291,11 @@ func getCollectorHostPort(opts Options) string {
 	return fmt.Sprintf("%s:%d", host, port)
 }
 
-func getCollectorURL(opts Options) string {
-	// TODO This is dead code, remove?
-	return getURL(opts.Collector,
-		defaultCollectorHost,
-		collectorPath)
+func getGrpcAPIURL(opts Options) string {
+	return getGrpcURL(opts.LightStepAPI, defaultAPIHost, "")
 }
 
-func getAPIURL(opts Options) string {
-	return getURL(opts.LightStepAPI, defaultAPIHost, "")
-}
-
-func getURL(e Endpoint, host, path string) string {
+func getGrpcURL(e Endpoint, host, path string) string {
 	if e.Host != "" {
 		host = e.Host
 	}
