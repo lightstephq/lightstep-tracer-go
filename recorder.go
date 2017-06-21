@@ -12,29 +12,32 @@ import (
 
 	"golang.org/x/net/context"
 
-	"google.golang.org/grpc"
-
 	// N.B.(jmacd): Do not use google.golang.org/glog in this package.
 
 	ot "github.com/opentracing/opentracing-go"
 )
 
+// Connection describes a closable connection
 type Connection interface {
 	Close() error
 }
 
+// Command describes disable commands that can be present in a CollectorResponse
 type Command struct {
 	Disabled bool
 }
 
+// CollectorResponse describes a CollectorResponse to a report
 type CollectorResponse struct {
 	Errors   []string
 	Commands []*Command
 }
 
+// CollectorClient describes how to interface with a LightStep Collector
 type CollectorClient interface {
 	Report(context.Context, *reportBuffer) (*CollectorResponse, error)
 	ConnectClient() (Connection, error)
+	ShouldReconnect() bool
 }
 
 // Endpoint describes a collection or web API host/port and whether or
@@ -45,6 +48,7 @@ type Endpoint struct {
 	Plaintext bool   `yaml:"plaintext" usage:"whether or not to encrypt data send to the endpoint"`
 }
 
+// ConnectorFactory for testing purposes
 type ConnectorFactory func() (interface{}, Connection, error)
 
 // Options control how the LightStep Tracer behaves.
@@ -145,20 +149,16 @@ type Recorder struct {
 	// at runtime, in which case suitable changes may be needed
 	// for variables accessed during Flush.
 
-	startTime time.Time
-
 	reporterID         uint64        // the LightStep tracer guid
 	verbose            bool          // whether to print verbose messages
-	maxReportingPeriod time.Duration // set by GrpcOptions.MaxReportingPeriod
-	reconnectPeriod    time.Duration // set by GrpcOptions.ReconnectPeriod
-	reportingTimeout   time.Duration // set by GrpcOptions.ReportTimeout
+	maxReportingPeriod time.Duration // set by Options.MaxReportingPeriod
+	reconnectPeriod    time.Duration // set by Options.ReconnectPeriod
+	reportingTimeout   time.Duration // set by Options.ReportTimeout
 
 	// Remote service that will receive reports.
-	client        CollectorClient
-	conn          Connection
-	connTimestamp time.Time
-	creds         grpc.DialOption
-	closech       chan struct{}
+	client  CollectorClient
+	conn    Connection
+	closech chan struct{}
 
 	//////////////////////////////////////////////////////////
 	// MUTABLE MUTABLE MUTABLE MUTABLE MUTABLE MUTABLE MUTABLE
@@ -216,7 +216,6 @@ func NewRecorder(opts Options) *Recorder {
 
 	now := time.Now()
 	rec := &Recorder{
-		startTime:          now,
 		maxReportingPeriod: defaultMaxReportingPeriod,
 		reportingTimeout:   opts.ReportTimeout,
 		verbose:            opts.Verbose,
@@ -242,7 +241,6 @@ func NewRecorder(opts Options) *Recorder {
 	}
 
 	rec.conn = conn
-	rec.connTimestamp = now
 	rec.closech = make(chan struct{})
 
 	go rec.reportLoop(rec.closech)
@@ -258,7 +256,6 @@ func (r *Recorder) reconnectClient(now time.Time) {
 		r.lock.Lock()
 		oldConn := r.conn
 		r.conn = conn
-		r.connTimestamp = now
 		r.lock.Unlock()
 
 		oldConn.Close()
@@ -332,7 +329,6 @@ func (r *Recorder) Flush() {
 
 	ctx, cancel := context.WithTimeout(context.Background(), r.reportingTimeout)
 	defer cancel()
-	// NOTE: Where the magic happens
 	resp, err := r.client.Report(ctx, &r.flushing)
 
 	if err != nil {
@@ -422,8 +418,7 @@ func (r *Recorder) reportLoop(closech chan struct{}) {
 
 			r.lock.Lock()
 			disabled := r.disabled
-			// TODO: Connectors should have some input on reconnection
-			reconnect := !r.reportInFlight && now.Sub(r.connTimestamp) > r.reconnectPeriod
+			reconnect := !r.reportInFlight && r.client.ShouldReconnect()
 			shouldFlush := r.shouldFlushLocked(now)
 			r.lock.Unlock()
 
@@ -462,13 +457,6 @@ func getLSCollectorHostPort(opts Options) string {
 		}
 	}
 	return fmt.Sprintf("%s:%d", host, port)
-}
-
-func getLSCollectorURL(opts Options) string {
-	// TODO This is dead code, remove?
-	return getLSURL(opts.Collector,
-		defaultCollectorHost,
-		collectorPath)
 }
 
 func getLSAPIURL(opts Options) string {

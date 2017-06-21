@@ -49,6 +49,13 @@ const (
 	CommandLineKey           = "lightstep.command_line"
 )
 
+// A SpanRecorder handles all of the `RawSpan` data generated via an
+// associated `Tracer` instance.
+type SpanRecorder interface {
+	// Implementations must determine whether and where to store `span`.
+	RecordSpan(span RawSpan)
+}
+
 // Tracer extends the opentracing.Tracer interface with methods to
 // probe implementation state, for use by basictracer consumers.
 type Tracer interface {
@@ -56,10 +63,6 @@ type Tracer interface {
 
 	// Options gets the Options used in New() or NewWithOptions().
 	Config() TracerConfig
-}
-
-type SpanRecorder interface {
-	RecordSpan(RawSpan)
 }
 
 // Options allows creating a customized Tracer via NewWithOptions. The object

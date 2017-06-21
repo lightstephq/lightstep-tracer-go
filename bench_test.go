@@ -1,6 +1,5 @@
 package lightstep
 
-// TODO: redo bench test
 import (
 	"bytes"
 	"fmt"

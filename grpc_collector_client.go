@@ -27,7 +27,8 @@ var (
 	errConnectionWasClosed    = fmt.Errorf("the connection was closed")
 )
 
-// Recorder buffers spans and forwards them to a LightStep collector.
+// GrpcCollectorClient specifies how to send reports back to a LightStep
+// collector via grpc
 type GrpcCollectorClient struct {
 	// auth and runtime information
 	attributes map[string]string
@@ -56,23 +57,23 @@ type GrpcCollectorClient struct {
 	creds         grpc.DialOption
 
 	// For testing purposes only
-	grpcConnector ConnectorFactory
+	grpcConnectorFactory ConnectorFactory
 }
 
 func NewGrpcCollectorClient(opts Options, reporterID uint64, attributes map[string]string) *GrpcCollectorClient {
 	rec := &GrpcCollectorClient{
-		accessToken:        opts.AccessToken,
-		attributes:         attributes,
-		maxReportingPeriod: defaultMaxReportingPeriod,
-		reportingTimeout:   opts.ReportTimeout,
-		verbose:            opts.Verbose,
-		maxLogKeyLen:       opts.MaxLogKeyLen,
-		maxLogValueLen:     opts.MaxLogValueLen,
-		apiURL:             getGrpcAPIURL(opts),
-		reporterID:         reporterID,
-		hostPort:           getGrpcCollectorHostPort(opts),
-		reconnectPeriod:    time.Duration(float64(opts.ReconnectPeriod) * (1 + 0.2*rand.Float64())),
-		grpcConnector:      opts.ConnFactory,
+		accessToken:          opts.AccessToken,
+		attributes:           attributes,
+		maxReportingPeriod:   defaultMaxReportingPeriod,
+		reportingTimeout:     opts.ReportTimeout,
+		verbose:              opts.Verbose,
+		maxLogKeyLen:         opts.MaxLogKeyLen,
+		maxLogValueLen:       opts.MaxLogValueLen,
+		apiURL:               getGrpcAPIURL(opts),
+		reporterID:           reporterID,
+		hostPort:             getGrpcCollectorHostPort(opts),
+		reconnectPeriod:      time.Duration(float64(opts.ReconnectPeriod) * (1 + 0.2*rand.Float64())),
+		grpcConnectorFactory: opts.ConnFactory,
 	}
 
 	if opts.Collector.Plaintext {
@@ -85,9 +86,10 @@ func NewGrpcCollectorClient(opts Options, reporterID uint64, attributes map[stri
 }
 
 func (client *GrpcCollectorClient) ConnectClient() (Connection, error) {
+	now := time.Now()
 	var conn Connection
-	if client.grpcConnector != nil {
-		unchecked_client, transport, err := client.grpcConnector()
+	if client.grpcConnectorFactory != nil {
+		unchecked_client, transport, err := client.grpcConnectorFactory()
 		if err != nil {
 			return nil, err
 		}
@@ -100,14 +102,20 @@ func (client *GrpcCollectorClient) ConnectClient() (Connection, error) {
 		conn = transport
 		client.grpcClient = grpcClient
 	} else {
-		conn, err := grpc.Dial(client.hostPort, client.creds)
+		transport, err := grpc.Dial(client.hostPort, client.creds)
 		if err != nil {
 			return nil, err
 		}
-		client.grpcClient = cpb.NewCollectorServiceClient(conn)
-	}
 
+		conn = transport
+		client.grpcClient = cpb.NewCollectorServiceClient(transport)
+	}
+	client.connTimestamp = now
 	return conn, nil
+}
+
+func (client *GrpcCollectorClient) ShouldReconnect() bool {
+	return time.Now().Sub(client.connTimestamp) > client.reconnectPeriod
 }
 
 func (client *GrpcCollectorClient) translateTags(tags ot.Tags) []*cpb.KeyValue {

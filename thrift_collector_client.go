@@ -12,13 +12,9 @@ import (
 	"github.com/lightstep/lightstep-tracer-go/thrift_0_9_2/lib/go/thrift"
 )
 
-type dummyConnectionection struct{}
-
-func (x *dummyConnectionection) Close() error { return nil }
-
-// ThriftCollectorClient buffers spans and forwards them to a LightStep collector.
+// ThriftCollectorClient specifies how to send reports back to a LightStep
+// collector via thrift
 type ThriftCollectorClient struct {
-
 	// auth and runtime information
 	auth       *lightstep_thrift.Auth
 	attributes map[string]string
@@ -46,7 +42,7 @@ type ThriftCollectorClient struct {
 
 	reportTimeout time.Duration
 
-	thriftConnector ConnectorFactory
+	thriftConnectorFactory ConnectorFactory
 }
 
 func NewThriftCollectorClient(opts Options, attributes map[string]string) *ThriftCollectorClient {
@@ -60,16 +56,16 @@ func NewThriftCollectorClient(opts Options, attributes map[string]string) *Thrif
 		auth: &lightstep_thrift.Auth{
 			AccessToken: thrift.StringPtr(opts.AccessToken),
 		},
-		attributes:         attributes,
-		startTime:          now,
-		maxReportingPeriod: defaultMaxReportingPeriod,
-		verbose:            opts.Verbose,
-		apiURL:             getThriftAPIURL(opts),
-		AccessToken:        opts.AccessToken,
-		maxLogMessageLen:   opts.MaxLogValueLen,
-		maxLogKeyLen:       opts.MaxLogKeyLen,
-		reportTimeout:      reportTimeout,
-		thriftConnector:    opts.ConnFactory,
+		attributes:             attributes,
+		startTime:              now,
+		maxReportingPeriod:     defaultMaxReportingPeriod,
+		verbose:                opts.Verbose,
+		apiURL:                 getThriftAPIURL(opts),
+		AccessToken:            opts.AccessToken,
+		maxLogMessageLen:       opts.MaxLogValueLen,
+		maxLogKeyLen:           opts.MaxLogKeyLen,
+		reportTimeout:          reportTimeout,
+		thriftConnectorFactory: opts.ConnFactory,
 	}
 
 	return rec
@@ -78,8 +74,8 @@ func NewThriftCollectorClient(opts Options, attributes map[string]string) *Thrif
 func (client *ThriftCollectorClient) ConnectClient() (Connection, error) {
 	var conn Connection
 
-	if client.thriftConnector != nil {
-		unchecked_client, transport, err := client.thriftConnector()
+	if client.thriftConnectorFactory != nil {
+		unchecked_client, transport, err := client.thriftConnectorFactory()
 		if err != nil {
 			return nil, err
 		}
@@ -103,6 +99,10 @@ func (client *ThriftCollectorClient) ConnectClient() (Connection, error) {
 			transport, thrift.NewTBinaryProtocolFactoryDefault())
 	}
 	return conn, nil
+}
+
+func (*ThriftCollectorClient) ShouldReconnect() bool {
+	return false
 }
 
 func (client *ThriftCollectorClient) Report(_ context.Context, buffer *reportBuffer) (*CollectorResponse, error) {
