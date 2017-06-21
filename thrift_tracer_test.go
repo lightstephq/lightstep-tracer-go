@@ -62,8 +62,6 @@ func ThriftKeyValue(key, value string) *lightstep_thrift.KeyValue {
 	return &lightstep_thrift.KeyValue{Key: key, Value: value}
 }
 
-// Report(auth *Auth, request *ReportRequest) (r *ReportResponse, err error)
-
 func attachThriftSpanListener(fakeClient *thriftfakes.FakeReportingService) func() []*lightstep_thrift.SpanRecord {
 	reportChan := make(chan *lightstep_thrift.ReportRequest)
 	fakeClient.ReportStub = func(auth *lightstep_thrift.Auth, request *lightstep_thrift.ReportRequest) (*lightstep_thrift.ReportResponse, error) {
@@ -86,6 +84,12 @@ func attachThriftSpanListener(fakeClient *thriftfakes.FakeReportingService) func
 				Fail("timed out trying to get spans")
 			}
 		}
+	}
+}
+
+func fakeThriftConnectionFactory(fakeClient lightstep_thrift.ReportingService) ConnectorFactory {
+	return func() (interface{}, Connection, error) {
+		return fakeClient, new(dummyConn), nil
 	}
 }
 
@@ -116,7 +120,7 @@ var _ = Describe("Thrift Tracer", func() {
 					ReportingPeriod: 1 * time.Millisecond,
 					ReportTimeout:   10 * time.Millisecond,
 					UseThrift:       true,
-					ThriftConnector: func() lightstep_thrift.ReportingService { return fakeClient },
+					ConnFactory:     fakeThriftConnectionFactory(fakeClient),
 				})
 
 				// make sure the fake client is working
@@ -210,7 +214,7 @@ var _ = Describe("Thrift Tracer", func() {
 						ReportingPeriod: 1 * time.Millisecond,
 						ReportTimeout:   10 * time.Millisecond,
 						UseThrift:       true,
-						ThriftConnector: func() lightstep_thrift.ReportingService { return fakeClient },
+						ConnFactory:     fakeThriftConnectionFactory(fakeClient),
 					})
 					Eventually(fakeClient.ReportCallCount).ShouldNot(Equal(lastCallCount))
 				})
@@ -374,7 +378,7 @@ var _ = Describe("Thrift Tracer", func() {
 					MaxLogKeyLen:    10,
 					MaxLogValueLen:  11,
 					UseThrift:       true,
-					ThriftConnector: func() lightstep_thrift.ReportingService { return fakeClient },
+					ConnFactory:     fakeThriftConnectionFactory(fakeClient),
 				})
 				// make sure the fake client is working
 				Eventually(fakeClient.ReportCallCount).ShouldNot(BeZero())
@@ -421,7 +425,7 @@ var _ = Describe("Thrift Tracer", func() {
 					MaxLogValueLen:   11,
 					MaxBufferedSpans: 10,
 					UseThrift:        true,
-					ThriftConnector:  func() lightstep_thrift.ReportingService { return fakeClient },
+					ConnFactory:      fakeThriftConnectionFactory(fakeClient),
 				})
 
 				// make sure the fake client is working
@@ -448,7 +452,7 @@ var _ = Describe("Thrift Tracer", func() {
 					ReportTimeout:   10 * time.Millisecond,
 					DropSpanLogs:    true,
 					UseThrift:       true,
-					ThriftConnector: func() lightstep_thrift.ReportingService { return fakeClient },
+					ConnFactory:     fakeThriftConnectionFactory(fakeClient),
 				})
 
 				// make sure the fake client is working
@@ -478,7 +482,7 @@ var _ = Describe("Thrift Tracer", func() {
 					ReportTimeout:   10 * time.Millisecond,
 					MaxLogsPerSpan:  10,
 					UseThrift:       true,
-					ThriftConnector: func() lightstep_thrift.ReportingService { return fakeClient },
+					ConnFactory:     fakeThriftConnectionFactory(fakeClient),
 				})
 
 				// make sure the fake client is working

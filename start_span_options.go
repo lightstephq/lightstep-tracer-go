@@ -2,6 +2,10 @@ package lightstep
 
 import opentracing "github.com/opentracing/opentracing-go"
 
+type LightStepStartSpanOption interface {
+	ApplyLS(*StartSpanOptions)
+}
+
 type (
 	// SetSpanID is a opentracing.StartSpanOption that sets an
 	// explicit SpanID.  It must be used in conjunction with
@@ -23,6 +27,17 @@ type (
 	// it will override this value.
 	SetParentSpanID uint64
 )
+
+type StartSpanOptions struct {
+	Options opentracing.StartSpanOptions
+
+	// Options to explicitly set span_id, trace_id,
+	// parent_span_id, expected to be used when exporting spans
+	// from another system into LightStep via opentracing APIs.
+	SetSpanID       uint64
+	SetParentSpanID uint64
+	SetTraceID      uint64
+}
 
 // just kidding these aren't real OT start span options
 func (sid SetTraceID) Apply(sso *opentracing.StartSpanOptions)      {}

@@ -2,10 +2,8 @@ package lightstep
 
 import (
 	"fmt"
-	"log"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"golang.org/x/net/context"
@@ -14,28 +12,23 @@ import (
 	"github.com/lightstep/lightstep-tracer-go/thrift_0_9_2/lib/go/thrift"
 )
 
-// ThriftRecorder buffers spans and forwards them to a LightStep collector.
-type ThriftRecorder struct {
-	lock sync.Mutex
+type DummyConnection struct{}
+
+func (x *DummyConnection) Close() error { return nil }
+
+// ThriftCollectorClient buffers spans and forwards them to a LightStep collector.
+type ThriftCollectorClient struct {
 
 	// auth and runtime information
 	auth       *lightstep_thrift.Auth
 	attributes map[string]string
 	startTime  time.Time
 
-	// Time window of the data to be included in the next report.
-	reportOldest   time.Time
-	reportYoungest time.Time
-
-	// buffered data
-	buffer   spansBuffer
-	counters counterSet // The unreported count
-
 	lastReportAttempt  time.Time
 	maxReportingPeriod time.Duration
 	reportInFlight     bool
 	// Remote service that will receive reports
-	backend lightstep_thrift.ReportingService
+	thriftClient lightstep_thrift.ReportingService
 
 	// apiURL is the base URL of the LightStep web API, used for
 	// explicit trace collection requests.
@@ -47,67 +40,70 @@ type ThriftRecorder struct {
 
 	verbose bool
 
-	// We allow our remote peer to disable this instrumentation at any
-	// time, turning all potentially costly runtime operations into
-	// no-ops.
-	disabled bool
-	closech  chan struct{}
-
 	// flags replacement
 	maxLogMessageLen int
 
 	reportTimeout time.Duration
+
+	thriftConnector ConnectorFactory
 }
 
-func NewThriftRecorder(opts Options, attributes map[string]string) *ThriftRecorder {
+func NewThriftCollectorClient(opts Options, attributes map[string]string) *ThriftCollectorClient {
+	reportTimeout := 60 * time.Second
+	if opts.ReportTimeout > 0 {
+		reportTimeout = opts.ReportTimeout
+	}
 
 	now := time.Now()
-	rec := &ThriftRecorder{
+	rec := &ThriftCollectorClient{
 		auth: &lightstep_thrift.Auth{
 			AccessToken: thrift.StringPtr(opts.AccessToken),
 		},
 		attributes:         attributes,
 		startTime:          now,
-		reportOldest:       now,
-		reportYoungest:     now,
 		maxReportingPeriod: defaultMaxReportingPeriod,
 		verbose:            opts.Verbose,
 		apiURL:             getThriftAPIURL(opts),
 		AccessToken:        opts.AccessToken,
 		maxLogMessageLen:   opts.MaxLogValueLen,
-		reportTimeout:      opts.ReportTimeout,
-	}
-
-	timeout := 60 * time.Second
-	if opts.ReportTimeout > 0 {
-		timeout = opts.ReportTimeout
-	}
-
-	if opts.ThriftConnector != nil {
-		rec.backend = opts.ThriftConnector()
-	} else {
-		transport, err := thrift.NewTHttpPostClient(getThriftCollectorURL(opts), timeout)
-		if err != nil {
-			rec.maybeLogError(err)
-			return nil
-		}
-
-		rec.backend = lightstep_thrift.NewReportingServiceClientFactory(
-			transport, thrift.NewTBinaryProtocolFactoryDefault())
+		reportTimeout:      reportTimeout,
+		thriftConnector:    opts.ConnFactory,
 	}
 
 	return rec
 }
 
-type DummyConnection struct{}
+func (client *ThriftCollectorClient) ConnectClient() (Connection, error) {
+	var conn Connection
 
-func (x *DummyConnection) Close() error { return nil }
+	if client.thriftConnector != nil {
+		unchecked_client, transport, err := client.thriftConnector()
+		if err != nil {
+			return nil, err
+		}
 
-func (client *ThriftRecorder) ConnectClient() (Connection, error) {
-	return &DummyConnection{}, nil
+		thriftClient, ok := unchecked_client.(lightstep_thrift.ReportingService)
+		if !ok {
+			return nil, fmt.Errorf("Thrift connector factory did not provide valid client!")
+		}
+
+		conn = transport
+		client.thriftClient = thriftClient
+	} else {
+		transport, err := thrift.NewTHttpPostClient(client.apiURL, client.reportTimeout)
+		if err != nil {
+			maybeLogError(err, client.verbose)
+			return nil, err
+		}
+
+		conn = transport
+		client.thriftClient = lightstep_thrift.NewReportingServiceClientFactory(
+			transport, thrift.NewTBinaryProtocolFactoryDefault())
+	}
+	return conn, nil
 }
 
-func (client *ThriftRecorder) Report(_ context.Context, buffer *reportBuffer) (*CollectorResponse, error) {
+func (client *ThriftCollectorClient) Report(_ context.Context, buffer *reportBuffer) (*CollectorResponse, error) {
 	rawSpans := buffer.rawSpans
 	// Convert them to thrift.
 	recs := make([]*lightstep_thrift.SpanRecord, len(rawSpans))
@@ -171,7 +167,7 @@ func (client *ThriftRecorder) Report(_ context.Context, buffer *reportBuffer) (*
 		InternalMetrics: &metrics,
 	}
 
-	resp, err := client.backend.Report(client.auth, req)
+	resp, err := client.thriftClient.Report(client.auth, req)
 	commands := make([]*Command, len(resp.Commands))
 	for i, command := range resp.GetCommands() {
 		commands[i] = &Command{command.GetDisable()}
@@ -180,7 +176,7 @@ func (client *ThriftRecorder) Report(_ context.Context, buffer *reportBuffer) (*
 }
 
 // caller must hold r.lock
-func (r *ThriftRecorder) thriftRuntime() *lightstep_thrift.Runtime {
+func (r *ThriftCollectorClient) thriftRuntime() *lightstep_thrift.Runtime {
 	runtimeAttrs := []*lightstep_thrift.KeyValue{}
 	for k, v := range r.attributes {
 		runtimeAttrs = append(runtimeAttrs, &lightstep_thrift.KeyValue{k, v})
@@ -188,27 +184,6 @@ func (r *ThriftRecorder) thriftRuntime() *lightstep_thrift.Runtime {
 	return &lightstep_thrift.Runtime{
 		StartMicros: thrift.Int64Ptr(r.startTime.UnixNano() / 1000),
 		Attrs:       runtimeAttrs,
-	}
-}
-
-// maybeLogError logs the first error it receives using the standard log
-// package and may also log subsequent errors based on verboseFlag.
-func (r *ThriftRecorder) maybeLogError(err error) {
-	if r.verbose {
-		log.Printf("LightStep error: %v\n", err)
-	} else {
-		// Even if the flag is not set, always log at least one error.
-		logOneError.Do(func() {
-			log.Printf("LightStep instrumentation error (%v). Set the Verbose option to enable more logging.\n", err)
-		})
-	}
-}
-
-// maybeLogInfof may format and log its arguments if verboseFlag is set.
-func (r *ThriftRecorder) maybeLogInfof(format string, args ...interface{}) {
-	if r.verbose {
-		s := fmt.Sprintf(format, args...)
-		log.Printf("LightStep info: %s\n", s)
 	}
 }
 

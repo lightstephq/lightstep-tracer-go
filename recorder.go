@@ -2,7 +2,6 @@ package lightstep
 
 import (
 	"fmt"
-	"log"
 	"math/rand"
 	"os"
 	"path"
@@ -17,8 +16,6 @@ import (
 
 	// N.B.(jmacd): Do not use google.golang.org/glog in this package.
 
-	cpb "github.com/lightstep/lightstep-tracer-go/collectorpb"
-	"github.com/lightstep/lightstep-tracer-go/lightstep_thrift"
 	ot "github.com/opentracing/opentracing-go"
 )
 
@@ -39,6 +36,8 @@ type CollectorClient interface {
 	Report(context.Context, *reportBuffer) (*CollectorResponse, error)
 	ConnectClient() (Connection, error)
 }
+
+type ConnectorFactory func() (interface{}, Connection, error)
 
 // Options control how the LightStep Tracer behaves.
 type Options struct {
@@ -95,10 +94,7 @@ type Options struct {
 	ReconnectPeriod time.Duration `yaml:"reconnect_period"`
 
 	// For testing purposes only
-	GrpcConnector func() (GrpcConnection, cpb.CollectorServiceClient, error)
-
-	// For testing purposes only
-	ThriftConnector func() lightstep_thrift.ReportingService
+	ConnFactory ConnectorFactory
 }
 
 func (opts *Options) setDefaults() {
@@ -127,7 +123,7 @@ func (opts *Options) setDefaults() {
 }
 
 // Recorder buffers spans and forwards them to a LightStep collector.
-type LightStepRecorder struct {
+type Recorder struct {
 	lock sync.Mutex
 
 	// Note: the following are divided into immutable fields and
@@ -150,7 +146,7 @@ type LightStepRecorder struct {
 	reportingTimeout   time.Duration // set by GrpcOptions.ReportTimeout
 
 	// Remote service that will receive reports.
-	backend       CollectorClient
+	client        CollectorClient
 	conn          Connection
 	connTimestamp time.Time
 	creds         grpc.DialOption
@@ -177,7 +173,7 @@ type LightStepRecorder struct {
 	disabled bool
 }
 
-func NewLightStepRecorder(opts Options) *LightStepRecorder {
+func NewRecorder(opts Options) *Recorder {
 	opts.setDefaults()
 	if len(opts.AccessToken) == 0 {
 		fmt.Println("LightStep Recorder options.AccessToken must not be empty")
@@ -211,7 +207,7 @@ func NewLightStepRecorder(opts Options) *LightStepRecorder {
 	attributes[TracerVersionKey] = TracerVersionValue
 
 	now := time.Now()
-	rec := &LightStepRecorder{
+	rec := &Recorder{
 		startTime:          now,
 		maxReportingPeriod: defaultMaxReportingPeriod,
 		reportingTimeout:   opts.ReportTimeout,
@@ -225,12 +221,12 @@ func NewLightStepRecorder(opts Options) *LightStepRecorder {
 	rec.buffer.setCurrent(now)
 
 	if opts.UseThrift {
-		rec.backend = NewThriftRecorder(opts, attributes)
+		rec.client = NewThriftCollectorClient(opts, attributes)
 	} else {
-		rec.backend = NewGrpcRecorder(opts, rec.reporterID, attributes)
+		rec.client = NewGrpcCollectorClient(opts, rec.reporterID, attributes)
 	}
 
-	conn, err := rec.backend.ConnectClient()
+	conn, err := rec.client.ConnectClient()
 
 	if err != nil {
 		fmt.Println("Failed to connect to Collector!", err)
@@ -246,10 +242,10 @@ func NewLightStepRecorder(opts Options) *LightStepRecorder {
 	return rec
 }
 
-func (r *LightStepRecorder) reconnectClient(now time.Time) {
-	conn, err := r.backend.ConnectClient()
+func (r *Recorder) reconnectClient(now time.Time) {
+	conn, err := r.client.ConnectClient()
 	if err != nil {
-		r.maybeLogInfof("could not reconnect client")
+		maybeLogInfof("could not reconnect client", r.verbose)
 	} else {
 		r.lock.Lock()
 		oldConn := r.conn
@@ -258,15 +254,15 @@ func (r *LightStepRecorder) reconnectClient(now time.Time) {
 		r.lock.Unlock()
 
 		oldConn.Close()
-		r.maybeLogInfof("reconnected client connection")
+		maybeLogInfof("reconnected client connection", r.verbose)
 	}
 }
 
-func (r *LightStepRecorder) ReporterID() uint64 {
+func (r *Recorder) ReporterID() uint64 {
 	return r.reporterID
 }
 
-func (r *LightStepRecorder) Close() error {
+func (r *Recorder) Close() error {
 	r.lock.Lock()
 	conn := r.conn
 	closech := r.closech
@@ -284,7 +280,7 @@ func (r *LightStepRecorder) Close() error {
 	return conn.Close()
 }
 
-func (r *LightStepRecorder) RecordSpan(raw RawSpan) {
+func (r *Recorder) RecordSpan(raw RawSpan) {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 
@@ -296,7 +292,7 @@ func (r *LightStepRecorder) RecordSpan(raw RawSpan) {
 	r.buffer.addSpan(raw)
 }
 
-func (r *LightStepRecorder) Flush() {
+func (r *Recorder) Flush() {
 	r.lock.Lock()
 
 	if r.disabled {
@@ -305,13 +301,13 @@ func (r *LightStepRecorder) Flush() {
 	}
 
 	if r.conn == nil {
-		r.maybeLogError(errConnectionWasClosed)
+		maybeLogError(errConnectionWasClosed, r.verbose)
 		r.lock.Unlock()
 		return
 	}
 
 	if r.reportInFlight == true {
-		r.maybeLogError(errPreviousReportInFlight)
+		maybeLogError(errPreviousReportInFlight, r.verbose)
 		r.lock.Unlock()
 		return
 	}
@@ -329,18 +325,18 @@ func (r *LightStepRecorder) Flush() {
 	ctx, cancel := context.WithTimeout(context.Background(), r.reportingTimeout)
 	defer cancel()
 	// NOTE: Where the magic happens
-	resp, err := r.backend.Report(ctx, &r.flushing)
+	resp, err := r.client.Report(ctx, &r.flushing)
 
 	if err != nil {
-		r.maybeLogError(err)
+		maybeLogError(err, r.verbose)
 	} else if len(resp.Errors) > 0 {
 		// These should never occur, since this library should understand what
 		// makes for valid logs and spans, but just in case, log it anyway.
 		for _, err := range resp.Errors {
-			r.maybeLogError(fmt.Errorf("Remote report returned error: %s", err))
+			maybeLogError(fmt.Errorf("Remote report returned error: %s", err), r.verbose)
 		}
 	} else {
-		r.maybeLogInfof("Report: resp=%v, err=%v", resp, err)
+		maybeLogInfof("Report: resp=%v, err=%v", r.verbose, resp, err)
 	}
 
 	var droppedSent int64
@@ -356,7 +352,7 @@ func (r *LightStepRecorder) Flush() {
 	r.lock.Unlock()
 
 	if droppedSent != 0 {
-		r.maybeLogInfof("client reported %d dropped spans", droppedSent)
+		maybeLogInfof("client reported %d dropped spans", r.verbose, droppedSent)
 	}
 
 	if err != nil {
@@ -369,7 +365,7 @@ func (r *LightStepRecorder) Flush() {
 	}
 }
 
-func (r *LightStepRecorder) Disable() {
+func (r *Recorder) Disable() {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 
@@ -396,20 +392,20 @@ func (r *LightStepRecorder) Disable() {
 // runtime library, and we want to avoid that at all costs (even dropping data,
 // which can certainly happen with high data rates and/or unresponsive remote
 // peers).
-func (r *LightStepRecorder) shouldFlushLocked(now time.Time) bool {
+func (r *Recorder) shouldFlushLocked(now time.Time) bool {
 	if now.Add(minReportingPeriod).Sub(r.lastReportAttempt) > r.maxReportingPeriod {
 		// Flush timeout.
-		r.maybeLogInfof("--> timeout")
+		maybeLogInfof("--> timeout", r.verbose)
 		return true
 	} else if r.buffer.isHalfFull() {
 		// Too many queued span records.
-		r.maybeLogInfof("--> span queue")
+		maybeLogInfof("--> span queue", r.verbose)
 		return true
 	}
 	return false
 }
 
-func (r *LightStepRecorder) reportLoop(closech chan struct{}) {
+func (r *Recorder) reportLoop(closech chan struct{}) {
 	tickerChan := time.Tick(minReportingPeriod)
 	for {
 		select {
@@ -418,6 +414,7 @@ func (r *LightStepRecorder) reportLoop(closech chan struct{}) {
 
 			r.lock.Lock()
 			disabled := r.disabled
+			// TODO: Connectors should have some input on reconnection
 			reconnect := !r.reportInFlight && now.Sub(r.connTimestamp) > r.reconnectPeriod
 			shouldFlush := r.shouldFlushLocked(now)
 			r.lock.Unlock()
@@ -435,27 +432,6 @@ func (r *LightStepRecorder) reportLoop(closech chan struct{}) {
 			r.Flush()
 			return
 		}
-	}
-}
-
-// maybeLogError logs the first error it receives using the standard log
-// package and may also log subsequent errors based on verboseFlag.
-func (r *LightStepRecorder) maybeLogError(err error) {
-	if r.verbose {
-		log.Printf("LightStep error: %v\n", err)
-	} else {
-		// Even if the flag is not set, always log at least one error.
-		logOneError.Do(func() {
-			log.Printf("LightStep instrumentation error (%v). Set the Verbose option to enable more logging.\n", err)
-		})
-	}
-}
-
-// maybeLogInfof may format and log its arguments if verboseFlag is set.
-func (r *LightStepRecorder) maybeLogInfof(format string, args ...interface{}) {
-	if r.verbose {
-		s := fmt.Sprintf(format, args...)
-		log.Printf("LightStep info: %s\n", s)
 	}
 }
 

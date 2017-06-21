@@ -184,7 +184,7 @@ func (t *testClient) run(control *Control) (time.Duration, time.Duration, time.D
 	endTime := time.Now()
 	flushDur := time.Duration(0)
 	if control.Trace {
-		recorder := t.tracer.(ls.Tracer).Config().Recorder.(*ls.GrpcRecorder)
+		recorder := t.tracer.(ls.Tracer).Config().Recorder.(*ls.GrpcCollectorClient)
 		recorder.Flush()
 		flushDur = time.Now().Sub(endTime)
 	}

@@ -8,6 +8,47 @@ import (
 	ot "github.com/opentracing/opentracing-go"
 )
 
+const (
+	spansDropped     = "spans.dropped"
+	logEncoderErrors = "log_encoder.errors"
+	collectorPath    = "/_rpc/v1/reports/binary"
+
+	defaultPlainPort  = 80
+	defaultSecurePort = 443
+
+	defaultCollectorHost     = "collector.lightstep.com"
+	defaultGRPCCollectorHost = "collector-grpc.lightstep.com"
+	defaultAPIHost           = "api.lightstep.com"
+
+	// See the comment for shouldFlush() for more about these tuning
+	// parameters.
+	defaultMaxReportingPeriod = 2500 * time.Millisecond
+	minReportingPeriod        = 500 * time.Millisecond
+
+	defaultMaxSpans       = 1000
+	defaultReportTimeout  = 30 * time.Second
+	defaultMaxLogKeyLen   = 256
+	defaultMaxLogValueLen = 1024
+	defaultMaxLogsPerSpan = 500
+
+	// ParentSpanGUIDKey is the tag key used to record the relationship
+	// between child and parent spans.
+	ParentSpanGUIDKey = "parent_span_guid"
+	messageKey        = "message"
+	payloadKey        = "payload"
+
+	TracerPlatformValue = "go"
+	// Note: TracerVersionValue is generated from ./VERSION
+
+	TracerPlatformKey        = "lightstep.tracer_platform"
+	TracerPlatformVersionKey = "lightstep.tracer_platform_version"
+	TracerVersionKey         = "lightstep.tracer_version"
+	ComponentNameKey         = "lightstep.component_name"
+	GUIDKey                  = "lightstep.guid" // <- runtime guid, not span guid
+	HostnameKey              = "lightstep.hostname"
+	CommandLineKey           = "lightstep.command_line"
+)
+
 // Tracer extends the opentracing.Tracer interface with methods to
 // probe implementation state, for use by basictracer consumers.
 type Tracer interface {
@@ -21,7 +62,7 @@ type Tracer interface {
 // must not be updated when there is an active tracer using it.
 type TracerConfig struct {
 	// Recorder receives Spans which have been finished.
-	Recorder *LightStepRecorder
+	Recorder *Recorder
 	// DropAllLogs turns log events on all Spans into no-ops.
 	// If NewSpanEventListener is set, the callbacks will still fire.
 	DropAllLogs bool
@@ -37,40 +78,20 @@ type TracerConfig struct {
 	MaxLogsPerSpan int
 }
 
+// DefaultTracerConfig returns an Options object with a 1 in 64 sampling rate and
+// all options disabled. A Recorder needs to be set manually before using the
+// returned object with a Tracer.
+func DefaultTracerConfig() TracerConfig {
+	return TracerConfig{
+		MaxLogsPerSpan: 100,
+	}
+}
+
 // NewTracer returns a new Tracer that reports spans to a LightStep
 // collector.
 func NewTracer(opts Options) ot.Tracer {
 	options := DefaultTracerConfig()
-	options.Recorder = NewLightStepRecorder(opts)
-	// if !opts.UseThrift {
-	// 	r := NewRecorder(opts)
-	// 	if r == nil {
-	// 		return ot.NoopTracer{}
-	// 	}
-	// 	options.Recorder = r
-	// } else {
-	// 	opts.setDefaults()
-	// 	// convert opts to ThriftOptions
-	// 	thriftOpts := ThriftOptions{
-	// 		AccessToken:      opts.AccessToken,
-	// 		Collector:        Endpoint{opts.Collector.Host, opts.Collector.Port, opts.Collector.Plaintext},
-	// 		Tags:             opts.Tags,
-	// 		LightStepAPI:     Endpoint{opts.LightStepAPI.Host, opts.LightStepAPI.Port, opts.LightStepAPI.Plaintext},
-	// 		MaxBufferedSpans: opts.MaxBufferedSpans,
-	// 		ReportingPeriod:  opts.ReportingPeriod,
-	// 		ReportTimeout:    opts.ReportTimeout,
-	// 		DropSpanLogs:     opts.DropSpanLogs,
-	// 		MaxLogsPerSpan:   opts.MaxLogsPerSpan,
-	// 		Verbose:          opts.Verbose,
-	// 		MaxLogMessageLen: opts.MaxLogValueLen,
-	// 		ThriftConnector:  opts.ThriftConnector,
-	// 	}
-	// 	r := NewThriftRecorder(thriftOpts)
-	// 	if r == nil {
-	// 		return ot.NoopTracer{}
-	// 	}
-	// 	options.Recorder = r
-	// }
+	options.Recorder = NewRecorder(opts)
 	options.DropAllLogs = opts.DropSpanLogs
 	options.MaxLogsPerSpan = opts.MaxLogsPerSpan
 	return NewTracerImplWithConfig(options)
@@ -82,12 +103,12 @@ func FlushLightStepTracer(lsTracer ot.Tracer) error {
 		return fmt.Errorf("Not a LightStep Tracer type: %v", reflect.TypeOf(lsTracer))
 	}
 
-	basicRecorder := basicTracer.Config().Recorder.backend
+	basicRecorder := basicTracer.Config().Recorder.client
 
 	switch basicRecorder.(type) {
-	case *GrpcRecorder:
+	case *GrpcCollectorClient:
 		basicTracer.Config().Recorder.Flush()
-	case *ThriftRecorder:
+	case *ThriftCollectorClient:
 		basicTracer.Config().Recorder.Flush()
 	default:
 		return fmt.Errorf("Not a LightStep Recorder type: %v", reflect.TypeOf(basicRecorder))
@@ -101,12 +122,12 @@ func GetLightStepAccessToken(lsTracer ot.Tracer) (string, error) {
 		return "", fmt.Errorf("Not a LightStep Tracer type: %v", reflect.TypeOf(lsTracer))
 	}
 
-	basicRecorder := basicTracer.Config().Recorder.backend
+	basicRecorder := basicTracer.Config().Recorder.client
 
 	switch t := basicRecorder.(type) {
-	case *GrpcRecorder:
+	case *GrpcCollectorClient:
 		return t.accessToken, nil
-	case *ThriftRecorder:
+	case *ThriftCollectorClient:
 		return t.AccessToken, nil
 	default:
 		return "", fmt.Errorf("Not a LightStep Recorder type: %v", reflect.TypeOf(basicRecorder))
@@ -123,35 +144,11 @@ func CloseTracer(tracer ot.Tracer) error {
 	return recorder.Close()
 }
 
-type StartSpanOptions struct {
-	Options ot.StartSpanOptions
-
-	// Options to explicitly set span_id, trace_id,
-	// parent_span_id, expected to be used when exporting spans
-	// from another system into LightStep via opentracing APIs.
-	SetSpanID       uint64
-	SetParentSpanID uint64
-	SetTraceID      uint64
-}
-
-type LightStepStartSpanOption interface {
-	ApplyLS(*StartSpanOptions)
-}
-
 // Implements the `Tracer` interface.
 type tracerImpl struct {
 	config           TracerConfig
 	textPropagator   textMapPropagator
 	binaryPropagator lightstepBinaryPropagator
-}
-
-// DefaultTracerConfig returns an Options object with a 1 in 64 sampling rate and
-// all options disabled. A Recorder needs to be set manually before using the
-// returned object with a Tracer.
-func DefaultTracerConfig() TracerConfig {
-	return TracerConfig{
-		MaxLogsPerSpan: 100,
-	}
 }
 
 // NewWithOptions creates a customized Tracer.
@@ -163,7 +160,7 @@ func NewTracerImplWithConfig(opts TracerConfig) ot.Tracer {
 // `recorder`.
 // Spans created by this Tracer support the ext.SamplingPriority tag: Setting
 // ext.SamplingPriority causes the Span to be Sampled from that point on.
-func NewTracerImpl(recorder *LightStepRecorder) ot.Tracer {
+func NewTracerImpl(recorder *Recorder) ot.Tracer {
 	opts := DefaultTracerConfig()
 	opts.Recorder = recorder
 	return NewTracerImplWithConfig(opts)

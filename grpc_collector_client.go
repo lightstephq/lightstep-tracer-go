@@ -2,7 +2,6 @@ package lightstep
 
 import (
 	"fmt"
-	"log"
 	"math/rand"
 	"reflect"
 	"sync"
@@ -20,47 +19,6 @@ import (
 	ot "github.com/opentracing/opentracing-go"
 )
 
-const (
-	spansDropped     = "spans.dropped"
-	logEncoderErrors = "log_encoder.errors"
-	collectorPath    = "/_rpc/v1/reports/binary"
-
-	defaultPlainPort  = 80
-	defaultSecurePort = 443
-
-	defaultCollectorHost     = "collector.lightstep.com"
-	defaultGRPCCollectorHost = "collector-grpc.lightstep.com"
-	defaultAPIHost           = "api.lightstep.com"
-
-	// See the comment for shouldFlush() for more about these tuning
-	// parameters.
-	defaultMaxReportingPeriod = 2500 * time.Millisecond
-	minReportingPeriod        = 500 * time.Millisecond
-
-	defaultMaxSpans       = 1000
-	defaultReportTimeout  = 30 * time.Second
-	defaultMaxLogKeyLen   = 256
-	defaultMaxLogValueLen = 1024
-	defaultMaxLogsPerSpan = 500
-
-	// ParentSpanGUIDKey is the tag key used to record the relationship
-	// between child and parent spans.
-	ParentSpanGUIDKey = "parent_span_guid"
-	messageKey        = "message"
-	payloadKey        = "payload"
-
-	TracerPlatformValue = "go"
-	// Note: TracerVersionValue is generated from ./VERSION
-
-	TracerPlatformKey        = "lightstep.tracer_platform"
-	TracerPlatformVersionKey = "lightstep.tracer_platform_version"
-	TracerVersionKey         = "lightstep.tracer_version"
-	ComponentNameKey         = "lightstep.component_name"
-	GUIDKey                  = "lightstep.guid" // <- runtime guid, not span guid
-	HostnameKey              = "lightstep.hostname"
-	CommandLineKey           = "lightstep.command_line"
-)
-
 var (
 	defaultReconnectPeriod = 5 * time.Minute
 
@@ -68,7 +26,6 @@ var (
 
 	errPreviousReportInFlight = fmt.Errorf("a previous Report is still in flight; aborting Flush()")
 	errConnectionWasClosed    = fmt.Errorf("the connection was closed")
-	logOneError               sync.Once
 )
 
 type GrpcConnection interface {
@@ -90,7 +47,7 @@ type Endpoint struct {
 }
 
 // Recorder buffers spans and forwards them to a LightStep collector.
-type GrpcRecorder struct {
+type GrpcCollectorClient struct {
 	lock sync.Mutex
 
 	// Note: the following are divided into immutable fields and
@@ -121,18 +78,18 @@ type GrpcRecorder struct {
 
 	// Remote service that will receive reports.
 	hostPort      string
-	backend       cpb.CollectorServiceClient
+	grpcClient    cpb.CollectorServiceClient
 	conn          GrpcConnection
 	connTimestamp time.Time
 	creds         grpc.DialOption
 	closech       chan struct{}
 
 	// For testing purposes only
-	grpcConnector func() (GrpcConnection, cpb.CollectorServiceClient, error)
+	grpcConnector ConnectorFactory
 }
 
-func NewGrpcRecorder(opts Options, reporterID uint64, attributes map[string]string) *GrpcRecorder {
-	rec := &GrpcRecorder{
+func NewGrpcCollectorClient(opts Options, reporterID uint64, attributes map[string]string) *GrpcCollectorClient {
+	rec := &GrpcCollectorClient{
 		accessToken:        opts.AccessToken,
 		attributes:         attributes,
 		maxReportingPeriod: defaultMaxReportingPeriod,
@@ -144,7 +101,7 @@ func NewGrpcRecorder(opts Options, reporterID uint64, attributes map[string]stri
 		reporterID:         reporterID,
 		hostPort:           getCollectorHostPort(opts),
 		reconnectPeriod:    time.Duration(float64(opts.ReconnectPeriod) * (1 + 0.2*rand.Float64())),
-		grpcConnector:      opts.GrpcConnector,
+		grpcConnector:      opts.ConnFactory,
 	}
 
 	if opts.Collector.Plaintext {
@@ -156,68 +113,42 @@ func NewGrpcRecorder(opts Options, reporterID uint64, attributes map[string]stri
 	return rec
 }
 
-func (client *GrpcRecorder) ConnectClient() (Connection, error) {
+func (client *GrpcCollectorClient) ConnectClient() (Connection, error) {
 	var conn Connection
-	var backend cpb.CollectorServiceClient
 	if client.grpcConnector != nil {
-		conn, backend, _ = client.grpcConnector()
+		unchecked_client, transport, err := client.grpcConnector()
+		if err != nil {
+			return nil, err
+		}
+
+		grpcClient, ok := unchecked_client.(cpb.CollectorServiceClient)
+		if !ok {
+			return nil, fmt.Errorf("Grpc connector factory did not provide valid client!")
+		}
+
+		conn = transport
+		client.grpcClient = grpcClient
 	} else {
 		conn, err := grpc.Dial(client.hostPort, client.creds)
 		if err != nil {
 			return nil, err
 		}
-		backend = cpb.NewCollectorServiceClient(conn)
+		client.grpcClient = cpb.NewCollectorServiceClient(conn)
 	}
 
-	client.backend = backend
 	return conn, nil
 }
 
-func translateSpanContext(sc SpanContext) *cpb.SpanContext {
-	return &cpb.SpanContext{
-		TraceId: sc.TraceID,
-		SpanId:  sc.SpanID,
-		Baggage: sc.Baggage,
-	}
-}
-
-func translateParentSpanID(pid uint64) []*cpb.Reference {
-	if pid == 0 {
-		return nil
-	}
-	return []*cpb.Reference{
-		&cpb.Reference{
-			Relationship: cpb.Reference_CHILD_OF,
-			SpanContext:  &cpb.SpanContext{SpanId: pid},
-		},
-	}
-}
-
-func translateTime(t time.Time) *google_protobuf.Timestamp {
-	return &google_protobuf.Timestamp{
-		Seconds: t.Unix(),
-		Nanos:   int32(t.Nanosecond()),
-	}
-}
-
-func translateDuration(d time.Duration) uint64 {
-	return uint64(d) / 1000
-}
-
-func translateDurationFromOldestYoungest(ot time.Time, yt time.Time) uint64 {
-	return translateDuration(yt.Sub(ot))
-}
-
-func (r *GrpcRecorder) translateTags(tags ot.Tags) []*cpb.KeyValue {
+func (client *GrpcCollectorClient) translateTags(tags ot.Tags) []*cpb.KeyValue {
 	kvs := make([]*cpb.KeyValue, 0, len(tags))
 	for key, tag := range tags {
-		kv := r.convertToKeyValue(key, tag)
+		kv := client.convertToKeyValue(key, tag)
 		kvs = append(kvs, kv)
 	}
 	return kvs
 }
 
-func (r *GrpcRecorder) convertToKeyValue(key string, value interface{}) *cpb.KeyValue {
+func (client *GrpcCollectorClient) convertToKeyValue(key string, value interface{}) *cpb.KeyValue {
 	kv := cpb.KeyValue{Key: key}
 	v := reflect.ValueOf(value)
 	k := v.Kind()
@@ -232,42 +163,69 @@ func (r *GrpcRecorder) convertToKeyValue(key string, value interface{}) *cpb.Key
 		kv.Value = &cpb.KeyValue_BoolValue{v.Bool()}
 	default:
 		kv.Value = &cpb.KeyValue_StringValue{fmt.Sprint(v)}
-		r.maybeLogInfof("value: %v, %T, is an unsupported type, and has been converted to string", v, v)
+		maybeLogInfof("value: %v, %T, is an unsupported type, and has been converted to string", client.verbose, v, v)
 	}
 	return &kv
 }
 
-func (r *GrpcRecorder) translateLogs(lrs []ot.LogRecord, buffer *reportBuffer) []*cpb.Log {
+func (client *GrpcCollectorClient) translateLogs(lrs []ot.LogRecord, buffer *reportBuffer) []*cpb.Log {
 	logs := make([]*cpb.Log, len(lrs))
 	for i, lr := range lrs {
 		logs[i] = &cpb.Log{
 			Timestamp: translateTime(lr.Timestamp),
 		}
-		marshalFields(r, logs[i], lr.Fields, buffer)
+		marshalFields(client, logs[i], lr.Fields, buffer)
 	}
 	return logs
 }
 
-func (r *GrpcRecorder) translateRawSpan(rs RawSpan, buffer *reportBuffer) *cpb.Span {
+func (client *GrpcCollectorClient) translateRawSpan(rs RawSpan, buffer *reportBuffer) *cpb.Span {
 	s := &cpb.Span{
 		SpanContext:    translateSpanContext(rs.Context),
 		OperationName:  rs.Operation,
 		References:     translateParentSpanID(rs.ParentSpanID),
 		StartTimestamp: translateTime(rs.Start),
 		DurationMicros: translateDuration(rs.Duration),
-		Tags:           r.translateTags(rs.Tags),
-		Logs:           r.translateLogs(rs.Logs, buffer),
+		Tags:           client.translateTags(rs.Tags),
+		Logs:           client.translateLogs(rs.Logs, buffer),
 	}
 	return s
 }
 
-func (r *GrpcRecorder) convertRawSpans(buffer *reportBuffer) []*cpb.Span {
+func (client *GrpcCollectorClient) convertRawSpans(buffer *reportBuffer) []*cpb.Span {
 	spans := make([]*cpb.Span, len(buffer.rawSpans))
 	for i, rs := range buffer.rawSpans {
-		s := r.translateRawSpan(rs, buffer)
+		s := client.translateRawSpan(rs, buffer)
 		spans[i] = s
 	}
 	return spans
+}
+
+func (client *GrpcCollectorClient) makeReportRequest(buffer *reportBuffer) *cpb.ReportRequest {
+	spans := client.convertRawSpans(buffer)
+	reporter := convertToReporter(client.attributes, client.reporterID)
+
+	req := cpb.ReportRequest{
+		Reporter:        reporter,
+		Auth:            &cpb.Auth{client.accessToken},
+		Spans:           spans,
+		InternalMetrics: convertToInternalMetrics(buffer),
+	}
+	return &req
+
+}
+
+func (client *GrpcCollectorClient) Report(ctx context.Context, buffer *reportBuffer) (*CollectorResponse, error) {
+	resp, err := client.grpcClient.Report(ctx, client.makeReportRequest(buffer))
+	if err != nil {
+		return nil, err
+	}
+
+	commands := make([]*Command, len(resp.Commands))
+	for i, command := range resp.Commands {
+		commands[i] = &Command{command.GetDisable()}
+	}
+	return &CollectorResponse{Errors: resp.Errors, Commands: commands}, nil
 }
 
 func translateAttributes(atts map[string]string) []*cpb.KeyValue {
@@ -306,52 +264,39 @@ func convertToInternalMetrics(b *reportBuffer) *cpb.InternalMetrics {
 	}
 }
 
-func (r *GrpcRecorder) makeReportRequest(buffer *reportBuffer) *cpb.ReportRequest {
-	spans := r.convertRawSpans(buffer)
-	reporter := convertToReporter(r.attributes, r.reporterID)
-
-	req := cpb.ReportRequest{
-		Reporter:        reporter,
-		Auth:            &cpb.Auth{r.accessToken},
-		Spans:           spans,
-		InternalMetrics: convertToInternalMetrics(buffer),
-	}
-	return &req
-
-}
-
-func (client *GrpcRecorder) Report(ctx context.Context, buffer *reportBuffer) (*CollectorResponse, error) {
-	resp, err := client.backend.Report(ctx, client.makeReportRequest(buffer))
-	if err != nil {
-		return nil, err
-	}
-
-	commands := make([]*Command, len(resp.Commands))
-	for i, command := range resp.Commands {
-		commands[i] = &Command{command.GetDisable()}
-	}
-	return &CollectorResponse{Errors: resp.Errors, Commands: commands}, nil
-}
-
-// maybeLogError logs the first error it receives using the standard log
-// package and may also log subsequent errors based on verboseFlag.
-func (r *GrpcRecorder) maybeLogError(err error) {
-	if r.verbose {
-		log.Printf("LightStep error: %v\n", err)
-	} else {
-		// Even if the flag is not set, always log at least one error.
-		logOneError.Do(func() {
-			log.Printf("LightStep instrumentation error (%v). Set the Verbose option to enable more logging.\n", err)
-		})
+func translateSpanContext(sc SpanContext) *cpb.SpanContext {
+	return &cpb.SpanContext{
+		TraceId: sc.TraceID,
+		SpanId:  sc.SpanID,
+		Baggage: sc.Baggage,
 	}
 }
 
-// maybeLogInfof may format and log its arguments if verboseFlag is set.
-func (r *GrpcRecorder) maybeLogInfof(format string, args ...interface{}) {
-	if r.verbose {
-		s := fmt.Sprintf(format, args...)
-		log.Printf("LightStep info: %s\n", s)
+func translateParentSpanID(pid uint64) []*cpb.Reference {
+	if pid == 0 {
+		return nil
 	}
+	return []*cpb.Reference{
+		&cpb.Reference{
+			Relationship: cpb.Reference_CHILD_OF,
+			SpanContext:  &cpb.SpanContext{SpanId: pid},
+		},
+	}
+}
+
+func translateTime(t time.Time) *google_protobuf.Timestamp {
+	return &google_protobuf.Timestamp{
+		Seconds: t.Unix(),
+		Nanos:   int32(t.Nanosecond()),
+	}
+}
+
+func translateDuration(d time.Duration) uint64 {
+	return uint64(d) / 1000
+}
+
+func translateDurationFromOldestYoungest(ot time.Time, yt time.Time) uint64 {
+	return translateDuration(yt.Sub(ot))
 }
 
 func getCollectorHostPort(opts Options) string {
