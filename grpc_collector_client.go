@@ -27,6 +27,11 @@ var (
 	errConnectionWasClosed    = fmt.Errorf("the connection was closed")
 )
 
+
+
+
+
+
 // GrpcCollectorClient specifies how to send reports back to a LightStep
 // collector via grpc
 type GrpcCollectorClient struct {
@@ -188,17 +193,13 @@ func (client *GrpcCollectorClient) makeReportRequest(buffer *reportBuffer) *cpb.
 
 }
 
-func (client *GrpcCollectorClient) Report(ctx context.Context, buffer *reportBuffer) (*CollectorResponse, error) {
+func (client *GrpcCollectorClient) Report(ctx context.Context, buffer *reportBuffer) (CollectorResponse, error) {
 	resp, err := client.grpcClient.Report(ctx, client.makeReportRequest(buffer))
 	if err != nil {
 		return nil, err
 	}
 
-	commands := make([]*Command, len(resp.Commands))
-	for i, command := range resp.Commands {
-		commands[i] = &Command{command.GetDisable()}
-	}
-	return &CollectorResponse{Errors: resp.Errors, Commands: commands}, nil
+	return resp, nil
 }
 
 func translateAttributes(atts map[string]string) []*cpb.KeyValue {

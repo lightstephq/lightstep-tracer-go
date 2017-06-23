@@ -18,6 +18,9 @@ lightstep_thrift/constants.go: $(GOPATH)/src/github.com/lightstep/common-go/crou
 	rm -rf lightstep_thrift/reporting_service-remote
 endif
 
+lightstepfakes/fake_recorder.go: options.go
+	counterfeiter -o lightstepfakes/fake_recorder.go options.go Recorder
+
 lightstep_thrift/lightstep_thriftfakes/fake_reporting_service.go: lightstep_thrift/reportingservice.go
 	counterfeiter lightstep_thrift/reportingservice.go ReportingService
 
@@ -46,13 +49,13 @@ endif
 
 test: lightstep_thrift/constants.go collectorpb/collector.pb.go lightsteppb/lightstep_carrier.pb.go \
 		collectorpb/collectorpbfakes/fake_collector_service_server.go \
-		lightstep_thrift/lightstep_thriftfakes/fake_reporting_service.go
+		lightstep_thrift/lightstep_thriftfakes/fake_reporting_service.go lightstepfakes/fake_recorder.go
 	ginkgo -r ./...
 	docker run --rm -v $(GOPATH):/input:ro lightstep/noglog:latest noglog github.com/lightstep/lightstep-tracer-go
 
 build: lightstep_thrift/constants.go collectorpb/collector.pb.go lightsteppb/lightstep_carrier.pb.go \
 		collectorpb/collectorpbfakes/fake_collector_service_server.go version.go \
-		lightstep_thrift/lightstep_thriftfakes/fake_reporting_service.go
+		lightstep_thrift/lightstep_thriftfakes/fake_reporting_service.go lightstepfakes/fake_recorder.go
 	${GO} build github.com/lightstep/lightstep-tracer-go/...
 
 # When releasing significant changes, make sure to update the semantic

@@ -184,7 +184,7 @@ func (t *testClient) run(control *Control) (time.Duration, time.Duration, time.D
 	endTime := time.Now()
 	flushDur := time.Duration(0)
 	if control.Trace {
-		recorder, ok := t.tracer.(ls.Tracer).Config().Recorder.(*ls.Recorder)
+		recorder, ok := t.tracer.(ls.Tracer)
 		if !ok {
 			panic("Tracer does not have a lightstep recorder")
 		}

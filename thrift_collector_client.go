@@ -106,7 +106,7 @@ func (*ThriftCollectorClient) ShouldReconnect() bool {
 	return false
 }
 
-func (client *ThriftCollectorClient) Report(_ context.Context, buffer *reportBuffer) (*CollectorResponse, error) {
+func (client *ThriftCollectorClient) Report(_ context.Context, buffer *reportBuffer) (CollectorResponse, error) {
 	rawSpans := buffer.rawSpans
 	// Convert them to thrift.
 	recs := make([]*lightstep_thrift.SpanRecord, len(rawSpans))
@@ -174,12 +174,9 @@ func (client *ThriftCollectorClient) Report(_ context.Context, buffer *reportBuf
 	if err != nil {
 		return nil, err
 	}
-	commands := make([]*Command, len(resp.Commands))
-	for i, command := range resp.GetCommands() {
-		commands[i] = &Command{command.GetDisable()}
-	}
 
-	return &CollectorResponse{Errors: resp.GetErrors(), Commands: commands}, err
+
+	return resp, err
 }
 
 // caller must hold r.lock
