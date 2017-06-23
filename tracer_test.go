@@ -4,20 +4,19 @@ import (
 	. "github.com/lightstep/lightstep-tracer-go"
 
 	cpbfakes "github.com/lightstep/lightstep-tracer-go/collectorpb/collectorpbfakes"
+	"github.com/lightstep/lightstep-tracer-go/lightstepfakes"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-
-	"github.com/lightstep/lightstep-tracer-go/lightstepfakes"
 )
 
 var _ = Describe("SpanRecorder", func() {
 	var tracer Tracer
 
 	Context("When tracer has a SpanRecorder", func() {
-		var fakeRecorder *lightsteptracergofakes.FakeRecorder
+		var fakeRecorder *lightstepfakes.FakeRecorder
 
 		BeforeEach(func() {
-			fakeRecorder = new(lightsteptracergofakes.FakeRecorder)
+			fakeRecorder = new(lightstepfakes.FakeRecorder)
 			tracer = NewTracer(Options{
 				AccessToken: "value",
 				ConnFactory: fakeGrpcConnection(new(cpbfakes.FakeCollectorServiceClient)),
