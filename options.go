@@ -165,7 +165,7 @@ func (opts *Options) Initialize() error {
 		opts.ReportingPeriod = DefaultMaxReportingPeriod
 	}
 	if opts.MinReportingPeriod == 0 {
-		opts.ReportingPeriod = DefaultMinReportingPeriod
+		opts.MinReportingPeriod = DefaultMinReportingPeriod
 	}
 	if opts.ReportTimeout == 0 {
 		opts.ReportTimeout = DefaultReportTimeout
