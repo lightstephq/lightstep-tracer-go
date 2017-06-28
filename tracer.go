@@ -255,6 +255,7 @@ func (r *tracerImpl) Flush() {
 
 	if err != nil {
 		maybeLogError(err, r.opts.Verbose)
+
 	} else if len(resp.GetErrors()) > 0 {
 		// These should never occur, since this library should understand what
 		// makes for valid logs and spans, but just in case, log it anyway.
@@ -274,15 +275,15 @@ func (r *tracerImpl) Flush() {
 	} else {
 		droppedSent = r.flushing.droppedSpanCount
 		r.flushing.clear()
+
+		if resp.Disable() {
+			r.Disable()
+		}
 	}
 	r.lock.Unlock()
 
 	if droppedSent != 0 {
 		maybeLogInfof("client reported %d dropped spans", r.opts.Verbose, droppedSent)
-	}
-
-	if resp.Disable() {
-		r.Disable()
 	}
 }
 
