@@ -18,23 +18,20 @@ import (
 	ot "github.com/opentracing/opentracing-go"
 )
 
-var (
-	defaultReconnectPeriod = 5 * time.Minute
-
-	intType reflect.Type = reflect.TypeOf(int64(0))
-
-	errPreviousReportInFlight = fmt.Errorf("a previous Report is still in flight; aborting Flush()")
-	errConnectionWasClosed    = fmt.Errorf("the connection was closed")
+const (
+	spansDropped     = "spans.dropped"
+	logEncoderErrors = "log_encoder.errors"
 )
 
+var (
+	intType                   reflect.Type = reflect.TypeOf(int64(0))
+	errPreviousReportInFlight              = fmt.Errorf("a previous Report is still in flight; aborting Flush()")
+	errConnectionWasClosed                 = fmt.Errorf("the connection was closed")
+)
 
-
-
-
-
-// GrpcCollectorClient specifies how to send reports back to a LightStep
-// collector via grpc
-type GrpcCollectorClient struct {
+// grpcCollectorClient specifies how to send reports back to a LightStep
+// collector via grpc.
+type grpcCollectorClient struct {
 	// auth and runtime information
 	attributes map[string]string
 	reporterID uint64
@@ -60,17 +57,17 @@ type GrpcCollectorClient struct {
 	grpcConnectorFactory ConnectorFactory
 }
 
-func NewGrpcCollectorClient(opts Options, reporterID uint64, attributes map[string]string) *GrpcCollectorClient {
-	rec := &GrpcCollectorClient{
+func newGrpcCollectorClient(opts Options, reporterID uint64, attributes map[string]string) *grpcCollectorClient {
+	rec := &grpcCollectorClient{
 		accessToken:          opts.AccessToken,
 		attributes:           attributes,
-		maxReportingPeriod:   defaultMaxReportingPeriod,
+		maxReportingPeriod:   opts.ReportingPeriod,
 		reportingTimeout:     opts.ReportTimeout,
 		verbose:              opts.Verbose,
 		maxLogKeyLen:         opts.MaxLogKeyLen,
 		maxLogValueLen:       opts.MaxLogValueLen,
 		reporterID:           reporterID,
-		hostPort:             getGrpcCollectorHostPort(opts),
+		hostPort:             opts.Collector.HostPort(),
 		reconnectPeriod:      time.Duration(float64(opts.ReconnectPeriod) * (1 + 0.2*rand.Float64())),
 		grpcConnectorFactory: opts.ConnFactory,
 	}
@@ -84,7 +81,7 @@ func NewGrpcCollectorClient(opts Options, reporterID uint64, attributes map[stri
 	return rec
 }
 
-func (client *GrpcCollectorClient) ConnectClient() (Connection, error) {
+func (client *grpcCollectorClient) ConnectClient() (Connection, error) {
 	now := time.Now()
 	var conn Connection
 	if client.grpcConnectorFactory != nil {
@@ -113,11 +110,11 @@ func (client *GrpcCollectorClient) ConnectClient() (Connection, error) {
 	return conn, nil
 }
 
-func (client *GrpcCollectorClient) ShouldReconnect() bool {
+func (client *grpcCollectorClient) ShouldReconnect() bool {
 	return time.Now().Sub(client.connTimestamp) > client.reconnectPeriod
 }
 
-func (client *GrpcCollectorClient) translateTags(tags ot.Tags) []*cpb.KeyValue {
+func (client *grpcCollectorClient) translateTags(tags ot.Tags) []*cpb.KeyValue {
 	kvs := make([]*cpb.KeyValue, 0, len(tags))
 	for key, tag := range tags {
 		kv := client.convertToKeyValue(key, tag)
@@ -126,7 +123,7 @@ func (client *GrpcCollectorClient) translateTags(tags ot.Tags) []*cpb.KeyValue {
 	return kvs
 }
 
-func (client *GrpcCollectorClient) convertToKeyValue(key string, value interface{}) *cpb.KeyValue {
+func (client *grpcCollectorClient) convertToKeyValue(key string, value interface{}) *cpb.KeyValue {
 	kv := cpb.KeyValue{Key: key}
 	v := reflect.ValueOf(value)
 	k := v.Kind()
@@ -146,7 +143,7 @@ func (client *GrpcCollectorClient) convertToKeyValue(key string, value interface
 	return &kv
 }
 
-func (client *GrpcCollectorClient) translateLogs(lrs []ot.LogRecord, buffer *reportBuffer) []*cpb.Log {
+func (client *grpcCollectorClient) translateLogs(lrs []ot.LogRecord, buffer *reportBuffer) []*cpb.Log {
 	logs := make([]*cpb.Log, len(lrs))
 	for i, lr := range lrs {
 		logs[i] = &cpb.Log{
@@ -157,7 +154,7 @@ func (client *GrpcCollectorClient) translateLogs(lrs []ot.LogRecord, buffer *rep
 	return logs
 }
 
-func (client *GrpcCollectorClient) translateRawSpan(rs RawSpan, buffer *reportBuffer) *cpb.Span {
+func (client *grpcCollectorClient) translateRawSpan(rs RawSpan, buffer *reportBuffer) *cpb.Span {
 	s := &cpb.Span{
 		SpanContext:    translateSpanContext(rs.Context),
 		OperationName:  rs.Operation,
@@ -170,7 +167,7 @@ func (client *GrpcCollectorClient) translateRawSpan(rs RawSpan, buffer *reportBu
 	return s
 }
 
-func (client *GrpcCollectorClient) convertRawSpans(buffer *reportBuffer) []*cpb.Span {
+func (client *grpcCollectorClient) convertRawSpans(buffer *reportBuffer) []*cpb.Span {
 	spans := make([]*cpb.Span, len(buffer.rawSpans))
 	for i, rs := range buffer.rawSpans {
 		s := client.translateRawSpan(rs, buffer)
@@ -179,7 +176,7 @@ func (client *GrpcCollectorClient) convertRawSpans(buffer *reportBuffer) []*cpb.
 	return spans
 }
 
-func (client *GrpcCollectorClient) makeReportRequest(buffer *reportBuffer) *cpb.ReportRequest {
+func (client *grpcCollectorClient) makeReportRequest(buffer *reportBuffer) *cpb.ReportRequest {
 	spans := client.convertRawSpans(buffer)
 	reporter := convertToReporter(client.attributes, client.reporterID)
 
@@ -193,7 +190,7 @@ func (client *GrpcCollectorClient) makeReportRequest(buffer *reportBuffer) *cpb.
 
 }
 
-func (client *GrpcCollectorClient) Report(ctx context.Context, buffer *reportBuffer) (CollectorResponse, error) {
+func (client *grpcCollectorClient) Report(ctx context.Context, buffer *reportBuffer) (collectorResponse, error) {
 	resp, err := client.grpcClient.Report(ctx, client.makeReportRequest(buffer))
 	if err != nil {
 		return nil, err
@@ -271,41 +268,4 @@ func translateDuration(d time.Duration) uint64 {
 
 func translateDurationFromOldestYoungest(ot time.Time, yt time.Time) uint64 {
 	return translateDuration(yt.Sub(ot))
-}
-
-func getGrpcCollectorHostPort(opts Options) string {
-	e := opts.Collector
-	host := e.Host
-	if host == "" {
-		if opts.UseGRPC {
-			host = defaultGRPCCollectorHost
-		} else {
-			host = defaultCollectorHost
-		}
-	}
-	port := e.Port
-	if port <= 0 {
-		if e.Plaintext {
-			port = defaultPlainPort
-		} else {
-			port = defaultSecurePort
-		}
-	}
-	return fmt.Sprintf("%s:%d", host, port)
-}
-
-func getGrpcURL(e Endpoint, host, path string) string {
-	if e.Host != "" {
-		host = e.Host
-	}
-	httpProtocol := "https"
-	port := defaultSecurePort
-	if e.Plaintext {
-		httpProtocol = "http"
-		port = defaultPlainPort
-	}
-	if e.Port > 0 {
-		port = e.Port
-	}
-	return fmt.Sprintf("%s://%s:%d%s", httpProtocol, host, port, path)
 }

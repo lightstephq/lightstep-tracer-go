@@ -7,7 +7,7 @@ import (
 	lightstep "github.com/lightstep/lightstep-tracer-go"
 )
 
-type FakeRecorder struct {
+type FakeSpanRecorder struct {
 	RecordSpanStub        func(lightstep.RawSpan)
 	recordSpanMutex       sync.RWMutex
 	recordSpanArgsForCall []struct {
@@ -17,7 +17,7 @@ type FakeRecorder struct {
 	invocationsMutex sync.RWMutex
 }
 
-func (fake *FakeRecorder) RecordSpan(arg1 lightstep.RawSpan) {
+func (fake *FakeSpanRecorder) RecordSpan(arg1 lightstep.RawSpan) {
 	fake.recordSpanMutex.Lock()
 	fake.recordSpanArgsForCall = append(fake.recordSpanArgsForCall, struct {
 		arg1 lightstep.RawSpan
@@ -29,19 +29,19 @@ func (fake *FakeRecorder) RecordSpan(arg1 lightstep.RawSpan) {
 	}
 }
 
-func (fake *FakeRecorder) RecordSpanCallCount() int {
+func (fake *FakeSpanRecorder) RecordSpanCallCount() int {
 	fake.recordSpanMutex.RLock()
 	defer fake.recordSpanMutex.RUnlock()
 	return len(fake.recordSpanArgsForCall)
 }
 
-func (fake *FakeRecorder) RecordSpanArgsForCall(i int) lightstep.RawSpan {
+func (fake *FakeSpanRecorder) RecordSpanArgsForCall(i int) lightstep.RawSpan {
 	fake.recordSpanMutex.RLock()
 	defer fake.recordSpanMutex.RUnlock()
 	return fake.recordSpanArgsForCall[i].arg1
 }
 
-func (fake *FakeRecorder) Invocations() map[string][][]interface{} {
+func (fake *FakeSpanRecorder) Invocations() map[string][][]interface{} {
 	fake.invocationsMutex.RLock()
 	defer fake.invocationsMutex.RUnlock()
 	fake.recordSpanMutex.RLock()
@@ -53,7 +53,7 @@ func (fake *FakeRecorder) Invocations() map[string][][]interface{} {
 	return copiedInvocations
 }
 
-func (fake *FakeRecorder) recordInvocation(key string, args []interface{}) {
+func (fake *FakeSpanRecorder) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
 	if fake.invocations == nil {
@@ -65,4 +65,4 @@ func (fake *FakeRecorder) recordInvocation(key string, args []interface{}) {
 	fake.invocations[key] = append(fake.invocations[key], args)
 }
 
-var _ lightstep.Recorder = new(FakeRecorder)
+var _ lightstep.SpanRecorder = new(FakeSpanRecorder)

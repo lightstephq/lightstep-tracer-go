@@ -7,9 +7,6 @@ import (
 	opentracing "github.com/opentracing/opentracing-go"
 )
 
-type textMapPropagator struct {
-}
-
 const (
 	prefixTracerState = "ot-tracer-"
 	prefixBaggage     = "ot-baggage-"
@@ -19,6 +16,8 @@ const (
 	fieldNameSpanID       = prefixTracerState + "spanid"
 	fieldNameSampled      = prefixTracerState + "sampled"
 )
+
+type textMapPropagator struct{}
 
 func (_ *textMapPropagator) Inject(
 	spanContext opentracing.SpanContext,

@@ -8,21 +8,6 @@ import (
 	"github.com/opentracing/opentracing-go/log"
 )
 
-// Span provides access to the essential details of the span, for use
-// by basictracer consumers.  These methods may only be called prior
-// to (*opentracing.Span).Finish().
-type Span interface {
-	ot.Span
-
-	// Operation names the work done by this span instance
-	Operation() string
-
-	// Start indicates when the span began
-	Start() time.Time
-}
-
-
-
 // Implements the `Span` interface. Created via tracerImpl (see
 // `New()`).
 type spanImpl struct {
@@ -34,15 +19,7 @@ type spanImpl struct {
 }
 
 func newSpan(operationName string, tracer *tracerImpl, sso []ot.StartSpanOption) *spanImpl {
-	opts := StartSpanOptions{}
-	for _, o := range sso {
-		switch o := o.(type) {
-		case LightStepStartSpanOption:
-			o.ApplyLS(&opts)
-		default:
-			o.Apply(&opts.Options)
-		}
-	}
+	opts := newStartSpanOptions(sso)
 
 	// Start time.
 	startTime := opts.Options.StartTime
@@ -50,14 +27,11 @@ func newSpan(operationName string, tracer *tracerImpl, sso []ot.StartSpanOption)
 		startTime = time.Now()
 	}
 
-	// Tags.
-	tags := opts.Options.Tags
-
 	// Build the new span. This is the only allocation: We'll return this as
 	// an opentracing.Span.
 	sp := &spanImpl{}
 
-	// It's meaningless to provide wither SpanID or ParentSpanID
+	// It's meaningless to provide either SpanID or ParentSpanID
 	// without also providing TraceID, so just test for TraceID.
 	if opts.SetTraceID != 0 {
 		sp.raw.Context.TraceID = opts.SetTraceID
@@ -67,8 +41,8 @@ func newSpan(operationName string, tracer *tracerImpl, sso []ot.StartSpanOption)
 
 	// Look for a parent in the list of References.
 	//
-	// TODO: would be nice if basictracer did something with all
-	// References, not just the first one.
+	// TODO: would be nice if we did something with all References, not just
+	//       the first one.
 ReferencesLoop:
 	for _, ref := range opts.Options.References {
 		switch ref.Type {
@@ -88,6 +62,7 @@ ReferencesLoop:
 			break ReferencesLoop
 		}
 	}
+
 	if sp.raw.Context.TraceID == 0 {
 		// TraceID not set by parent reference or explicitly
 		sp.raw.Context.TraceID, sp.raw.Context.SpanID = genSeededGUID2()
@@ -100,10 +75,9 @@ ReferencesLoop:
 	sp.raw.Operation = operationName
 	sp.raw.Start = startTime
 	sp.raw.Duration = -1
-	sp.raw.Tags = tags
+	sp.raw.Tags = opts.Options.Tags
 	return sp
 }
-
 
 func (s *spanImpl) SetOperationName(operationName string) ot.Span {
 	s.Lock()

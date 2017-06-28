@@ -13,10 +13,10 @@ var _ = Describe("SpanRecorder", func() {
 	var tracer Tracer
 
 	Context("When tracer has a SpanRecorder", func() {
-		var fakeRecorder *lightstepfakes.FakeRecorder
+		var fakeRecorder *lightstepfakes.FakeSpanRecorder
 
 		BeforeEach(func() {
-			fakeRecorder = new(lightstepfakes.FakeRecorder)
+			fakeRecorder = new(lightstepfakes.FakeSpanRecorder)
 			tracer = NewTracer(Options{
 				AccessToken: "value",
 				ConnFactory: fakeGrpcConnection(new(cpbfakes.FakeCollectorServiceClient)),
@@ -25,7 +25,7 @@ var _ = Describe("SpanRecorder", func() {
 		})
 
 		AfterEach(func() {
-			CloseTracer(tracer)
+			closeTestTracer(tracer)
 		})
 
 		It("calls RecordSpan after finishing a span", func() {
@@ -44,7 +44,7 @@ var _ = Describe("SpanRecorder", func() {
 		})
 
 		AfterEach(func() {
-			CloseTracer(tracer)
+			closeTestTracer(tracer)
 		})
 
 		It("doesn't call RecordSpan after finishing a span", func() {

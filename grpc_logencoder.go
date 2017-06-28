@@ -13,13 +13,13 @@ const (
 
 // An implementation of the log.Encoder interface
 type grpcLogFieldEncoder struct {
-	recorder        *GrpcCollectorClient
+	recorder        *grpcCollectorClient
 	buffer          *reportBuffer
 	currentKeyValue *cpb.KeyValue
 }
 
 func marshalFields(
-	recorder *GrpcCollectorClient,
+	recorder *grpcCollectorClient,
 	protoLog *cpb.Log,
 	fields []log.Field,
 	buffer *reportBuffer,

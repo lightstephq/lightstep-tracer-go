@@ -12,9 +12,9 @@ import (
 	"github.com/lightstep/lightstep-tracer-go/thrift_0_9_2/lib/go/thrift"
 )
 
-// ThriftCollectorClient specifies how to send reports back to a LightStep
+// thriftCollectorClient specifies how to send reports back to a LightStep
 // collector via thrift
-type ThriftCollectorClient struct {
+type thriftCollectorClient struct {
 	// auth and runtime information
 	auth       *lightstep_thrift.Auth
 	attributes map[string]string
@@ -46,22 +46,22 @@ type ThriftCollectorClient struct {
 	thriftConnectorFactory ConnectorFactory
 }
 
-func NewThriftCollectorClient(opts Options, guid uint64, attributes map[string]string) *ThriftCollectorClient {
+func newThriftCollectorClient(opts Options, guid uint64, attributes map[string]string) *thriftCollectorClient {
 	reportTimeout := 60 * time.Second
 	if opts.ReportTimeout > 0 {
 		reportTimeout = opts.ReportTimeout
 	}
 
 	now := time.Now()
-	rec := &ThriftCollectorClient{
+	rec := &thriftCollectorClient{
 		auth: &lightstep_thrift.Auth{
 			AccessToken: thrift.StringPtr(opts.AccessToken),
 		},
 		attributes:             attributes,
 		startTime:              now,
-		maxReportingPeriod:     defaultMaxReportingPeriod,
+		maxReportingPeriod:     opts.ReportingPeriod,
 		verbose:                opts.Verbose,
-		collectorURL:           getThriftCollectorURL(opts),
+		collectorURL:           opts.Collector.URL(),
 		AccessToken:            opts.AccessToken,
 		maxLogMessageLen:       opts.MaxLogValueLen,
 		maxLogKeyLen:           opts.MaxLogKeyLen,
@@ -72,7 +72,7 @@ func NewThriftCollectorClient(opts Options, guid uint64, attributes map[string]s
 	return rec
 }
 
-func (client *ThriftCollectorClient) ConnectClient() (Connection, error) {
+func (client *thriftCollectorClient) ConnectClient() (Connection, error) {
 	var conn Connection
 
 	if client.thriftConnectorFactory != nil {
@@ -102,11 +102,11 @@ func (client *ThriftCollectorClient) ConnectClient() (Connection, error) {
 	return conn, nil
 }
 
-func (*ThriftCollectorClient) ShouldReconnect() bool {
+func (*thriftCollectorClient) ShouldReconnect() bool {
 	return false
 }
 
-func (client *ThriftCollectorClient) Report(_ context.Context, buffer *reportBuffer) (CollectorResponse, error) {
+func (client *thriftCollectorClient) Report(_ context.Context, buffer *reportBuffer) (collectorResponse, error) {
 	rawSpans := buffer.rawSpans
 	// Convert them to thrift.
 	recs := make([]*lightstep_thrift.SpanRecord, len(rawSpans))
@@ -175,12 +175,11 @@ func (client *ThriftCollectorClient) Report(_ context.Context, buffer *reportBuf
 		return nil, err
 	}
 
-
 	return resp, err
 }
 
 // caller must hold r.lock
-func (r *ThriftCollectorClient) thriftRuntime() *lightstep_thrift.Runtime {
+func (r *thriftCollectorClient) thriftRuntime() *lightstep_thrift.Runtime {
 	guid := strconv.FormatUint(r.reporterID, 10)
 	runtimeAttrs := []*lightstep_thrift.KeyValue{}
 	for k, v := range r.attributes {
@@ -191,26 +190,4 @@ func (r *ThriftCollectorClient) thriftRuntime() *lightstep_thrift.Runtime {
 		Attrs:       runtimeAttrs,
 		Guid:        &guid,
 	}
-}
-
-func getThriftCollectorURL(opts Options) string {
-	return getThriftURL(opts.Collector,
-		defaultCollectorHost,
-		collectorPath)
-}
-
-func getThriftURL(e Endpoint, host, path string) string {
-	if e.Host != "" {
-		host = e.Host
-	}
-	httpProtocol := "https"
-	port := defaultSecurePort
-	if e.Plaintext {
-		httpProtocol = "http"
-		port = defaultPlainPort
-	}
-	if e.Port > 0 {
-		port = e.Port
-	}
-	return fmt.Sprintf("%s://%s:%d%s", httpProtocol, host, port, path)
 }

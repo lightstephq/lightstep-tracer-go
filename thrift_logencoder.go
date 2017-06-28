@@ -19,7 +19,7 @@ const (
 // phased out anyway)
 type thriftLogFieldEncoder struct {
 	logRecord *lightstep_thrift.LogRecord
-	recorder  *ThriftCollectorClient
+	recorder  *thriftCollectorClient
 }
 
 func (lfe *thriftLogFieldEncoder) EmitString(key, value string) {

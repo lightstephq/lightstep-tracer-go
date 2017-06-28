@@ -2,153 +2,20 @@ package lightstep
 
 import (
 	"fmt"
-	"math/rand"
 	"reflect"
 	"time"
 
 	"golang.org/x/net/context"
 
-	"os"
-	"path"
 	"runtime"
-	"strings"
 	"sync"
 
 	ot "github.com/opentracing/opentracing-go"
 )
 
-const (
-	spansDropped     = "spans.dropped"
-	logEncoderErrors = "log_encoder.errors"
-	collectorPath    = "/_rpc/v1/reports/binary"
+const minReportingPeriod = 500 * time.Millisecond
 
-	defaultPlainPort  = 80
-	defaultSecurePort = 443
-
-	defaultCollectorHost     = "collector.lightstep.com"
-	defaultGRPCCollectorHost = "collector-grpc.lightstep.com"
-	defaultAPIHost           = "api.lightstep.com"
-
-	// See the comment for shouldFlush() for more about these tuning
-	// parameters.
-	defaultMaxReportingPeriod = 2500 * time.Millisecond
-	minReportingPeriod        = 500 * time.Millisecond
-
-	defaultMaxSpans       = 1000
-	defaultReportTimeout  = 30 * time.Second
-	defaultMaxLogKeyLen   = 256
-	defaultMaxLogValueLen = 1024
-	defaultMaxLogsPerSpan = 500
-
-	// ParentSpanGUIDKey is the tag key used to record the relationship
-	// between child and parent spans.
-	ParentSpanGUIDKey = "parent_span_guid"
-	messageKey        = "message"
-	payloadKey        = "payload"
-
-	TracerPlatformValue = "go"
-	// Note: TracerVersionValue is generated from ./VERSION
-
-	TracerPlatformKey        = "lightstep.tracer_platform"
-	TracerPlatformVersionKey = "lightstep.tracer_platform_version"
-	TracerVersionKey         = "lightstep.tracer_version"
-	ComponentNameKey         = "lightstep.component_name"
-	GUIDKey                  = "lightstep.guid" // <- runtime guid, not span guid
-	HostnameKey              = "lightstep.hostname"
-	CommandLineKey           = "lightstep.command_line"
-)
-
-// A SpanRecorder handles all of the `RawSpan` data generated via an
-// associated `Tracer` instance.
-type SpanRecorder interface {
-	// Implementations must determine whether and where to store `span`.
-	RecordSpan(span RawSpan)
-}
-
-// Tracer extends the opentracing.Tracer interface with methods to
-// probe implementation state, for use by basictracer consumers.
-type Tracer interface {
-	ot.Tracer
-
-	// Close ends the connection to the LightStep collector
-	Close() error
-	// Flush sends all spans currently in the buffer to the LighStep collector
-	Flush()
-	// Disable temporarily stops communication with the LightStep collector
-	Disable()
-	// Options gets the Options used in New() or NewWithOptions().
-	Options() Options
-}
-
-// NewTracer returns a new Tracer that reports spans to a LightStep
-// collector.
-func NewTracer(opts Options) Tracer {
-	opts.setDefaults()
-
-	if len(opts.AccessToken) == 0 {
-		fmt.Println("LightStep Recorder options.AccessToken must not be empty")
-		return nil
-	}
-	if opts.Tags == nil {
-		opts.Tags = make(map[string]interface{})
-	}
-
-	// Set some default attributes if not found in options
-	if _, found := opts.Tags[ComponentNameKey]; !found {
-		opts.Tags[ComponentNameKey] = path.Base(os.Args[0])
-	}
-	if _, found := opts.Tags[GUIDKey]; found {
-		fmt.Printf("Passing in your own %v is no longer supported\n", GUIDKey)
-	}
-	if _, found := opts.Tags[HostnameKey]; !found {
-		hostname, _ := os.Hostname()
-		opts.Tags[HostnameKey] = hostname
-	}
-	if _, found := opts.Tags[CommandLineKey]; !found {
-		opts.Tags[CommandLineKey] = strings.Join(os.Args, " ")
-	}
-
-	attributes := make(map[string]string)
-	for k, v := range opts.Tags {
-		attributes[k] = fmt.Sprint(v)
-	}
-	// Don't let the GrpcOptions override these values. That would be confusing.
-	attributes[TracerPlatformKey] = TracerPlatformValue
-	attributes[TracerPlatformVersionKey] = runtime.Version()
-	attributes[TracerVersionKey] = TracerVersionValue
-
-	opts.ReconnectPeriod = time.Duration(float64(opts.ReconnectPeriod) * (1 + 0.2*rand.Float64()))
-	now := time.Now()
-	impl := &tracerImpl{
-		opts:       opts,
-		reporterID: genSeededGUID(),
-		buffer:     newSpansBuffer(opts.MaxBufferedSpans),
-		flushing:   newSpansBuffer(opts.MaxBufferedSpans),
-	}
-
-	impl.buffer.setCurrent(now)
-
-	if opts.UseThrift {
-		impl.client = NewThriftCollectorClient(opts, impl.reporterID, attributes)
-	} else {
-		impl.client = NewGrpcCollectorClient(opts, impl.reporterID, attributes)
-	}
-
-	conn, err := impl.client.ConnectClient()
-
-	if err != nil {
-		fmt.Println("Failed to connect to Collector!", err)
-		return nil
-	}
-
-	impl.conn = conn
-	impl.closech = make(chan struct{})
-
-	go impl.reportLoop(impl.closech)
-
-	return impl
-}
-
+// FlushLightStepTracer forces a synchronous Flush.
 func FlushLightStepTracer(lsTracer ot.Tracer) error {
 	tracer, ok := lsTracer.(Tracer)
 	if !ok {
@@ -159,6 +26,7 @@ func FlushLightStepTracer(lsTracer ot.Tracer) error {
 	return nil
 }
 
+// GetLightStepAccessToken returns the currently configured AccessToken.
 func GetLightStepAccessToken(lsTracer ot.Tracer) (string, error) {
 	tracer, ok := lsTracer.(Tracer)
 	if !ok {
@@ -168,6 +36,7 @@ func GetLightStepAccessToken(lsTracer ot.Tracer) (string, error) {
 	return tracer.Options().AccessToken, nil
 }
 
+// CloseTracer synchronously flushes the tracer, then terminates it.
 func CloseTracer(tracer ot.Tracer) error {
 	lsTracer, ok := tracer.(Tracer)
 	if !ok {
@@ -179,15 +48,6 @@ func CloseTracer(tracer ot.Tracer) error {
 
 // Implements the `Tracer` interface. Buffers spans and forwards the to a Lightstep collector.
 type tracerImpl struct {
-	opts             Options
-	textPropagator   textMapPropagator
-	binaryPropagator lightstepBinaryPropagator
-
-	lock sync.Mutex
-
-	// Note: the following are divided into immutable fields and
-	// mutable fields. The mutable fields are modified under `lock`.
-
 	//////////////////////////////////////////////////////////////
 	// IMMUTABLE IMMUTABLE IMMUTABLE IMMUTABLE IMMUTABLE IMMUTABLE
 	//////////////////////////////////////////////////////////////
@@ -196,20 +56,22 @@ type tracerImpl struct {
 	// at runtime, in which case suitable changes may be needed
 	// for variables accessed during Flush.
 
-	reporterID uint64 // the LightStep tracer guid
-	//verbose            bool          // whether to print verbose messages
-	//maxReportingPeriod time.Duration // set by Options.MaxReportingPeriod
-	//reconnectPeriod    time.Duration // set by Options.ReconnectPeriod
-	//reportingTimeout   time.Duration // set by Options.ReportTimeout
-
-	// Remote service that will receive reports.
-	client  CollectorClient
-	conn    Connection
-	closech chan struct{}
+	reporterID       uint64 // the LightStep tracer guid
+	opts             Options
+	textPropagator   textMapPropagator
+	binaryPropagator lightstepBinaryPropagator
 
 	//////////////////////////////////////////////////////////
 	// MUTABLE MUTABLE MUTABLE MUTABLE MUTABLE MUTABLE MUTABLE
 	//////////////////////////////////////////////////////////
+
+	// the following fields are modified under `lock`.
+	lock sync.Mutex
+
+	// Remote service that will receive reports.
+	client  collectorClient
+	conn    Connection
+	closech chan struct{}
 
 	// Two buffers of data.
 	buffer   reportBuffer
@@ -226,6 +88,54 @@ type tracerImpl struct {
 	// TODO this should use atomic load/store to test disabled
 	// prior to taking the lock, do please.
 	disabled bool
+}
+
+// NewTracer creates and starts a new Lightstep Tracer.
+func NewTracer(opts Options) Tracer {
+	err := opts.Initialize()
+	if err != nil {
+		fmt.Println(err.Error())
+		return nil
+	}
+
+	attributes := make(map[string]string)
+	for k, v := range opts.Tags {
+		attributes[k] = fmt.Sprint(v)
+	}
+	// Don't let the GrpcOptions override these values. That would be confusing.
+	attributes[TracerPlatformKey] = TracerPlatformValue
+	attributes[TracerPlatformVersionKey] = runtime.Version()
+	attributes[TracerVersionKey] = TracerVersionValue
+
+	now := time.Now()
+	impl := &tracerImpl{
+		opts:       opts,
+		reporterID: genSeededGUID(),
+		buffer:     newSpansBuffer(opts.MaxBufferedSpans),
+		flushing:   newSpansBuffer(opts.MaxBufferedSpans),
+	}
+
+	impl.buffer.setCurrent(now)
+
+	if opts.UseThrift {
+		impl.client = newThriftCollectorClient(opts, impl.reporterID, attributes)
+	} else {
+		impl.client = newGrpcCollectorClient(opts, impl.reporterID, attributes)
+	}
+
+	conn, err := impl.client.ConnectClient()
+
+	if err != nil {
+		fmt.Println("Failed to connect to Collector!", err)
+		return nil
+	}
+
+	impl.conn = conn
+	impl.closech = make(chan struct{})
+
+	go impl.reportLoop(impl.closech)
+
+	return impl
 }
 
 func (impl *tracerImpl) Options() Options {
@@ -274,6 +184,7 @@ func (r *tracerImpl) reconnectClient(now time.Time) {
 	}
 }
 
+// Close flushes and then terminates the LightStep collector.
 func (r *tracerImpl) Close() error {
 	r.lock.Lock()
 	conn := r.conn
@@ -292,6 +203,7 @@ func (r *tracerImpl) Close() error {
 	return conn.Close()
 }
 
+// RecordSpan records a finished Span.
 func (r *tracerImpl) RecordSpan(raw RawSpan) {
 	r.lock.Lock()
 	defer r.lock.Unlock()
@@ -308,6 +220,7 @@ func (r *tracerImpl) RecordSpan(raw RawSpan) {
 	}
 }
 
+// Flush sends all buffered data to the collector.
 func (r *tracerImpl) Flush() {
 	r.lock.Lock()
 
@@ -442,45 +355,4 @@ func (r *tracerImpl) reportLoop(closech chan struct{}) {
 			return
 		}
 	}
-}
-
-func getLSCollectorHostPort(opts Options) string {
-	e := opts.Collector
-	host := e.Host
-	if host == "" {
-		if opts.UseGRPC {
-			host = defaultGRPCCollectorHost
-		} else {
-			host = defaultCollectorHost
-		}
-	}
-	port := e.Port
-	if port <= 0 {
-		if e.Plaintext {
-			port = defaultPlainPort
-		} else {
-			port = defaultSecurePort
-		}
-	}
-	return fmt.Sprintf("%s:%d", host, port)
-}
-
-func getLSAPIURL(opts Options) string {
-	return getLSURL(opts.LightStepAPI, defaultAPIHost, "")
-}
-
-func getLSURL(e Endpoint, host, path string) string {
-	if e.Host != "" {
-		host = e.Host
-	}
-	httpProtocol := "https"
-	port := defaultSecurePort
-	if e.Plaintext {
-		httpProtocol = "http"
-		port = defaultPlainPort
-	}
-	if e.Port > 0 {
-		port = e.Port
-	}
-	return fmt.Sprintf("%s://%s:%d%s", httpProtocol, host, port, path)
 }

@@ -17,7 +17,7 @@ func (c *CountingRecorder) RecordSpan(r RawSpan) {
 	atomic.AddInt32((*int32)(c), 1)
 }
 
-func newTestTracer(recorder Recorder) ot.Tracer {
+func newTestTracer(recorder SpanRecorder) ot.Tracer {
 	opts := Options{
 		AccessToken: "token",
 		ConnFactory: fakeGrpcConnection(new(cpbfakes.FakeCollectorServiceClient)),

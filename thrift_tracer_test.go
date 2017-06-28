@@ -2,8 +2,6 @@ package lightstep_test
 
 import (
 	"encoding/json"
-	"fmt"
-	"reflect"
 	"strconv"
 	"strings"
 	"time"
@@ -13,85 +11,9 @@ import (
 	thriftfakes "github.com/lightstep/lightstep-tracer-go/lightstep_thrift/lightstep_thriftfakes"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"github.com/onsi/gomega/types"
 	ot "github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/log"
 )
-
-type haveThriftKeyValuesMatcher []*lightstep_thrift.KeyValue
-
-func HaveThriftKeyValues(keyValues ...*lightstep_thrift.KeyValue) types.GomegaMatcher {
-	return haveThriftKeyValuesMatcher(keyValues)
-}
-
-func (matcher haveThriftKeyValuesMatcher) Match(actual interface{}) (bool, error) {
-	var actualKeyValues []*lightstep_thrift.KeyValue
-
-	switch v := actual.(type) {
-	case []*lightstep_thrift.KeyValue:
-		actualKeyValues = v
-	case *lightstep_thrift.LogRecord:
-		actualKeyValues = v.GetFields()
-	default:
-		return false, fmt.Errorf("HaveKeyValues matcher expects either a []*KeyValue or a *Log")
-	}
-
-	expectedKeyValues := []*lightstep_thrift.KeyValue(matcher)
-	if len(expectedKeyValues) != len(actualKeyValues) {
-		return false, nil
-	}
-
-	for i, _ := range actualKeyValues {
-		if !reflect.DeepEqual(actualKeyValues[i], expectedKeyValues[i]) {
-			return false, nil
-		}
-	}
-
-	return true, nil
-}
-
-func (matcher haveThriftKeyValuesMatcher) FailureMessage(actual interface{}) string {
-	return fmt.Sprintf("Expected '%v' to have key values '%v'", actual, matcher)
-}
-
-func (matcher haveThriftKeyValuesMatcher) NegatedFailureMessage(actual interface{}) string {
-	return fmt.Sprintf("Expected '%v' to not have key values '%v'", actual, matcher)
-}
-
-func ThriftKeyValue(key, value string) *lightstep_thrift.KeyValue {
-	return &lightstep_thrift.KeyValue{Key: key, Value: value}
-}
-
-func attachThriftSpanListener(fakeClient *thriftfakes.FakeReportingService) func() []*lightstep_thrift.SpanRecord {
-	reportChan := make(chan *lightstep_thrift.ReportRequest)
-	fakeClient.ReportStub = func(auth *lightstep_thrift.Auth, request *lightstep_thrift.ReportRequest) (*lightstep_thrift.ReportResponse, error) {
-		select {
-		case reportChan <- request:
-		case <-time.After(1 * time.Second):
-		}
-		return &lightstep_thrift.ReportResponse{}, nil
-	}
-
-	return func() []*lightstep_thrift.SpanRecord {
-		timeout := time.After(5 * time.Second)
-		for {
-			select {
-			case report := <-reportChan:
-				if len(report.GetSpanRecords()) > 0 {
-					return report.GetSpanRecords()
-				}
-			case <-timeout:
-				Fail("timed out trying to get spans")
-			}
-		}
-	}
-}
-
-func fakeThriftConnectionFactory(fakeClient lightstep_thrift.ReportingService) ConnectorFactory {
-	return func() (interface{}, Connection, error) {
-		return fakeClient, new(dummyConnection), nil
-	}
-}
 
 var _ = Describe("Thrift Tracer", func() {
 	var tracer ot.Tracer
@@ -107,9 +29,7 @@ var _ = Describe("Thrift Tracer", func() {
 		})
 
 		AfterEach(func() {
-			errChan := make(chan error)
-			go func() { errChan <- CloseTracer(tracer) }()
-			Eventually(errChan).Should(Receive(BeNil()))
+			closeTestTracer(tracer)
 		})
 
 		Context("With default options", func() {
@@ -189,19 +109,13 @@ var _ = Describe("Thrift Tracer", func() {
 
 			Describe("CloseTracer", func() {
 				It("Should not explode when called twice", func() {
-					errChan := make(chan error)
-					go func() { errChan <- CloseTracer(tracer) }()
-					Eventually(errChan).Should(Receive(BeNil()))
-
-					go func() { errChan <- CloseTracer(tracer) }()
-					Eventually(errChan).Should(Receive(BeNil()))
+					closeTestTracer(tracer)
+					closeTestTracer(tracer)
 				})
 
 				It("Should behave nicely", func() {
 					By("Not hanging")
-					errChan := make(chan error)
-					go func() { errChan <- CloseTracer(tracer) }()
-					Eventually(errChan).Should(Receive(BeNil()))
+					closeTestTracer(tracer)
 
 					By("Stop communication with server")
 					lastCallCount := fakeClient.ReportCallCount()

@@ -1,35 +1,54 @@
 package lightstep
 
 import (
+	"fmt"
+	"math/rand"
+	"os"
+	"path"
+	"strings"
 	"time"
-
-	"golang.org/x/net/context"
 
 	// N.B.(jmacd): Do not use google.golang.org/glog in this package.
 
 	ot "github.com/opentracing/opentracing-go"
 )
 
-// Connection describes a closable connection
-type Connection interface {
-	Close() error
-}
+// Default Option values.
+const (
+	DefaultCollectorPath       = "/_rpc/v1/reports/binary"
+	DefaultPlainPort           = 80
+	DefaultSecurePort          = 443
+	DefaultThriftCollectorHost = "collector.lightstep.com"
+	DefaultGRPCCollectorHost   = "collector-grpc.lightstep.com"
 
-// CollectorResponse describes a CollectorResponse to a report
-type CollectorResponse interface {
-	GetErrors() []string
-	Disable() bool
-}
+	DefaultMaxReportingPeriod = 2500 * time.Millisecond
+	DefaultMaxSpans           = 1000
+	DefaultReportTimeout      = 30 * time.Second
+	DefaultReconnectPeriod    = 5 * time.Minute
 
-// CollectorClient describes how to interface with a LightStep Collector
-type CollectorClient interface {
-	Report(context.Context, *reportBuffer) (CollectorResponse, error)
-	ConnectClient() (Connection, error)
-	ShouldReconnect() bool
-}
+	DefaultMaxLogKeyLen   = 256
+	DefaultMaxLogValueLen = 1024
+	DefaultMaxLogsPerSpan = 500
+)
 
-// ConnectorFactory for testing purposes
-type ConnectorFactory func() (interface{}, Connection, error)
+// Tag and Tracer Attribute keys.
+const (
+	ParentSpanGUIDKey = "parent_span_guid" // ParentSpanGUIDKey is the tag key used to record the relationship between child and parent spans.
+	ComponentNameKey  = "lightstep.component_name"
+	GUIDKey           = "lightstep.guid" // <- runtime guid, not span guid
+	HostnameKey       = "lightstep.hostname"
+	CommandLineKey    = "lightstep.command_line"
+
+	TracerPlatformKey        = "lightstep.tracer_platform"
+	TracerPlatformValue      = "go"
+	TracerPlatformVersionKey = "lightstep.tracer_platform_version"
+	TracerVersionKey         = "lightstep.tracer_version" // Note: TracerVersionValue is generated from ./VERSION
+)
+
+const (
+	secureProtocol    = "https"
+	plaintextProtocol = "http"
+)
 
 // Endpoint describes a collection or web API host/port and whether or
 // not to use plaintext communicatation.
@@ -39,8 +58,16 @@ type Endpoint struct {
 	Plaintext bool   `yaml:"plaintext" usage:"whether or not to encrypt data send to the endpoint"`
 }
 
-type Recorder interface {
-	RecordSpan(RawSpan)
+func (e Endpoint) HostPort() string {
+	return fmt.Sprintf("%s:%d", e.Host, e.Port)
+}
+
+func (e Endpoint) URL() string {
+	if e.Plaintext {
+		return fmt.Sprintf("%s://%s:%d%s", plaintextProtocol, e.Host, e.Port, DefaultCollectorPath)
+	} else {
+		return fmt.Sprintf("%s://%s:%d%s", secureProtocol, e.Host, e.Port, DefaultCollectorPath)
+	}
 }
 
 // Options control how the LightStep Tracer behaves.
@@ -97,34 +124,138 @@ type Options struct {
 
 	ReconnectPeriod time.Duration `yaml:"reconnect_period"`
 
-	// provide hooks into RecordSpan
-	Recorder Recorder
+	// a hook for recieving finished span events
+	Recorder SpanRecorder
 
 	// For testing purposes only
 	ConnFactory ConnectorFactory
 }
 
-func (opts *Options) setDefaults() {
+// Initialize validates options, and sets default values for unset options.
+// This is called automatically when creating a new Tracer.
+func (opts *Options) Initialize() error {
+	if len(opts.AccessToken) == 0 {
+		return fmt.Errorf("LightStep Recorder options.AccessToken must not be empty")
+	}
+
+	if _, found := opts.Tags[GUIDKey]; found {
+		return fmt.Errorf("Passing in your own %v is no longer supported\n", GUIDKey)
+	}
+
 	// Note: opts is a copy of the user's data, ok to modify.
 	if opts.MaxBufferedSpans == 0 {
-		opts.MaxBufferedSpans = defaultMaxSpans
+		opts.MaxBufferedSpans = DefaultMaxSpans
 	}
 	if opts.MaxLogKeyLen == 0 {
-		opts.MaxLogKeyLen = defaultMaxLogKeyLen
+		opts.MaxLogKeyLen = DefaultMaxLogKeyLen
 	}
 	if opts.MaxLogValueLen == 0 {
-		opts.MaxLogValueLen = defaultMaxLogValueLen
+		opts.MaxLogValueLen = DefaultMaxLogValueLen
 	}
 	if opts.MaxLogsPerSpan == 0 {
-		opts.MaxLogsPerSpan = defaultMaxLogsPerSpan
+		opts.MaxLogsPerSpan = DefaultMaxLogsPerSpan
 	}
 	if opts.ReportingPeriod == 0 {
-		opts.ReportingPeriod = defaultMaxReportingPeriod
+		opts.ReportingPeriod = DefaultMaxReportingPeriod
 	}
 	if opts.ReportTimeout == 0 {
-		opts.ReportTimeout = defaultReportTimeout
+		opts.ReportTimeout = DefaultReportTimeout
 	}
 	if opts.ReconnectPeriod == 0 {
-		opts.ReconnectPeriod = defaultReconnectPeriod
+		opts.ReconnectPeriod = DefaultReconnectPeriod
 	}
+	if opts.Tags == nil {
+		opts.Tags = make(map[string]interface{})
+	}
+
+	// Set some default attributes if not found in options
+	if _, found := opts.Tags[ComponentNameKey]; !found {
+		opts.Tags[ComponentNameKey] = path.Base(os.Args[0])
+	}
+	if _, found := opts.Tags[HostnameKey]; !found {
+		hostname, _ := os.Hostname()
+		opts.Tags[HostnameKey] = hostname
+	}
+	if _, found := opts.Tags[CommandLineKey]; !found {
+		opts.Tags[CommandLineKey] = strings.Join(os.Args, " ")
+	}
+
+	opts.ReconnectPeriod = time.Duration(float64(opts.ReconnectPeriod) * (1 + 0.2*rand.Float64()))
+
+	if opts.Collector.Host == "" {
+		if opts.UseThrift {
+			opts.Collector.Host = DefaultThriftCollectorHost
+		} else {
+			opts.Collector.Host = DefaultGRPCCollectorHost
+		}
+	}
+
+	if opts.Collector.Port <= 0 {
+		if opts.Collector.Plaintext {
+			opts.Collector.Port = DefaultPlainPort
+		} else {
+			opts.Collector.Port = DefaultSecurePort
+		}
+	}
+
+	return nil
+}
+
+// SetSpanID is a opentracing.StartSpanOption that sets an
+// explicit SpanID.  It must be used in conjunction with
+// SetTraceID or the result is undefined.
+type SetSpanID uint64
+
+func (sid SetSpanID) Apply(sso *ot.StartSpanOptions) {}
+func (sid SetSpanID) applyLS(sso *startSpanOptions) {
+	sso.SetSpanID = uint64(sid)
+}
+
+// SetTraceID is an opentracing.StartSpanOption that sets an
+// explicit TraceID.  It must be used in order to set an
+// explicit SpanID or ParentSpanID.  If a ChildOf or
+// FollowsFrom span relation is also set in the start options,
+// it will override this value.
+type SetTraceID uint64
+
+func (sid SetTraceID) Apply(sso *ot.StartSpanOptions) {}
+func (sid SetTraceID) applyLS(sso *startSpanOptions) {
+	sso.SetTraceID = uint64(sid)
+}
+
+// SetParentSpanID is an opentracing.StartSpanOption that sets
+// an explicit parent SpanID.  It must be used in conjunction
+// with SetTraceID or the result is undefined.  If the value
+// is zero, it will be disregarded.  If a ChildOf or
+// FollowsFrom span relation is also set in the start options,
+// it will override this value.
+type SetParentSpanID uint64
+
+func (sid SetParentSpanID) Apply(sso *ot.StartSpanOptions) {}
+func (sid SetParentSpanID) applyLS(sso *startSpanOptions) {
+	sso.SetParentSpanID = uint64(sid)
+}
+
+type startSpanOptions struct {
+	Options ot.StartSpanOptions
+
+	// Options to explicitly set span_id, trace_id,
+	// parent_span_id, expected to be used when exporting spans
+	// from another system into LightStep via opentracing APIs.
+	SetSpanID       uint64
+	SetParentSpanID uint64
+	SetTraceID      uint64
+}
+
+func newStartSpanOptions(sso []ot.StartSpanOption) startSpanOptions {
+	opts := startSpanOptions{}
+	for _, o := range sso {
+		switch o := o.(type) {
+		case lightStepStartSpanOption:
+			o.applyLS(&opts)
+		default:
+			o.Apply(&opts.Options)
+		}
+	}
+	return opts
 }
