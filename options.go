@@ -22,6 +22,7 @@ const (
 	DefaultGRPCCollectorHost   = "collector-grpc.lightstep.com"
 
 	DefaultMaxReportingPeriod = 2500 * time.Millisecond
+	DefaultMinReportingPeriod = 500 * time.Millisecond
 	DefaultMaxSpans           = 1000
 	DefaultReportTimeout      = 30 * time.Second
 	DefaultReconnectPeriod    = 5 * time.Minute
@@ -108,6 +109,11 @@ type Options struct {
 	// to a collector.  If zero, the default will be used.
 	ReportingPeriod time.Duration `yaml:"reporting_period"`
 
+	// MinReportingPeriod is the minimum duration of time between sending spans
+	// to a collector.  If zero, the default will be used. It is strongly
+	// recommended to use the default.
+	MinReportingPeriod time.Duration `yaml:"reporting_period"`
+
 	ReportTimeout time.Duration `yaml:"report_timeout"`
 
 	// DropSpanLogs turns log events on all Spans into no-ops.
@@ -157,6 +163,9 @@ func (opts *Options) Initialize() error {
 	}
 	if opts.ReportingPeriod == 0 {
 		opts.ReportingPeriod = DefaultMaxReportingPeriod
+	}
+	if opts.MinReportingPeriod == 0 {
+		opts.ReportingPeriod = DefaultMinReportingPeriod
 	}
 	if opts.ReportTimeout == 0 {
 		opts.ReportTimeout = DefaultReportTimeout

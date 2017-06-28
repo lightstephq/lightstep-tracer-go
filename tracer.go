@@ -13,8 +13,6 @@ import (
 	ot "github.com/opentracing/opentracing-go"
 )
 
-const minReportingPeriod = 500 * time.Millisecond
-
 // FlushLightStepTracer forces a synchronous Flush.
 func FlushLightStepTracer(lsTracer ot.Tracer) error {
 	tracer, ok := lsTracer.(Tracer)
@@ -302,7 +300,7 @@ func (r *tracerImpl) Disable() {
 	r.disabled = true
 }
 
-// Every minReportingPeriod the reporting loop wakes up and checks to see if
+// Every MinReportingPeriod the reporting loop wakes up and checks to see if
 // either (a) the Runtime's max reporting period is about to expire (see
 // maxReportingPeriod()), (b) the number of buffered log records is
 // approaching kMaxBufferedLogs, or if (c) the number of buffered span records
@@ -316,7 +314,7 @@ func (r *tracerImpl) Disable() {
 // which can certainly happen with high data rates and/or unresponsive remote
 // peers).
 func (r *tracerImpl) shouldFlushLocked(now time.Time) bool {
-	if now.Add(minReportingPeriod).Sub(r.lastReportAttempt) > r.opts.ReportingPeriod {
+	if now.Add(r.opts.MinReportingPeriod).Sub(r.lastReportAttempt) > r.opts.ReportingPeriod {
 		// Flush timeout.
 		maybeLogInfof("--> timeout", r.opts.Verbose)
 		return true
@@ -329,7 +327,7 @@ func (r *tracerImpl) shouldFlushLocked(now time.Time) bool {
 }
 
 func (r *tracerImpl) reportLoop(closech chan struct{}) {
-	tickerChan := time.Tick(minReportingPeriod)
+	tickerChan := time.Tick(r.opts.MinReportingPeriod)
 	for {
 		select {
 		case <-tickerChan:
