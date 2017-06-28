@@ -3,20 +3,16 @@ package lightstep_test
 import (
 	"fmt"
 	"reflect"
-	"time"
 
 	. "github.com/lightstep/lightstep-tracer-go"
 	ot "github.com/opentracing/opentracing-go"
-	"golang.org/x/net/context"
 
 	cpb "github.com/lightstep/lightstep-tracer-go/collectorpb"
 	cpbfakes "github.com/lightstep/lightstep-tracer-go/collectorpb/collectorpbfakes"
-	"google.golang.org/grpc"
 
 	"github.com/lightstep/lightstep-tracer-go/lightstep_thrift"
 	thriftfakes "github.com/lightstep/lightstep-tracer-go/lightstep_thrift/lightstep_thriftfakes"
 
-	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/types"
 )
@@ -97,29 +93,14 @@ func KeyValue(key string, value interface{}, storeAsJson ...bool) *cpb.KeyValue 
 	return tag
 }
 
-func attachGrpcSpanListener(fakeClient *cpbfakes.FakeCollectorServiceClient) func() []*cpb.Span {
-	reportChan := make(chan *cpb.ReportRequest)
-	fakeClient.ReportStub = func(context context.Context, reportResponse *cpb.ReportRequest, options ...grpc.CallOption) (*cpb.ReportResponse, error) {
-		select {
-		case reportChan <- reportResponse:
-		case <-time.After(1 * time.Second):
-		}
-		return &cpb.ReportResponse{}, nil
+func getReportedGRPCSpans(fakeClient *cpbfakes.FakeCollectorServiceClient) []*cpb.Span {
+	callCount := fakeClient.ReportCallCount()
+	spans := make([]*cpb.Span, 0)
+	for i := 0; i < callCount; i++ {
+		_, report, _ := fakeClient.ReportArgsForCall(i)
+		spans = append(spans, report.GetSpans()...)
 	}
-
-	return func() []*cpb.Span {
-		timeout := time.After(5 * time.Second)
-		for {
-			select {
-			case report := <-reportChan:
-				if len(report.GetSpans()) > 0 {
-					return report.GetSpans()
-				}
-			case <-timeout:
-				Fail("timed out trying to get spans")
-			}
-		}
-	}
+	return spans
 }
 
 type dummyConnection struct{}
@@ -179,29 +160,14 @@ func ThriftKeyValue(key, value string) *lightstep_thrift.KeyValue {
 	return &lightstep_thrift.KeyValue{Key: key, Value: value}
 }
 
-func attachThriftSpanListener(fakeClient *thriftfakes.FakeReportingService) func() []*lightstep_thrift.SpanRecord {
-	reportChan := make(chan *lightstep_thrift.ReportRequest)
-	fakeClient.ReportStub = func(auth *lightstep_thrift.Auth, request *lightstep_thrift.ReportRequest) (*lightstep_thrift.ReportResponse, error) {
-		select {
-		case reportChan <- request:
-		case <-time.After(1 * time.Second):
-		}
-		return &lightstep_thrift.ReportResponse{}, nil
+func getReportedThriftSpans(fakeClient *thriftfakes.FakeReportingService) []*lightstep_thrift.SpanRecord {
+	callCount := fakeClient.ReportCallCount()
+	spans := make([]*lightstep_thrift.SpanRecord, 0)
+	for i := 0; i < callCount; i++ {
+		_, report := fakeClient.ReportArgsForCall(i)
+		spans = append(spans, report.GetSpanRecords()...)
 	}
-
-	return func() []*lightstep_thrift.SpanRecord {
-		timeout := time.After(5 * time.Second)
-		for {
-			select {
-			case report := <-reportChan:
-				if len(report.GetSpanRecords()) > 0 {
-					return report.GetSpanRecords()
-				}
-			case <-timeout:
-				Fail("timed out trying to get spans")
-			}
-		}
-	}
+	return spans
 }
 
 func fakeThriftConnectionFactory(fakeClient lightstep_thrift.ReportingService) ConnectorFactory {

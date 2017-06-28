@@ -24,7 +24,10 @@ var _ = Describe("Tracer", func() {
 
 		BeforeEach(func() {
 			fakeClient = new(cpbfakes.FakeCollectorServiceClient)
-			latestSpans = attachGrpcSpanListener(fakeClient)
+			fakeClient.ReportReturns(&cpb.ReportResponse{}, nil)
+			latestSpans = func() []*cpb.Span {
+				return getReportedGRPCSpans(fakeClient)
+			}
 		})
 
 		AfterEach(func() {
@@ -34,11 +37,12 @@ var _ = Describe("Tracer", func() {
 		Context("With default options", func() {
 			BeforeEach(func() {
 				tracer = NewTracer(Options{
-					AccessToken:     "0987654321",
-					Collector:       Endpoint{"localhost", port, true},
-					ReportingPeriod: 1 * time.Millisecond,
-					ReportTimeout:   10 * time.Millisecond,
-					ConnFactory:     fakeGrpcConnection(fakeClient),
+					AccessToken:        "0987654321",
+					Collector:          Endpoint{"localhost", port, true},
+					ReportingPeriod:    1 * time.Millisecond,
+					MinReportingPeriod: 1 * time.Millisecond,
+					ReportTimeout:      10 * time.Millisecond,
+					ConnFactory:        fakeGrpcConnection(fakeClient),
 				})
 
 				// make sure the fake client is working
@@ -54,8 +58,8 @@ var _ = Describe("Tracer", func() {
 			It("Should send span operation names to the collector", func() {
 				tracer.StartSpan("smooth").Finish()
 
+				Eventually(latestSpans).Should(HaveLen(1))
 				spans := latestSpans()
-				Expect(spans).To(HaveLen(1))
 				Expect(spans[0].OperationName).To(Equal("smooth"))
 			})
 
@@ -64,8 +68,8 @@ var _ = Describe("Tracer", func() {
 				span.SetTag("tag", "you're it!")
 				span.Finish()
 
+				Eventually(latestSpans).Should(HaveLen(1))
 				spans := latestSpans()
-				Expect(spans).To(HaveLen(1))
 				Expect(spans[0].GetTags()).To(HaveKeyValues(KeyValue("tag", "you're it!")))
 			})
 
@@ -74,8 +78,8 @@ var _ = Describe("Tracer", func() {
 				span.SetBaggageItem("x", "y")
 				span.Finish()
 
+				Eventually(latestSpans).Should(HaveLen(1))
 				spans := latestSpans()
-				Expect(spans).To(HaveLen(1))
 				Expect(spans[0].GetSpanContext().GetBaggage()).To(BeEquivalentTo(map[string]string{"x": "y"}))
 			})
 
@@ -98,8 +102,8 @@ var _ = Describe("Tracer", func() {
 				Expect(baggage).To(HaveLen(1))
 				span.Finish()
 
+				Eventually(latestSpans).Should(HaveLen(1))
 				spans := latestSpans()
-				Expect(spans).To(HaveLen(1))
 				Expect(spans[0].GetSpanContext().GetBaggage()).To(HaveLen(2))
 			})
 
@@ -115,15 +119,16 @@ var _ = Describe("Tracer", func() {
 
 					By("Stop communication with server")
 					lastCallCount := fakeClient.ReportCallCount()
-					Consistently(fakeClient.ReportCallCount, 2, 0.05).Should(Equal(lastCallCount))
+					Consistently(fakeClient.ReportCallCount, 0.5, 0.05).Should(Equal(lastCallCount))
 
 					By("Allowing other tracers to reconnect to the server")
 					tracer = NewTracer(Options{
-						AccessToken:     "0987654321",
-						Collector:       Endpoint{"localhost", port, true},
-						ReportingPeriod: 1 * time.Millisecond,
-						ReportTimeout:   10 * time.Millisecond,
-						ConnFactory:     fakeGrpcConnection(fakeClient),
+						AccessToken:        "0987654321",
+						Collector:          Endpoint{"localhost", port, true},
+						ReportingPeriod:    1 * time.Millisecond,
+						MinReportingPeriod: 1 * time.Millisecond,
+						ReportTimeout:      10 * time.Millisecond,
+						ConnFactory:        fakeGrpcConnection(fakeClient),
 					})
 					Eventually(fakeClient.ReportCallCount).ShouldNot(Equal(lastCallCount))
 				})
@@ -140,8 +145,8 @@ var _ = Describe("Tracer", func() {
 					})
 
 					It("Should set the specified options", func() {
+						Eventually(latestSpans).Should(HaveLen(1))
 						spans := latestSpans()
-						Expect(spans).To(HaveLen(1))
 						Expect(spans[0].GetSpanContext().GetTraceId()).To(Equal(expectedTraceID))
 						Expect(spans[0].GetSpanContext().GetSpanId()).ToNot(Equal(uint64(0)))
 						Expect(spans[0].GetReferences()).To(BeEmpty())
@@ -154,8 +159,8 @@ var _ = Describe("Tracer", func() {
 					})
 
 					It("Should set the specified options", func() {
+						Eventually(latestSpans).Should(HaveLen(1))
 						spans := latestSpans()
-						Expect(spans).To(HaveLen(1))
 						Expect(spans[0].GetSpanContext().TraceId).To(Equal(expectedTraceID))
 						Expect(spans[0].GetSpanContext().SpanId).To(Equal(expectedSpanID))
 						Expect(spans[0].GetReferences()).To(BeEmpty())
@@ -168,8 +173,8 @@ var _ = Describe("Tracer", func() {
 					})
 
 					It("Should set the specified options", func() {
+						Eventually(latestSpans).Should(HaveLen(1))
 						spans := latestSpans()
-						Expect(spans).To(HaveLen(1))
 						Expect(spans[0].GetSpanContext().TraceId).To(Equal(expectedTraceID))
 						Expect(spans[0].GetSpanContext().SpanId).To(Equal(expectedSpanID))
 						Expect(spans[0].GetReferences()).ToNot(BeEmpty())
@@ -224,7 +229,7 @@ var _ = Describe("Tracer", func() {
 						}
 					})
 
-					It("Should support infjecting into byte arrays", func() {
+					It("Should support injecting into byte arrays", func() {
 						for _, origContext := range []SpanContext{knownContext1, knownContext2, testContext1, testContext2} {
 							err := tracer.Inject(origContext, BinaryCarrier, &carrierBytes)
 							Expect(err).ToNot(HaveOccurred())
@@ -279,13 +284,14 @@ var _ = Describe("Tracer", func() {
 		Context("With custom log length", func() {
 			BeforeEach(func() {
 				tracer = NewTracer(Options{
-					AccessToken:     "0987654321",
-					Collector:       Endpoint{"localhost", port, true},
-					ReportingPeriod: 1 * time.Millisecond,
-					ReportTimeout:   10 * time.Millisecond,
-					MaxLogKeyLen:    10,
-					MaxLogValueLen:  11,
-					ConnFactory:     fakeGrpcConnection(fakeClient),
+					AccessToken:        "0987654321",
+					Collector:          Endpoint{"localhost", port, true},
+					ReportingPeriod:    1 * time.Millisecond,
+					MinReportingPeriod: 1 * time.Millisecond,
+					ReportTimeout:      10 * time.Millisecond,
+					MaxLogKeyLen:       10,
+					MaxLogValueLen:     11,
+					ConnFactory:        fakeGrpcConnection(fakeClient),
 				})
 				// make sure the fake client is working
 				Eventually(fakeClient.ReportCallCount).ShouldNot(BeZero())
@@ -307,8 +313,9 @@ var _ = Describe("Tracer", func() {
 					span.Finish()
 
 					obj, _ := json.Marshal([]interface{}{"gr", 8})
+
+					Eventually(latestSpans).Should(HaveLen(1))
 					spans := latestSpans()
-					Expect(spans).To(HaveLen(1))
 					Expect(spans[0].GetLogs()).To(HaveLen(1))
 					Expect(spans[0].GetLogs()[0]).To(HaveKeyValues(
 						KeyValue("donut", "bacon"),
@@ -323,14 +330,15 @@ var _ = Describe("Tracer", func() {
 		Context("With custom MaxBufferedSpans", func() {
 			BeforeEach(func() {
 				tracer = NewTracer(Options{
-					AccessToken:      "0987654321",
-					Collector:        Endpoint{"localhost", port, true},
-					ReportingPeriod:  1 * time.Millisecond,
-					ReportTimeout:    10 * time.Millisecond,
-					MaxLogKeyLen:     10,
-					MaxLogValueLen:   11,
-					MaxBufferedSpans: 10,
-					ConnFactory:      fakeGrpcConnection(fakeClient),
+					AccessToken:        "0987654321",
+					Collector:          Endpoint{"localhost", port, true},
+					ReportingPeriod:    1 * time.Millisecond,
+					MinReportingPeriod: 1 * time.Millisecond,
+					ReportTimeout:      10 * time.Millisecond,
+					MaxLogKeyLen:       10,
+					MaxLogValueLen:     11,
+					MaxBufferedSpans:   10,
+					ConnFactory:        fakeGrpcConnection(fakeClient),
 				})
 
 				// make sure the fake client is working
@@ -351,12 +359,13 @@ var _ = Describe("Tracer", func() {
 		Context("With DropSpanLogs set", func() {
 			BeforeEach(func() {
 				tracer = NewTracer(Options{
-					AccessToken:     "0987654321",
-					Collector:       Endpoint{"localhost", port, true},
-					ReportingPeriod: 1 * time.Millisecond,
-					ReportTimeout:   10 * time.Millisecond,
-					DropSpanLogs:    true,
-					ConnFactory:     fakeGrpcConnection(fakeClient),
+					AccessToken:        "0987654321",
+					Collector:          Endpoint{"localhost", port, true},
+					ReportingPeriod:    1 * time.Millisecond,
+					MinReportingPeriod: 1 * time.Millisecond,
+					ReportTimeout:      10 * time.Millisecond,
+					DropSpanLogs:       true,
+					ConnFactory:        fakeGrpcConnection(fakeClient),
 				})
 
 				// make sure the fake client is working
@@ -369,8 +378,8 @@ var _ = Describe("Tracer", func() {
 				span.SetTag("tag", "value")
 				span.Finish()
 
+				Eventually(latestSpans).Should(HaveLen(1))
 				spans := latestSpans()
-				Expect(spans).To(HaveLen(1))
 				Expect(spans[0].GetOperationName()).To(Equal("x"))
 				Expect(spans[0].GetTags()).To(HaveKeyValues(KeyValue("tag", "value")))
 				Expect(spans[0].GetLogs()).To(BeEmpty())
@@ -380,12 +389,13 @@ var _ = Describe("Tracer", func() {
 		Context("With MaxLogsPerSpan set", func() {
 			BeforeEach(func() {
 				tracer = NewTracer(Options{
-					AccessToken:     "0987654321",
-					Collector:       Endpoint{"localhost", port, true},
-					ReportingPeriod: 1 * time.Millisecond,
-					ReportTimeout:   10 * time.Millisecond,
-					MaxLogsPerSpan:  10,
-					ConnFactory:     fakeGrpcConnection(fakeClient),
+					AccessToken:        "0987654321",
+					Collector:          Endpoint{"localhost", port, true},
+					ReportingPeriod:    1 * time.Millisecond,
+					MinReportingPeriod: 1 * time.Millisecond,
+					ReportTimeout:      10 * time.Millisecond,
+					MaxLogsPerSpan:     10,
+					ConnFactory:        fakeGrpcConnection(fakeClient),
 				})
 
 				// make sure the fake client is working
@@ -400,8 +410,8 @@ var _ = Describe("Tracer", func() {
 				}
 				span.Finish()
 
+				Eventually(latestSpans).Should(HaveLen(1))
 				spans := latestSpans()
-				Expect(spans).To(HaveLen(1))
 				Expect(spans[0].OperationName).To(Equal("span"))
 				Expect(spans[0].GetLogs()).To(HaveLen(10))
 
@@ -418,8 +428,8 @@ var _ = Describe("Tracer", func() {
 				}
 				span.Finish()
 
+				Eventually(latestSpans).Should(HaveLen(1))
 				spans := latestSpans()
-				Expect(spans).To(HaveLen(1))
 				Expect(spans[0].OperationName).To(Equal("span"))
 				Expect(spans[0].GetLogs()).To(HaveLen(10))
 

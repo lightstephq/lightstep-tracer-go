@@ -25,7 +25,10 @@ var _ = Describe("Thrift Tracer", func() {
 
 		BeforeEach(func() {
 			fakeClient = new(thriftfakes.FakeReportingService)
-			latestSpans = attachThriftSpanListener(fakeClient)
+			fakeClient.ReportReturns(&lightstep_thrift.ReportResponse{}, nil)
+			latestSpans = func() []*lightstep_thrift.SpanRecord {
+				return getReportedThriftSpans(fakeClient)
+			}
 		})
 
 		AfterEach(func() {
@@ -35,12 +38,13 @@ var _ = Describe("Thrift Tracer", func() {
 		Context("With default options", func() {
 			BeforeEach(func() {
 				tracer = NewTracer(Options{
-					AccessToken:     "0987654321",
-					Collector:       Endpoint{"localhost", port, true},
-					ReportingPeriod: 1 * time.Millisecond,
-					ReportTimeout:   10 * time.Millisecond,
-					UseThrift:       true,
-					ConnFactory:     fakeThriftConnectionFactory(fakeClient),
+					AccessToken:        "0987654321",
+					Collector:          Endpoint{"localhost", port, true},
+					ReportingPeriod:    1 * time.Millisecond,
+					MinReportingPeriod: 1 * time.Millisecond,
+					ReportTimeout:      10 * time.Millisecond,
+					UseThrift:          true,
+					ConnFactory:        fakeThriftConnectionFactory(fakeClient),
 				})
 
 				// make sure the fake client is working
@@ -56,8 +60,8 @@ var _ = Describe("Thrift Tracer", func() {
 			It("Should send span operation names to the collector", func() {
 				tracer.StartSpan("smooth").Finish()
 
+				Eventually(latestSpans).Should(HaveLen(1))
 				spans := latestSpans()
-				Expect(spans).To(HaveLen(1))
 				Expect(spans[0].GetSpanName()).To(Equal("smooth"))
 			})
 
@@ -66,8 +70,8 @@ var _ = Describe("Thrift Tracer", func() {
 				span.SetTag("tag", "you're it!")
 				span.Finish()
 
+				Eventually(latestSpans).Should(HaveLen(1))
 				spans := latestSpans()
-				Expect(spans).To(HaveLen(1))
 				Expect(spans[0].GetAttributes()).To(HaveThriftKeyValues(ThriftKeyValue("tag", "you're it!")))
 			})
 
@@ -119,16 +123,17 @@ var _ = Describe("Thrift Tracer", func() {
 
 					By("Stop communication with server")
 					lastCallCount := fakeClient.ReportCallCount()
-					Consistently(fakeClient.ReportCallCount, 2, 0.05).Should(Equal(lastCallCount))
+					Consistently(fakeClient.ReportCallCount, 0.5, 0.05).Should(Equal(lastCallCount))
 
 					By("Allowing other tracers to reconnect to the server")
 					tracer = NewTracer(Options{
-						AccessToken:     "0987654321",
-						Collector:       Endpoint{"localhost", port, true},
-						ReportingPeriod: 1 * time.Millisecond,
-						ReportTimeout:   10 * time.Millisecond,
-						UseThrift:       true,
-						ConnFactory:     fakeThriftConnectionFactory(fakeClient),
+						AccessToken:        "0987654321",
+						Collector:          Endpoint{"localhost", port, true},
+						ReportingPeriod:    1 * time.Millisecond,
+						MinReportingPeriod: 1 * time.Millisecond,
+						ReportTimeout:      10 * time.Millisecond,
+						UseThrift:          true,
+						ConnFactory:        fakeThriftConnectionFactory(fakeClient),
 					})
 					Eventually(fakeClient.ReportCallCount).ShouldNot(Equal(lastCallCount))
 				})
@@ -145,8 +150,9 @@ var _ = Describe("Thrift Tracer", func() {
 					})
 
 					It("Should set the specified options", func() {
+						Eventually(latestSpans).Should(HaveLen(1))
+
 						spans := latestSpans()
-						Expect(spans).To(HaveLen(1))
 						Expect(spans[0].GetTraceGuid()).To(Equal(strconv.FormatUint(expectedTraceID, 16)))
 						Expect(spans[0].GetSpanGuid()).ToNot(Equal("0"))
 						Expect(spans[0].GetAttributes()).To(HaveLen(0))
@@ -159,8 +165,9 @@ var _ = Describe("Thrift Tracer", func() {
 					})
 
 					It("Should set the specified options", func() {
+						Eventually(latestSpans).Should(HaveLen(1))
+
 						spans := latestSpans()
-						Expect(spans).To(HaveLen(1))
 						Expect(spans[0].GetTraceGuid()).To(Equal(strconv.FormatUint(expectedTraceID, 16)))
 						Expect(spans[0].GetSpanGuid()).To(Equal(strconv.FormatUint(expectedSpanID, 16)))
 						Expect(spans[0].GetAttributes()).To(HaveLen(0))
@@ -173,8 +180,9 @@ var _ = Describe("Thrift Tracer", func() {
 					})
 
 					It("Should set the specified options", func() {
+						Eventually(latestSpans).Should(HaveLen(1))
+
 						spans := latestSpans()
-						Expect(spans).To(HaveLen(1))
 						Expect(spans[0].GetTraceGuid()).To(Equal(strconv.FormatUint(expectedTraceID, 16)))
 						Expect(spans[0].GetSpanGuid()).To(Equal(strconv.FormatUint(expectedSpanID, 16)))
 						Expect(spans[0].GetAttributes()).ToNot(BeEmpty())
@@ -285,14 +293,15 @@ var _ = Describe("Thrift Tracer", func() {
 		Context("With custom log length", func() {
 			BeforeEach(func() {
 				tracer = NewTracer(Options{
-					AccessToken:     "0987654321",
-					Collector:       Endpoint{"localhost", port, true},
-					ReportingPeriod: 1 * time.Millisecond,
-					ReportTimeout:   10 * time.Millisecond,
-					MaxLogKeyLen:    10,
-					MaxLogValueLen:  11,
-					UseThrift:       true,
-					ConnFactory:     fakeThriftConnectionFactory(fakeClient),
+					AccessToken:        "0987654321",
+					Collector:          Endpoint{"localhost", port, true},
+					ReportingPeriod:    1 * time.Millisecond,
+					MinReportingPeriod: 1 * time.Millisecond,
+					ReportTimeout:      10 * time.Millisecond,
+					MaxLogKeyLen:       10,
+					MaxLogValueLen:     11,
+					UseThrift:          true,
+					ConnFactory:        fakeThriftConnectionFactory(fakeClient),
 				})
 				// make sure the fake client is working
 				Eventually(fakeClient.ReportCallCount).ShouldNot(BeZero())
@@ -314,9 +323,9 @@ var _ = Describe("Thrift Tracer", func() {
 					span.Finish()
 
 					obj, _ := json.Marshal([]interface{}{"gr", 8})
-					_ = obj
+
+					Eventually(latestSpans).Should(HaveLen(1))
 					spans := latestSpans()
-					Expect(spans).To(HaveLen(1))
 					Expect(spans[0].GetLogRecords()).To(HaveLen(1))
 					Expect(spans[0].GetLogRecords()[0]).To(HaveThriftKeyValues(
 						ThriftKeyValue("donut", "bacon"),
@@ -331,15 +340,16 @@ var _ = Describe("Thrift Tracer", func() {
 		Context("With custom MaxBufferedSpans", func() {
 			BeforeEach(func() {
 				tracer = NewTracer(Options{
-					AccessToken:      "0987654321",
-					Collector:        Endpoint{"localhost", port, true},
-					ReportingPeriod:  1 * time.Millisecond,
-					ReportTimeout:    10 * time.Millisecond,
-					MaxLogKeyLen:     10,
-					MaxLogValueLen:   11,
-					MaxBufferedSpans: 10,
-					UseThrift:        true,
-					ConnFactory:      fakeThriftConnectionFactory(fakeClient),
+					AccessToken:        "0987654321",
+					Collector:          Endpoint{"localhost", port, true},
+					ReportingPeriod:    1 * time.Millisecond,
+					MinReportingPeriod: 1 * time.Millisecond,
+					ReportTimeout:      10 * time.Millisecond,
+					MaxLogKeyLen:       10,
+					MaxLogValueLen:     11,
+					MaxBufferedSpans:   10,
+					UseThrift:          true,
+					ConnFactory:        fakeThriftConnectionFactory(fakeClient),
 				})
 
 				// make sure the fake client is working
@@ -360,13 +370,14 @@ var _ = Describe("Thrift Tracer", func() {
 		Context("With DropSpanLogs set", func() {
 			BeforeEach(func() {
 				tracer = NewTracer(Options{
-					AccessToken:     "0987654321",
-					Collector:       Endpoint{"localhost", port, true},
-					ReportingPeriod: 1 * time.Millisecond,
-					ReportTimeout:   10 * time.Millisecond,
-					DropSpanLogs:    true,
-					UseThrift:       true,
-					ConnFactory:     fakeThriftConnectionFactory(fakeClient),
+					AccessToken:        "0987654321",
+					Collector:          Endpoint{"localhost", port, true},
+					ReportingPeriod:    1 * time.Millisecond,
+					MinReportingPeriod: 1 * time.Millisecond,
+					ReportTimeout:      10 * time.Millisecond,
+					DropSpanLogs:       true,
+					UseThrift:          true,
+					ConnFactory:        fakeThriftConnectionFactory(fakeClient),
 				})
 
 				// make sure the fake client is working
@@ -379,8 +390,9 @@ var _ = Describe("Thrift Tracer", func() {
 				span.SetTag("tag", "value")
 				span.Finish()
 
+				Eventually(latestSpans).Should(HaveLen(1))
+
 				spans := latestSpans()
-				Expect(spans).To(HaveLen(1))
 				Expect(spans[0].GetSpanName()).To(Equal("x"))
 				Expect(spans[0].GetAttributes()).To(HaveThriftKeyValues(ThriftKeyValue("tag", "value")))
 				Expect(spans[0].GetLogRecords()).To(BeEmpty())
@@ -390,13 +402,14 @@ var _ = Describe("Thrift Tracer", func() {
 		Context("With MaxLogsPerSpan set", func() {
 			BeforeEach(func() {
 				tracer = NewTracer(Options{
-					AccessToken:     "0987654321",
-					Collector:       Endpoint{"localhost", port, true},
-					ReportingPeriod: 1 * time.Millisecond,
-					ReportTimeout:   10 * time.Millisecond,
-					MaxLogsPerSpan:  10,
-					UseThrift:       true,
-					ConnFactory:     fakeThriftConnectionFactory(fakeClient),
+					AccessToken:        "0987654321",
+					Collector:          Endpoint{"localhost", port, true},
+					ReportingPeriod:    1 * time.Millisecond,
+					MinReportingPeriod: 1 * time.Millisecond,
+					ReportTimeout:      10 * time.Millisecond,
+					MaxLogsPerSpan:     10,
+					UseThrift:          true,
+					ConnFactory:        fakeThriftConnectionFactory(fakeClient),
 				})
 
 				// make sure the fake client is working
@@ -411,11 +424,11 @@ var _ = Describe("Thrift Tracer", func() {
 				}
 				span.Finish()
 
+				Eventually(latestSpans).Should(HaveLen(1))
+
 				spans := latestSpans()
-				Expect(spans).To(HaveLen(1))
 				Expect(spans[0].GetSpanName()).To(Equal("span"))
 				Expect(spans[0].GetLogRecords()).To(HaveLen(10))
-
 				for i, log := range spans[0].GetLogRecords() {
 					Expect(log).To(HaveThriftKeyValues(ThriftKeyValue("id", strconv.FormatInt(int64(i), 10))))
 				}
@@ -429,8 +442,9 @@ var _ = Describe("Thrift Tracer", func() {
 				}
 				span.Finish()
 
+				Eventually(latestSpans).Should(HaveLen(1))
+
 				spans := latestSpans()
-				Expect(spans).To(HaveLen(1))
 				Expect(spans[0].GetSpanName()).To(Equal("span"))
 				Expect(spans[0].GetLogRecords()).To(HaveLen(10))
 
