@@ -51,7 +51,7 @@ func (_ *textMapPropagator) Extract(
 	requiredFieldCount := 0
 	var traceID, spanID uint64
 	var err error
-	decodedBaggage := make(map[string]string)
+	decodedBaggage := map[string]string{}
 	err = carrier.ForeachKey(func(k, v string) error {
 		switch strings.ToLower(k) {
 		case fieldNameTraceID:

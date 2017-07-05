@@ -96,7 +96,7 @@ func NewTracer(opts Options) Tracer {
 		return nil
 	}
 
-	attributes := make(map[string]string)
+	attributes := map[string]string{}
 	for k, v := range opts.Tags {
 		attributes[k] = fmt.Sprint(v)
 	}

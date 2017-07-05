@@ -46,9 +46,7 @@ func newSpan(operationName string, tracer *tracerImpl, sso []ot.StartSpanOption)
 ReferencesLoop:
 	for _, ref := range opts.Options.References {
 		switch ref.Type {
-		case ot.ChildOfRef,
-			ot.FollowsFromRef:
-
+		case ot.ChildOfRef, ot.FollowsFromRef:
 			refCtx := ref.ReferencedContext.(SpanContext)
 			sp.raw.Context.TraceID = refCtx.TraceID
 			sp.raw.ParentSpanID = refCtx.SpanID

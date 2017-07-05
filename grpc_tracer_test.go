@@ -86,7 +86,7 @@ var _ = Describe("Tracer", func() {
 			It("ForeachBaggageItem", func() {
 				span := tracer.StartSpan("x")
 				span.SetBaggageItem("x", "y")
-				baggage := make(map[string]string)
+				baggage := map[string]string{}
 				span.Context().ForeachBaggageItem(func(k, v string) bool {
 					baggage[k] = v
 					return true
@@ -94,7 +94,7 @@ var _ = Describe("Tracer", func() {
 				Expect(baggage).To(BeEquivalentTo(map[string]string{"x": "y"}))
 
 				span.SetBaggageItem("a", "b")
-				baggage = make(map[string]string)
+				baggage = map[string]string{}
 				span.Context().ForeachBaggageItem(func(k, v string) bool {
 					baggage[k] = v
 					return false // exit early

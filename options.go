@@ -174,7 +174,7 @@ func (opts *Options) Initialize() error {
 		opts.ReconnectPeriod = DefaultReconnectPeriod
 	}
 	if opts.Tags == nil {
-		opts.Tags = make(map[string]interface{})
+		opts.Tags = map[string]interface{}{}
 	}
 
 	// Set some default attributes if not found in options
