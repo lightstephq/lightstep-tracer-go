@@ -363,7 +363,7 @@ func NewRecorder(opts Options) *Recorder {
 		accessToken:        opts.AccessToken,
 		attributes:         attributes,
 		startTime:          now,
-		maxReportingPeriod: defaultMaxReportingPeriod,
+		maxReportingPeriod: opts.ReportingPeriod,
 		reportingTimeout:   opts.ReportTimeout,
 		verbose:            opts.Verbose,
 		maxLogKeyLen:       opts.MaxLogKeyLen,
