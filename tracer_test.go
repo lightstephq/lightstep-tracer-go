@@ -1,8 +1,11 @@
 package lightstep_test
 
 import (
+	"time"
+
 	. "github.com/lightstep/lightstep-tracer-go"
 
+	cpb "github.com/lightstep/lightstep-tracer-go/collectorpb"
 	cpbfakes "github.com/lightstep/lightstep-tracer-go/collectorpb/collectorpbfakes"
 	"github.com/lightstep/lightstep-tracer-go/lightstepfakes"
 	. "github.com/onsi/ginkgo"
@@ -11,6 +14,30 @@ import (
 
 var _ = Describe("SpanRecorder", func() {
 	var tracer Tracer
+
+	Context("CloseLightstepTracer", func() {
+		var fakeClient *cpbfakes.FakeCollectorServiceClient
+
+		BeforeEach(func() {
+			fakeClient = new(cpbfakes.FakeCollectorServiceClient)
+			fakeClient.ReportReturns(&cpb.ReportResponse{}, nil)
+
+			tracer = NewTracer(Options{
+				AccessToken:        "token",
+				ConnFactory:        fakeGrpcConnection(fakeClient),
+				MinReportingPeriod: 100 * time.Second,
+			})
+		})
+
+		It("flushes the buffer before closing", func() {
+			tracer.StartSpan("span").Finish()
+			err := CloseTracer(tracer)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(fakeClient.ReportCallCount()).To(Equal(1))
+			tracer.StartSpan("span2").Finish()
+			Consistently(fakeClient.ReportCallCount).Should(Equal(1))
+		})
+	})
 
 	Context("When tracer has a SpanRecorder", func() {
 		var fakeRecorder *lightstepfakes.FakeSpanRecorder
