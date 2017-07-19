@@ -253,9 +253,16 @@ func (r *tracerImpl) Flush() {
 	}
 
 	if r.reportInFlight == true {
-		maybeLogError(errPreviousReportInFlight, r.opts.Verbose)
 		r.lock.Unlock()
-		return
+		tickerChan := time.Tick(r.opts.MinReportingPeriod / 2)
+		for _ = range tickerChan {
+			maybeLogInfof("previous report in flight, retrying...", r.opts.Verbose)
+			r.lock.Lock()
+			if !r.reportInFlight {
+				break
+			}
+			r.lock.Unlock()
+		}
 	}
 
 	// There is not an in-flight report, therefore r.flushing has been reset and

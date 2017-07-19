@@ -1,10 +1,14 @@
 package lightstep_test
 
 import (
+	"sync"
 	"time"
 
-	. "github.com/lightstep/lightstep-tracer-go"
+	"google.golang.org/grpc"
 
+	"golang.org/x/net/context"
+
+	. "github.com/lightstep/lightstep-tracer-go"
 	cpb "github.com/lightstep/lightstep-tracer-go/collectorpb"
 	cpbfakes "github.com/lightstep/lightstep-tracer-go/collectorpb/collectorpbfakes"
 	"github.com/lightstep/lightstep-tracer-go/lightstepfakes"
@@ -14,6 +18,53 @@ import (
 
 var _ = Describe("SpanRecorder", func() {
 	var tracer Tracer
+
+	Context("FlushLightstepTracer", func() {
+		var fakeClient *cpbfakes.FakeCollectorServiceClient
+		var cancelch chan struct{}
+		var startTestch chan bool
+
+		BeforeEach(func() {
+			cancelch = make(chan struct{})
+			startTestch = make(chan bool)
+			fakeClient = new(cpbfakes.FakeCollectorServiceClient)
+			fakeClient.ReportReturns(&cpb.ReportResponse{}, nil)
+			var once sync.Once
+			fakeClient.ReportStub = func(ctx context.Context, req *cpb.ReportRequest, options ...grpc.CallOption) (*cpb.ReportResponse, error) {
+				once.Do(func() { startTestch <- true })
+				<-cancelch
+				return new(cpb.ReportResponse), nil
+			}
+
+			tracer = NewTracer(Options{
+				AccessToken: "YOU SHALL NOT PASS",
+				ConnFactory: fakeGrpcConnection(fakeClient),
+			})
+		})
+
+		It("should retry flushing if a report is in progress", func() {
+			Eventually(startTestch).Should(Receive())
+			// tracer is now has a report in flight
+			tracer.StartSpan("these spans should sit in the buffer").Finish()
+			tracer.StartSpan("while the last report is in flight").Finish()
+
+			finishedch := make(chan struct{})
+			go func() {
+				FlushLightStepTracer(tracer)
+				close(finishedch)
+			}()
+			// flush should wait for the last report to finish
+			Consistently(finishedch).ShouldNot(BeClosed())
+			// no spans should have been reported yet
+			Expect(getReportedGRPCSpans(fakeClient)).Should(HaveLen(0))
+			// allow the last report to finish
+			close(cancelch)
+			// flush should now send a report with the last two spans
+			Eventually(finishedch).Should(BeClosed())
+			// now the spans that were sitting in the buffer should be reported
+			Expect(getReportedGRPCSpans(fakeClient)).Should(HaveLen(2))
+		})
+	})
 
 	Context("CloseLightstepTracer", func() {
 		var fakeClient *cpbfakes.FakeCollectorServiceClient
