@@ -137,7 +137,7 @@ func NewTracer(opts Options) Tracer {
 	closech := impl.closech
 	go func() {
 		impl.reportLoop(closech)
-		close(closech)
+		close(impl.reportLoopch)
 	}()
 
 	return impl
