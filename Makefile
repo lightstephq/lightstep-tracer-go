@@ -24,7 +24,7 @@ lightstepfakes/fake_recorder.go: interfaces.go
 lightstep_thrift/lightstep_thriftfakes/fake_reporting_service.go: lightstep_thrift/reportingservice.go
 	counterfeiter lightstep_thrift/reportingservice.go ReportingService
 
-collectorpb/collectorpbfakes/fake_collector_service_server.go: collectorpb/collector.pb.go
+collectorpb/collectorpbfakes/fake_collector_service_client.go: collectorpb/collector.pb.go
 	counterfeiter collectorpb/collector.pb.go CollectorServiceClient
 
 # gRPC
@@ -48,13 +48,13 @@ lightsteppb/lightstep_carrier.pb.go: lightstep-tracer-common/lightstep_carrier.p
 endif
 
 test: lightstep_thrift/constants.go collectorpb/collector.pb.go lightsteppb/lightstep_carrier.pb.go \
-		collectorpb/collectorpbfakes/fake_collector_service_server.go \
+		collectorpb/collectorpbfakes/fake_collector_service_client.go \
 		lightstep_thrift/lightstep_thriftfakes/fake_reporting_service.go lightstepfakes/fake_recorder.go
 	ginkgo -race -p
 	docker run --rm -v $(GOPATH):/input:ro lightstep/noglog:latest noglog github.com/lightstep/lightstep-tracer-go
 
 build: lightstep_thrift/constants.go collectorpb/collector.pb.go lightsteppb/lightstep_carrier.pb.go \
-		collectorpb/collectorpbfakes/fake_collector_service_server.go version.go \
+		collectorpb/collectorpbfakes/fake_collector_service_client.go version.go \
 		lightstep_thrift/lightstep_thriftfakes/fake_reporting_service.go lightstepfakes/fake_recorder.go
 	${GO} build github.com/lightstep/lightstep-tracer-go/...
 
