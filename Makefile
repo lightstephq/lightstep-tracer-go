@@ -10,12 +10,10 @@ default: build
 # $(2) input file path
 # $(3) class name
 define generate_fake
-	docker run --rm -v $(shell pwd):/lightstep-tracer-go \
+	docker run --rm -v $(GOPATH):/usergo \
 	  lightstep/gobuild:latest /bin/bash -c "\
-	  cp -rf /lightstep-tracer-go/* /root/go/src/github.com/lightstep/lightstep-tracer-go;  \
-	  counterfeiter -o /root/go/src/github.com/lightstep/lightstep-tracer-go/$(1) /root/go/src/github.com/lightstep/lightstep-tracer-go/$(2) $(3); \
-	  mkdir -p $(shell dirname /lightstep-tracer-go/$(1)); \
-	  cp /root/go/src/github.com/lightstep/lightstep-tracer-go/$(1) /lightstep-tracer-go/$(1)"
+	  cd /usergo/src/github.com/lightstep/lightstep-tracer-go; \
+	  counterfeiter -o $(1) $(2) $(3)"
 endef
 # Thrift
 ifeq (,$(wildcard $(GOPATH)/src/github.com/lightstep/common-go/crouton.thrift))
@@ -63,9 +61,8 @@ test: lightstep_thrift/constants.go collectorpb/collector.pb.go lightsteppb/ligh
 		collectorpb/collectorpbfakes/fake_collector_service_client.go \
 		lightstep_thrift/lightstep_thriftfakes/fake_reporting_service.go lightstepfakes/fake_recorder.go
 	# ginkgo -race -p
-	docker run --rm -v $(GOPATH):/lightstep-tracer-go lightstep/gobuild:latest /bin/bash -c "\
-	  export GOPATH=/lightstep-tracer-go:/root/go; \
-	  ginkgo -race -p /lightstep-tracer-go/src/github.com/lightstep/lightstep-tracer-go"
+	docker run --rm -v $(GOPATH):/usergo lightstep/gobuild:latest /bin/bash -c "\
+	  ginkgo -race -p /usergo/src/github.com/lightstep/lightstep-tracer-go"
 	docker run --rm -v $(GOPATH):/input:ro lightstep/noglog:latest noglog github.com/lightstep/lightstep-tracer-go
 
 build: lightstep_thrift/constants.go collectorpb/collector.pb.go lightsteppb/lightstep_carrier.pb.go \
