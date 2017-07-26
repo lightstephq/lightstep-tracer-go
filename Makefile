@@ -5,6 +5,18 @@ default: build
 
 .PHONY: default build test
 
+# generate_fake: runs counterfeiter in docker container to generate fake classes
+# $(1) output file path
+# $(2) input file path
+# $(3) class name
+define generate_fake
+	docker run --rm -v $(shell pwd):/lightstep-tracer-go \
+	  lightstep/gobuild:latest /bin/bash -c "\
+	  cp -rf /lightstep-tracer-go/* /root/go/src/github.com/lightstep/lightstep-tracer-go;  \
+	  counterfeiter -o /root/go/src/github.com/lightstep/lightstep-tracer-go/$(1) /root/go/src/github.com/lightstep/lightstep-tracer-go/$(2) $(3); \
+	  mkdir -p $(shell dirname /lightstep-tracer-go/$(1)); \
+	  cp /root/go/src/github.com/lightstep/lightstep-tracer-go/$(1) /lightstep-tracer-go/$(1)"
+endef
 # Thrift
 ifeq (,$(wildcard $(GOPATH)/src/github.com/lightstep/common-go/crouton.thrift))
 lightstep_thrift/constants.go:
@@ -19,13 +31,13 @@ lightstep_thrift/constants.go: $(GOPATH)/src/github.com/lightstep/common-go/crou
 endif
 
 lightstepfakes/fake_recorder.go: interfaces.go
-	counterfeiter -o lightstepfakes/fake_recorder.go interfaces.go SpanRecorder
+	$(call generate_fake,lightstepfakes/fake_recorder.go,interfaces.go,SpanRecorder)
 
 lightstep_thrift/lightstep_thriftfakes/fake_reporting_service.go: lightstep_thrift/reportingservice.go
-	counterfeiter lightstep_thrift/reportingservice.go ReportingService
+	$(call generate_fake,lightstep_thrift/lightstep_thriftfakes/fake_reporting_service.go,lightstep_thrift/reportingservice.go,ReportingService)
 
 collectorpb/collectorpbfakes/fake_collector_service_client.go: collectorpb/collector.pb.go
-	counterfeiter collectorpb/collector.pb.go CollectorServiceClient
+	$(call generate_fake,collectorpb/collectorpbfakes/fake_collector_service_client.go,collectorpb/collector.pb.go,CollectorServiceClient)
 
 # gRPC
 ifeq (,$(wildcard lightstep-tracer-common/collector.proto))
@@ -50,7 +62,10 @@ endif
 test: lightstep_thrift/constants.go collectorpb/collector.pb.go lightsteppb/lightstep_carrier.pb.go \
 		collectorpb/collectorpbfakes/fake_collector_service_client.go \
 		lightstep_thrift/lightstep_thriftfakes/fake_reporting_service.go lightstepfakes/fake_recorder.go
-	ginkgo -race -p
+	# ginkgo -race -p
+	docker run --rm -v $(GOPATH):/lightstep-tracer-go lightstep/gobuild:latest /bin/bash -c "\
+	  export GOPATH=/lightstep-tracer-go; \
+	  ginkgo -race -p /lightstep-tracer-go/src/github.com/lightstep/lightstep-tracer-go"
 	docker run --rm -v $(GOPATH):/input:ro lightstep/noglog:latest noglog github.com/lightstep/lightstep-tracer-go
 
 build: lightstep_thrift/constants.go collectorpb/collector.pb.go lightsteppb/lightstep_carrier.pb.go \
