@@ -64,7 +64,7 @@ test: lightstep_thrift/constants.go collectorpb/collector.pb.go lightsteppb/ligh
 		lightstep_thrift/lightstep_thriftfakes/fake_reporting_service.go lightstepfakes/fake_recorder.go
 	# ginkgo -race -p
 	docker run --rm -v $(GOPATH):/lightstep-tracer-go lightstep/gobuild:latest /bin/bash -c "\
-	  export GOPATH=/lightstep-tracer-go; \
+	  export GOPATH=/lightstep-tracer-go:/root/go; \
 	  ginkgo -race -p /lightstep-tracer-go/src/github.com/lightstep/lightstep-tracer-go"
 	docker run --rm -v $(GOPATH):/input:ro lightstep/noglog:latest noglog github.com/lightstep/lightstep-tracer-go
 
