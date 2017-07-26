@@ -60,9 +60,8 @@ endif
 test: lightstep_thrift/constants.go collectorpb/collector.pb.go lightsteppb/lightstep_carrier.pb.go \
 		collectorpb/collectorpbfakes/fake_collector_service_client.go \
 		lightstep_thrift/lightstep_thriftfakes/fake_reporting_service.go lightstepfakes/fake_recorder.go
-	# ginkgo -race -p
-	docker run --rm -v $(GOPATH):/usergo lightstep/gobuild:latest /bin/bash -c "\
-	  ginkgo -race -p /usergo/src/github.com/lightstep/lightstep-tracer-go"
+	docker run --rm -v $(GOPATH):/usergo lightstep/gobuild:latest \
+	  ginkgo -race -p /usergo/src/github.com/lightstep/lightstep-tracer-go
 	docker run --rm -v $(GOPATH):/input:ro lightstep/noglog:latest noglog github.com/lightstep/lightstep-tracer-go
 
 build: lightstep_thrift/constants.go collectorpb/collector.pb.go lightsteppb/lightstep_carrier.pb.go \
