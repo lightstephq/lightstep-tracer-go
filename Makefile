@@ -1,6 +1,6 @@
 # tools
 GO=go
-
+DOCKER_PRESENT = $(shell command -v docker 2> /dev/null)
 default: build
 
 .PHONY: default build test
@@ -60,6 +60,9 @@ endif
 test: lightstep_thrift/constants.go collectorpb/collector.pb.go lightsteppb/lightstep_carrier.pb.go \
 		collectorpb/collectorpbfakes/fake_collector_service_client.go \
 		lightstep_thrift/lightstep_thriftfakes/fake_reporting_service.go lightstepfakes/fake_recorder.go
+ifeq ($(DOCKER_PRESENT),)
+	$(error "docker not found. Please install from https://www.docker.com/")
+endif
 	docker run --rm -v $(GOPATH):/usergo lightstep/gobuild:latest \
 	  ginkgo -race -p /usergo/src/github.com/lightstep/lightstep-tracer-go
 	docker run --rm -v $(GOPATH):/input:ro lightstep/noglog:latest noglog github.com/lightstep/lightstep-tracer-go
@@ -67,6 +70,10 @@ test: lightstep_thrift/constants.go collectorpb/collector.pb.go lightsteppb/ligh
 build: lightstep_thrift/constants.go collectorpb/collector.pb.go lightsteppb/lightstep_carrier.pb.go \
 		collectorpb/collectorpbfakes/fake_collector_service_client.go version.go \
 		lightstep_thrift/lightstep_thriftfakes/fake_reporting_service.go lightstepfakes/fake_recorder.go
+	echo $(DOCKER_PRESENT)
+ifeq ($(DOCKER_PRESENT),)
+       	$(error "docker not found. Please install from https://www.docker.com/")
+endif	
 	${GO} build github.com/lightstep/lightstep-tracer-go/...
 
 # When releasing significant changes, make sure to update the semantic
