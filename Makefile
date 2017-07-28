@@ -1,8 +1,8 @@
 # tools
 GO=go
 DOCKER_PRESENT = $(shell command -v docker 2> /dev/null)
-default: build
 
+default: build
 .PHONY: default build test
 
 # generate_fake: runs counterfeiter in docker container to generate fake classes
@@ -70,7 +70,6 @@ endif
 build: lightstep_thrift/constants.go collectorpb/collector.pb.go lightsteppb/lightstep_carrier.pb.go \
 		collectorpb/collectorpbfakes/fake_collector_service_client.go version.go \
 		lightstep_thrift/lightstep_thriftfakes/fake_reporting_service.go lightstepfakes/fake_recorder.go
-	echo $(DOCKER_PRESENT)
 ifeq ($(DOCKER_PRESENT),)
        	$(error "docker not found. Please install from https://www.docker.com/")
 endif	
