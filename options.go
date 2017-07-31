@@ -127,7 +127,9 @@ type Options struct {
 	// DropSpanLogs turns log events on all Spans into no-ops.
 	DropSpanLogs bool `yaml:"drop_span_logs"`
 
-	// Set Verbose to true to enable more text logging.
+	// DEPRECATED: the LS tracer no longer logs to stdout. See the documentation
+	// on the OnEvent handler for guidance on how to integrate tracer diagnostics
+	// with your applicaiton's logging and metrics systems.
 	Verbose bool `yaml:"verbose"`
 
 	// Force the use of a specific transport protocol.

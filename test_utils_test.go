@@ -1,6 +1,7 @@
 package lightstep_test
 
 import (
+	"context"
 	"fmt"
 	"reflect"
 
@@ -18,9 +19,12 @@ import (
 )
 
 func closeTestTracer(tracer ot.Tracer) {
-	errChan := make(chan error)
-	go func() { errChan <- CloseTracer(tracer) }()
-	Eventually(errChan).Should(Receive(BeNil()))
+	complete := make(chan struct{})
+	go func() {
+		Close(context.Background(), tracer)
+		close(complete)
+	}()
+	Eventually(complete).Should(BeClosed())
 }
 
 func startNSpans(n int, tracer ot.Tracer) {

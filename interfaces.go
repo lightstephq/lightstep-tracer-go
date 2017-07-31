@@ -34,15 +34,17 @@ type SpanRecorder interface {
 	RecordSpan(RawSpan)
 }
 
-// Tracer extends the opentracing.Tracer interface with methods to
-// probe implementation state, for use by basictracer consumers.
+// Tracer extends the `opentracing.Tracer` interface with methods for manual
+// flushing and closing. To access these methods, you can take the global
+// tracer and typecast it to a `lightstep.Tracer`. As a convenience, the
+// lightstep package provides static functions which perform the typecasting.
 type Tracer interface {
 	ot.Tracer
 
 	// Close flushes and then terminates the LightStep collector
-	Close() error
+	Close(context.Context)
 	// Flush sends all spans currently in the buffer to the LighStep collector
-	Flush()
+	Flush(context.Context)
 	// Options gets the Options used in New() or NewWithOptions().
 	Options() Options
 	// Disable prevents the tracer from recording spans or flushing

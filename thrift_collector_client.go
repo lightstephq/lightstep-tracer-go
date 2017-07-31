@@ -91,7 +91,6 @@ func (client *thriftCollectorClient) ConnectClient() (Connection, error) {
 	} else {
 		transport, err := thrift.NewTHttpPostClient(client.collectorURL, client.reportTimeout)
 		if err != nil {
-			maybeLogError(err, client.verbose)
 			return nil, err
 		}
 

@@ -76,6 +76,7 @@ func (lfe *grpcLogFieldEncoder) EmitObject(key string, value interface{}) {
 	lfe.emitSafeKey(key)
 	jsonBytes, err := json.Marshal(value)
 	if err != nil {
+		onEvent(newEventUnsupportedValue(key, value))
 		lfe.buffer.logEncoderErrorCount++
 		lfe.emitSafeString("<json.Marshal error>")
 		return
