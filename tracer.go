@@ -77,6 +77,7 @@ type tracerImpl struct {
 	flushing reportBuffer
 
 	// Flush state.
+	flushingLock      sync.Mutex
 	reportInFlight    bool
 	lastReportAttempt time.Time
 
@@ -239,34 +240,20 @@ func (r *tracerImpl) RecordSpan(raw RawSpan) {
 
 // Flush sends all buffered data to the collector.
 func (r *tracerImpl) Flush() {
+	r.flushingLock.Lock()
+	defer r.flushingLock.Unlock()
 	r.lock.Lock()
+	defer r.lock.Unlock()
 
 	if r.disabled {
-		r.lock.Unlock()
 		return
 	}
 
 	if r.conn == nil {
 		maybeLogError(errConnectionWasClosed, r.opts.Verbose)
-		r.lock.Unlock()
 		return
 	}
 
-	if r.reportInFlight == true {
-		r.lock.Unlock()
-		tickerChan := time.Tick(r.opts.MinReportingPeriod / 2)
-		for _ = range tickerChan {
-			maybeLogInfof("previous report in flight, retrying...", r.opts.Verbose)
-			r.lock.Lock()
-			if !r.reportInFlight {
-				break
-			}
-			r.lock.Unlock()
-		}
-	}
-
-	// There is not an in-flight report, therefore r.flushing has been reset and
-	// is ready to re-use.
 	now := time.Now()
 	r.buffer, r.flushing = r.flushing, r.buffer
 	r.reportInFlight = true
@@ -306,8 +293,6 @@ func (r *tracerImpl) Flush() {
 			r.Disable()
 		}
 	}
-	r.lock.Unlock()
-
 	if droppedSent != 0 {
 		maybeLogInfof("client reported %d dropped spans", r.opts.Verbose, droppedSent)
 	}
