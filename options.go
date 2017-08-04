@@ -112,7 +112,7 @@ type Options struct {
 	// MinReportingPeriod is the minimum duration of time between sending spans
 	// to a collector.  If zero, the default will be used. It is strongly
 	// recommended to use the default.
-	MinReportingPeriod time.Duration `yaml:"reporting_period"`
+	MinReportingPeriod time.Duration `yaml:"min_reporting_period"`
 
 	ReportTimeout time.Duration `yaml:"report_timeout"`
 
@@ -131,10 +131,10 @@ type Options struct {
 	ReconnectPeriod time.Duration `yaml:"reconnect_period"`
 
 	// a hook for recieving finished span events
-	Recorder SpanRecorder
+	Recorder SpanRecorder `yaml:"-" json:"-"`
 
 	// For testing purposes only
-	ConnFactory ConnectorFactory
+	ConnFactory ConnectorFactory `yaml:"-" json:"-"`
 }
 
 // Initialize validates options, and sets default values for unset options.
