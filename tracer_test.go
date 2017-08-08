@@ -28,14 +28,6 @@ var _ = Describe("SpanRecorder", func() {
 			cancelch = make(chan struct{})
 			startTestch = make(chan bool)
 			fakeClient = new(cpbfakes.FakeCollectorServiceClient)
-			fakeClient.ReportReturns(&cpb.ReportResponse{}, nil)
-			var once sync.Once
-			fakeClient.ReportStub = func(ctx context.Context, req *cpb.ReportRequest, options ...grpc.CallOption) (*cpb.ReportResponse, error) {
-				once.Do(func() { startTestch <- true })
-				<-cancelch
-				return new(cpb.ReportResponse), nil
-			}
-
 			tracer = NewTracer(Options{
 				AccessToken: "YOU SHALL NOT PASS",
 				ConnFactory: fakeGrpcConnection(fakeClient),
@@ -43,41 +35,74 @@ var _ = Describe("SpanRecorder", func() {
 		})
 
 		Context("when the tracer is disabled", func() {
+			var reportCallCount int
+
 			BeforeEach(func() {
 				tracer.Disable()
+				reportCallCount = fakeClient.ReportCallCount()
 			})
 
 			It("should not record or flush spans", func(done Done) {
 				tracer.StartSpan("these spans should not be recorded").Finish()
 				tracer.StartSpan("or flushed").Finish()
 				tracer.Flush()
-				Consistently(startTestch).ShouldNot(Receive())
+				Consistently(fakeClient.ReportCallCount).Should(Equal(reportCallCount))
 				close(done)
+			}, 5)
+		})
+
+		Context("when tracer has been closed", func() {
+			var reportCallCount int
+
+			BeforeEach(func() {
+				err := tracer.Close()
+				Expect(err).NotTo(HaveOccurred())
+				reportCallCount = fakeClient.ReportCallCount()
+			})
+
+			It("should not flush spans", func() {
+				tracer.StartSpan("can't flush this").Finish()
+				tracer.StartSpan("hammer time").Finish()
+				tracer.Flush()
+				Consistently(fakeClient.ReportCallCount).Should(Equal(reportCallCount))
 			})
 		})
 
-		It("should retry flushing if a report is in progress", func() {
-			Eventually(startTestch).Should(Receive())
-			// tracer is now has a report in flight
-			tracer.StartSpan("these spans should sit in the buffer").Finish()
-			tracer.StartSpan("while the last report is in flight").Finish()
+		Context("when tracer is running normally", func() {
+			BeforeEach(func() {
+				fakeClient.ReportReturns(&cpb.ReportResponse{}, nil)
+				var once sync.Once
+				fakeClient.ReportStub = func(ctx context.Context, req *cpb.ReportRequest, options ...grpc.CallOption) (*cpb.ReportResponse, error) {
+					once.Do(func() { startTestch <- true })
+					<-cancelch
+					return new(cpb.ReportResponse), nil
+				}
+			})
 
-			finishedch := make(chan struct{})
-			go func() {
-				FlushLightStepTracer(tracer)
-				close(finishedch)
-			}()
-			// flush should wait for the last report to finish
-			Consistently(finishedch).ShouldNot(BeClosed())
-			// no spans should have been reported yet
-			Expect(getReportedGRPCSpans(fakeClient)).Should(HaveLen(0))
-			// allow the last report to finish
-			close(cancelch)
-			// flush should now send a report with the last two spans
-			Eventually(finishedch).Should(BeClosed())
-			// now the spans that were sitting in the buffer should be reported
-			Expect(getReportedGRPCSpans(fakeClient)).Should(HaveLen(2))
+			It("should retry flushing if a report is in progress", func() {
+				Eventually(startTestch).Should(Receive())
+				// tracer is now has a report in flight
+				tracer.StartSpan("these spans should sit in the buffer").Finish()
+				tracer.StartSpan("while the last report is in flight").Finish()
+
+				finishedch := make(chan struct{})
+				go func() {
+					FlushLightStepTracer(tracer)
+					close(finishedch)
+				}()
+				// flush should wait for the last report to finish
+				Consistently(finishedch).ShouldNot(BeClosed())
+				// no spans should have been reported yet
+				Expect(getReportedGRPCSpans(fakeClient)).Should(HaveLen(0))
+				// allow the last report to finish
+				close(cancelch)
+				// flush should now send a report with the last two spans
+				Eventually(finishedch).Should(BeClosed())
+				// now the spans that were sitting in the buffer should be reported
+				Expect(getReportedGRPCSpans(fakeClient)).Should(HaveLen(2))
+			})
 		})
+
 	})
 
 	Context("CloseLightstepTracer", func() {
