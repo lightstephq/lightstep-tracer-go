@@ -19,7 +19,7 @@ import (
 var _ = Describe("SpanRecorder", func() {
 	var tracer Tracer
 
-	Context("FlushLightstepTracer", func() {
+	Describe("FlushLightstepTracer", func() {
 		var fakeClient *cpbfakes.FakeCollectorServiceClient
 		var cancelch chan struct{}
 		var startTestch chan bool
@@ -39,6 +39,20 @@ var _ = Describe("SpanRecorder", func() {
 			tracer = NewTracer(Options{
 				AccessToken: "YOU SHALL NOT PASS",
 				ConnFactory: fakeGrpcConnection(fakeClient),
+			})
+		})
+
+		Context("when the tracer is disabled", func() {
+			BeforeEach(func() {
+				tracer.Disable()
+			})
+
+			It("should not record or flush spans", func(done Done) {
+				tracer.StartSpan("these spans should not be recorded").Finish()
+				tracer.StartSpan("or flushed").Finish()
+				tracer.Flush()
+				Consistently(startTestch).ShouldNot(Receive())
+				close(done)
 			})
 		})
 

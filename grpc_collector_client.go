@@ -24,9 +24,7 @@ const (
 )
 
 var (
-	intType                   reflect.Type = reflect.TypeOf(int64(0))
-	errPreviousReportInFlight              = fmt.Errorf("a previous Report is still in flight; aborting Flush()")
-	errConnectionWasClosed                 = fmt.Errorf("the connection was closed")
+	intType reflect.Type = reflect.TypeOf(int64(0))
 )
 
 // grpcCollectorClient specifies how to send reports back to a LightStep

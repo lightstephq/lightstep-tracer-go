@@ -13,6 +13,12 @@ import (
 	ot "github.com/opentracing/opentracing-go"
 )
 
+var (
+	errPreviousReportInFlight = fmt.Errorf("a previous Report is still in flight; aborting Flush()")
+	errConnectionWasClosed    = fmt.Errorf("the connection was closed")
+	errTracerDisabled         = fmt.Errorf("tracer is disabled; aborting Flush()")
+)
+
 // FlushLightStepTracer forces a synchronous Flush.
 func FlushLightStepTracer(lsTracer ot.Tracer) error {
 	tracer, ok := lsTracer.(Tracer)
@@ -238,20 +244,16 @@ func (r *tracerImpl) RecordSpan(raw RawSpan) {
 	}
 }
 
-// Flush sends all buffered data to the collector.
-func (r *tracerImpl) Flush() {
-	r.flushingLock.Lock()
-	defer r.flushingLock.Unlock()
+func (r *tracerImpl) preFlush() error {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 
 	if r.disabled {
-		return
+		return errTracerDisabled
 	}
 
 	if r.conn == nil {
-		maybeLogError(errConnectionWasClosed, r.opts.Verbose)
-		return
+		return errConnectionWasClosed
 	}
 
 	now := time.Now()
@@ -260,27 +262,13 @@ func (r *tracerImpl) Flush() {
 	r.flushing.setFlushing(now)
 	r.buffer.setCurrent(now)
 	r.lastReportAttempt = now
-	r.lock.Unlock()
+	return nil
+}
 
-	ctx, cancel := context.WithTimeout(context.Background(), r.opts.ReportTimeout)
-	defer cancel()
-	resp, err := r.client.Report(ctx, &r.flushing)
-
-	if err != nil {
-		maybeLogError(err, r.opts.Verbose)
-
-	} else if len(resp.GetErrors()) > 0 {
-		// These should never occur, since this library should understand what
-		// makes for valid logs and spans, but just in case, log it anyway.
-		for _, err := range resp.GetErrors() {
-			maybeLogError(fmt.Errorf("Remote report returned error: %s", err), r.opts.Verbose)
-		}
-	} else {
-		maybeLogInfof("Report: resp=%v, err=%v", r.opts.Verbose, resp, err)
-	}
-
+func (r *tracerImpl) postFlush(resp collectorResponse, err error) {
 	var droppedSent int64
 	r.lock.Lock()
+	defer r.lock.Unlock()
 	r.reportInFlight = false
 	if err != nil {
 		// Restore the records that did not get sent correctly
@@ -296,6 +284,36 @@ func (r *tracerImpl) Flush() {
 	if droppedSent != 0 {
 		maybeLogInfof("client reported %d dropped spans", r.opts.Verbose, droppedSent)
 	}
+}
+
+// Flush sends all buffered data to the collector.
+func (r *tracerImpl) Flush() {
+	r.flushingLock.Lock()
+	defer r.flushingLock.Unlock()
+
+	err := r.preFlush()
+	if err != nil {
+		maybeLogError(err, r.opts.Verbose)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), r.opts.ReportTimeout)
+	defer cancel()
+	resp, err := r.client.Report(ctx, &r.flushing)
+
+	if err != nil {
+		maybeLogError(err, r.opts.Verbose)
+	} else if len(resp.GetErrors()) > 0 {
+		// These should never occur, since this library should understand what
+		// makes for valid logs and spans, but just in case, log it anyway.
+		for _, err := range resp.GetErrors() {
+			maybeLogError(fmt.Errorf("Remote report returned error: %s", err), r.opts.Verbose)
+		}
+	} else {
+		maybeLogInfof("Report: resp=%v, err=%v", r.opts.Verbose, resp, err)
+	}
+
+	r.postFlush(resp, err)
 }
 
 func (r *tracerImpl) Disable() {
