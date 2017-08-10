@@ -1,6 +1,7 @@
 package lightstep_test
 
 import (
+	"errors"
 	"sync"
 	"time"
 
@@ -28,16 +29,16 @@ var _ = Describe("SpanRecorder", func() {
 			cancelch = make(chan struct{})
 			startTestch = make(chan bool)
 			fakeClient = new(cpbfakes.FakeCollectorServiceClient)
-			tracer = NewTracer(Options{
-				AccessToken: "YOU SHALL NOT PASS",
-				ConnFactory: fakeGrpcConnection(fakeClient),
-			})
 		})
 
 		Context("when the tracer is disabled", func() {
 			var reportCallCount int
 
 			BeforeEach(func() {
+				tracer = NewTracer(Options{
+					AccessToken: "YOU SHALL NOT PASS",
+					ConnFactory: fakeGrpcConnection(fakeClient),
+				})
 				tracer.Disable()
 				reportCallCount = fakeClient.ReportCallCount()
 			})
@@ -55,6 +56,10 @@ var _ = Describe("SpanRecorder", func() {
 			var reportCallCount int
 
 			BeforeEach(func() {
+				tracer = NewTracer(Options{
+					AccessToken: "YOU SHALL NOT PASS",
+					ConnFactory: fakeGrpcConnection(fakeClient),
+				})
 				err := tracer.Close()
 				Expect(err).NotTo(HaveOccurred())
 				reportCallCount = fakeClient.ReportCallCount()
@@ -68,15 +73,49 @@ var _ = Describe("SpanRecorder", func() {
 			})
 		})
 
+		Context("when there is an error sending spans", func() {
+			BeforeEach(func() {
+				returnErr := true
+
+				fakeClient.ReportStub = func(ctx context.Context, req *cpb.ReportRequest, options ...grpc.CallOption) (*cpb.ReportResponse, error) {
+					if returnErr {
+						returnErr = false
+						return nil, errors.New("fail")
+					}
+					return new(cpb.ReportResponse), nil
+				}
+
+				tracer = NewTracer(Options{
+					AccessToken:        "YOU SHALL NOT PASS",
+					ConnFactory:        fakeGrpcConnection(fakeClient),
+					MinReportingPeriod: 10 * time.Minute,
+					ReportingPeriod:    10 * time.Minute,
+				})
+			})
+
+			It("should restore the spans that failed to be sent", func() {
+				tracer.StartSpan("if at first you don't succeed...").Finish()
+				tracer.StartSpan("...copy flushing back into your buffer").Finish()
+				tracer.Flush()
+				tracer.Flush()
+				// tracer.Flush()
+				Expect(len(getReportedGRPCSpans(fakeClient))).To(Equal(4))
+			})
+		})
+
 		Context("when tracer is running normally", func() {
 			BeforeEach(func() {
-				fakeClient.ReportReturns(&cpb.ReportResponse{}, nil)
 				var once sync.Once
 				fakeClient.ReportStub = func(ctx context.Context, req *cpb.ReportRequest, options ...grpc.CallOption) (*cpb.ReportResponse, error) {
 					once.Do(func() { startTestch <- true })
 					<-cancelch
 					return new(cpb.ReportResponse), nil
 				}
+
+				tracer = NewTracer(Options{
+					AccessToken: "YOU SHALL NOT PASS",
+					ConnFactory: fakeGrpcConnection(fakeClient),
+				})
 			})
 
 			It("should retry flushing if a report is in progress", func() {
