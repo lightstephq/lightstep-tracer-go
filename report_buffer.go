@@ -71,9 +71,7 @@ func (into *reportBuffer) mergeFrom(from *reportBuffer) {
 		space = unreported
 	}
 
-	// must have the len to accommodate new spans for copy to work
-	into.rawSpans = append(into.rawSpans, make([]RawSpan, space)...)
-	copy(into.rawSpans[have:], from.rawSpans[0:space])
+	into.rawSpans = append(into.rawSpans, from.rawSpans[0:space]...)
 
 	into.droppedSpanCount += int64(unreported - space)
 

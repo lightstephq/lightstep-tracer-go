@@ -75,16 +75,9 @@ var _ = Describe("SpanRecorder", func() {
 
 		Context("when there is an error sending spans", func() {
 			BeforeEach(func() {
-				returnErr := true
-
-				fakeClient.ReportStub = func(ctx context.Context, req *cpb.ReportRequest, options ...grpc.CallOption) (*cpb.ReportResponse, error) {
-					if returnErr {
-						returnErr = false
-						return nil, errors.New("fail")
-					}
-					return new(cpb.ReportResponse), nil
-				}
-
+				// set client to fail on the first call, then return normally
+				fakeClient.ReportReturnsOnCall(0, nil, errors.New("fail"))
+				fakeClient.ReportReturns(new(cpb.ReportResponse), nil)
 				tracer = NewTracer(Options{
 					AccessToken:        "YOU SHALL NOT PASS",
 					ConnFactory:        fakeGrpcConnection(fakeClient),
@@ -98,7 +91,6 @@ var _ = Describe("SpanRecorder", func() {
 				tracer.StartSpan("...copy flushing back into your buffer").Finish()
 				tracer.Flush()
 				tracer.Flush()
-				// tracer.Flush()
 				Expect(len(getReportedGRPCSpans(fakeClient))).To(Equal(4))
 			})
 		})
