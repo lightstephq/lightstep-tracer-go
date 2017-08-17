@@ -130,6 +130,9 @@ type Options struct {
 
 	ReconnectPeriod time.Duration `yaml:"reconnect_period"`
 
+	// Handle async errors
+	OnError func(error)
+
 	// a hook for recieving finished span events
 	Recorder SpanRecorder `yaml:"-" json:"-"`
 

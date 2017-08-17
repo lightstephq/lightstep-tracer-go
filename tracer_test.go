@@ -45,7 +45,7 @@ var _ = Describe("SpanRecorder", func() {
 			It("should not record or flush spans", func(done Done) {
 				tracer.StartSpan("these spans should not be recorded").Finish()
 				tracer.StartSpan("or flushed").Finish()
-				tracer.Flush()
+				tracer.Flush(context.Background())
 				Consistently(fakeClient.ReportCallCount).Should(Equal(reportCallCount))
 				close(done)
 			}, 5)
@@ -55,15 +55,14 @@ var _ = Describe("SpanRecorder", func() {
 			var reportCallCount int
 
 			BeforeEach(func() {
-				err := tracer.Close()
-				Expect(err).NotTo(HaveOccurred())
+				tracer.Close(context.Background())
 				reportCallCount = fakeClient.ReportCallCount()
 			})
 
 			It("should not flush spans", func() {
 				tracer.StartSpan("can't flush this").Finish()
 				tracer.StartSpan("hammer time").Finish()
-				tracer.Flush()
+				tracer.Flush(context.Background())
 				Consistently(fakeClient.ReportCallCount).Should(Equal(reportCallCount))
 			})
 		})

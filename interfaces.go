@@ -40,9 +40,9 @@ type Tracer interface {
 	ot.Tracer
 
 	// Close flushes and then terminates the LightStep collector
-	Close() error
+	Close(context.Context)
 	// Flush sends all spans currently in the buffer to the LighStep collector
-	Flush()
+	Flush(context.Context)
 	// Options gets the Options used in New() or NewWithOptions().
 	Options() Options
 	// Disable prevents the tracer from recording spans or flushing
