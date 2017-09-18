@@ -1,6 +1,10 @@
 # Changelog
+
+## v0.15.0
+* Moved compiled proto files (*.pb.go) to another repository (github.com/lightstep/lightstep-tracer-protos)
+
 ## v0.14.0
-* Flush buffer syncronously on Close
+* Flush buffer synchronously on Close
 * Flush twice if a flush is already in flight.
 * remove gogo in favor of golang/protobuf
 * requires grpc-go >= 1.4.0

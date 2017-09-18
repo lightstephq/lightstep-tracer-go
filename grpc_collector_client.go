@@ -14,8 +14,9 @@ import (
 	// N.B.(jmacd): Do not use google.golang.org/glog in this package.
 
 	google_protobuf "github.com/golang/protobuf/ptypes/timestamp"
-	cpb "github.com/lightstep/lightstep-tracer-go/collectorpb"
+	cpb "github.com/lightstep/lightstep-tracer-protos/go/lightstep/collector"
 	ot "github.com/opentracing/opentracing-go"
+	"github.com/lightstep/lightstep-tracer-go/collectorpb"
 )
 
 const (
@@ -194,8 +195,7 @@ func (client *grpcCollectorClient) Report(ctx context.Context, buffer *reportBuf
 	if err != nil {
 		return nil, err
 	}
-
-	return resp, nil
+	return &collectorpb.ReportResponseWrapper{ReportResponse:resp}, nil
 }
 
 func translateAttributes(atts map[string]string) []*cpb.KeyValue {

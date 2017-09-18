@@ -1,7 +1,15 @@
 package collectorpb
 
-func (res *ReportResponse) Disable() bool {
-	for _, command := range res.GetCommands() {
+import (
+    "github.com/lightstep/lightstep-tracer-protos/go/lightstep/collector"
+)
+
+type ReportResponseWrapper struct {
+    *collectorpb.ReportResponse
+}
+
+func (wrapper *ReportResponseWrapper) Disable() bool {
+	for _, command := range wrapper.GetCommands() {
 		if command.Disable {
 			return true
 		}
