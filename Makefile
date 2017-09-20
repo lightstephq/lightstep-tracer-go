@@ -34,10 +34,31 @@ lightstepfakes/fake_recorder.go: interfaces.go
 lightstep_thrift/lightstep_thriftfakes/fake_reporting_service.go: lightstep_thrift/reportingservice.go
 	$(call generate_fake,lightstep_thrift/lightstep_thriftfakes/fake_reporting_service.go,lightstep_thrift/reportingservice.go,ReportingService)
 
-collectorpb/collectorpbfakes/fake_collector_service_client.go:
-	$(call generate_fake,collectorpb/collectorpbfakes/fake_collector_service_client.go,/usergo/src/github.com/lightstep/lightstep-tracer-protos/go/lightstep/collector/collector.pb.go,CollectorServiceClient)
+collectorpb/collectorpbfakes/fake_collector_service_client.go: collectorpb/collector.pb.go
+	$(call generate_fake,collectorpb/collectorpbfakes/fake_collector_service_client.go,collectorpb/collector.pb.go,CollectorServiceClient)
 
-test: lightstep_thrift/constants.go collectorpb/collectorpbfakes/fake_collector_service_client.go \
+# gRPC
+ifeq (,$(wildcard lightstep-tracer-common/collector.proto))
+collectorpb/collector.pb.go:
+else
+collectorpb/collector.pb.go: lightstep-tracer-common/collector.proto
+	docker run --rm -v $(shell pwd)/lightstep-tracer-common:/input:ro -v $(shell pwd)/collectorpb:/output \
+	  lightstep/protoc:latest \
+	  protoc --go_out=plugins=grpc:/output --proto_path=/input /input/collector.proto
+endif
+
+# gRPC
+ifeq (,$(wildcard lightstep-tracer-common/collector.proto))
+lightsteppb/lightstep_carrier.pb.go:
+else
+lightsteppb/lightstep_carrier.pb.go: lightstep-tracer-common/lightstep_carrier.proto
+	docker run --rm -v $(shell pwd)/lightstep-tracer-common:/input:ro -v $(shell pwd)/lightsteppb:/output \
+	  lightstep/protoc:latest \
+	  protoc --go_out=plugins=grpc:/output --proto_path=/input /input/lightstep_carrier.proto
+endif
+
+test: lightstep_thrift/constants.go collectorpb/collector.pb.go lightsteppb/lightstep_carrier.pb.go \
+		collectorpb/collectorpbfakes/fake_collector_service_client.go \
 		lightstep_thrift/lightstep_thriftfakes/fake_reporting_service.go lightstepfakes/fake_recorder.go
 ifeq ($(DOCKER_PRESENT),)
 	$(error "docker not found. Please install from https://www.docker.com/")
@@ -46,7 +67,8 @@ endif
 	  ginkgo -race -p /usergo/src/github.com/lightstep/lightstep-tracer-go
 	docker run --rm -v $(GOPATH):/input:ro lightstep/noglog:latest noglog github.com/lightstep/lightstep-tracer-go
 
-build: lightstep_thrift/constants.go collectorpb/collectorpbfakes/fake_collector_service_client.go version.go \
+build: lightstep_thrift/constants.go collectorpb/collector.pb.go lightsteppb/lightstep_carrier.pb.go \
+		collectorpb/collectorpbfakes/fake_collector_service_client.go version.go \
 		lightstep_thrift/lightstep_thriftfakes/fake_reporting_service.go lightstepfakes/fake_recorder.go
 ifeq ($(DOCKER_PRESENT),)
        	$(error "docker not found. Please install from https://www.docker.com/")

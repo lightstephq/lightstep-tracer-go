@@ -4,9 +4,8 @@ package collectorpbfakes
 import (
 	"sync"
 
-	collectorpb "github.com/lightstep/lightstep-tracer-protos/go/lightstep/collector"
+	"github.com/lightstep/lightstep-tracer-go/collectorpb"
 	"golang.org/x/net/context"
-	_ "google.golang.org/genproto/googleapis/api/annotations"
 	"google.golang.org/grpc"
 )
 

@@ -7,7 +7,7 @@ import (
 	. "github.com/lightstep/lightstep-tracer-go"
 	ot "github.com/opentracing/opentracing-go"
 
-	cpb "github.com/lightstep/lightstep-tracer-protos/go/lightstep/collector"
+	cpb "github.com/lightstep/lightstep-tracer-go/collectorpb"
 	cpbfakes "github.com/lightstep/lightstep-tracer-go/collectorpb/collectorpbfakes"
 
 	"github.com/lightstep/lightstep-tracer-go/lightstep_thrift"
@@ -45,7 +45,7 @@ func (matcher haveKeyValuesMatcher) Match(actual interface{}) (bool, error) {
 	case []*cpb.KeyValue:
 		actualKeyValues = v
 	case *cpb.Log:
-		actualKeyValues = v.GetFields()
+		actualKeyValues = v.GetKeyvalues()
 	default:
 		return false, fmt.Errorf("HaveKeyValues matcher expects either a []*KeyValue or a *Log")
 	}

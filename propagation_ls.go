@@ -4,7 +4,7 @@ import (
 	"encoding/base64"
 
 	"github.com/golang/protobuf/proto"
-	lightstep "github.com/lightstep/lightstep-tracer-protos/go/lightstep"
+	lightstep "github.com/lightstep/lightstep-tracer-go/lightsteppb"
 	opentracing "github.com/opentracing/opentracing-go"
 )
 
