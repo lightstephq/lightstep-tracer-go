@@ -43,8 +43,8 @@ collectorpb/collector.pb.go:
 else
 collectorpb/collector.pb.go: lightstep-tracer-common/collector.proto
 	docker run --rm -v $(shell pwd)/lightstep-tracer-common:/input:ro -v $(shell pwd)/collectorpb:/output \
-	  lightstep/protoc:latest \
-	  protoc --go_out=plugins=grpc:/output --proto_path=/input /input/collector.proto
+	  lightstep/grpc-gateway:latest \
+	  protoc -I/root/go/src/tmp/vendor/github.com/grpc-ecosystem/grpc-gateway/third_party/googleapis --go_out=plugins=grpc:/output --proto_path=/input /input/collector.proto
 endif
 
 # gRPC

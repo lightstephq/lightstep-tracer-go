@@ -25,11 +25,11 @@ func marshalFields(
 	buffer *reportBuffer,
 ) {
 	lfe := grpcLogFieldEncoder{recorder, buffer, nil}
-	protoLog.Keyvalues = make([]*cpb.KeyValue, len(fields))
+	protoLog.Fields = make([]*cpb.KeyValue, len(fields))
 	for i, f := range fields {
 		lfe.currentKeyValue = &cpb.KeyValue{}
 		f.Marshal(&lfe)
-		protoLog.Keyvalues[i] = lfe.currentKeyValue
+		protoLog.Fields[i] = lfe.currentKeyValue
 	}
 }
 

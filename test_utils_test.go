@@ -45,7 +45,7 @@ func (matcher haveKeyValuesMatcher) Match(actual interface{}) (bool, error) {
 	case []*cpb.KeyValue:
 		actualKeyValues = v
 	case *cpb.Log:
-		actualKeyValues = v.GetKeyvalues()
+		actualKeyValues = v.GetFields()
 	default:
 		return false, fmt.Errorf("HaveKeyValues matcher expects either a []*KeyValue or a *Log")
 	}
