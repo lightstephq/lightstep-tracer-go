@@ -130,11 +130,12 @@ type Options struct {
 	// Set Verbose to true to enable more text logging.
 	Verbose bool `yaml:"verbose"`
 
-	// DEPRECATED: set `UseThrift` to true if you do not want gRPC
-	UseGRPC bool `yaml:"usegrpc"`
-
-	// Switch to
+	// Force the use of a specific transport protocol.
+	// If multiple are set to true, the following order is used to select for the first option: thrift, http, grpc.
+	// If none are set to true, GRPC is defaulted to.
 	UseThrift bool `yaml:"use_thrift"`
+	UseHttp bool `yaml:"use_http"`
+	UseGRPC bool `yaml:"usegrpc"`
 
 	ReconnectPeriod time.Duration `yaml:"reconnect_period"`
 

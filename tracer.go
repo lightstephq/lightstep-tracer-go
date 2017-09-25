@@ -121,11 +121,7 @@ func NewTracer(opts Options) Tracer {
 
 	impl.buffer.setCurrent(now)
 
-	if opts.UseThrift {
-		impl.client = newThriftCollectorClient(opts, impl.reporterID, attributes)
-	} else {
-		impl.client = newGrpcCollectorClient(opts, impl.reporterID, attributes)
-	}
+	impl.client = newClient(opts, impl.reporterID, attributes)
 
 	conn, err := impl.client.ConnectClient()
 	if err != nil {
@@ -145,6 +141,24 @@ func NewTracer(opts Options) Tracer {
 	}()
 
 	return impl
+}
+
+
+func newClient(opts Options, reporterId uint64, attributes map[string]string) collectorClient {
+	if opts.UseThrift {
+		return newThriftCollectorClient(opts, reporterId, attributes)
+	}
+
+	if opts.UseHttp {
+		return newHttpCollectorClient(opts, reporterId, attributes)
+	}
+
+	if opts.UseGRPC {
+		return newGrpcCollectorClient(opts, reporterId, attributes)
+	}
+
+	// No transport specified, defaulting to GRPC
+	return newGrpcCollectorClient(opts, reporterId, attributes)
 }
 
 func (tracer *tracerImpl) Options() Options {

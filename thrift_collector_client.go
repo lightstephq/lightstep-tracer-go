@@ -97,7 +97,9 @@ func (client *thriftCollectorClient) ConnectClient() (Connection, error) {
 
 		conn = transport
 		client.thriftClient = lightstep_thrift.NewReportingServiceClientFactory(
-			transport, thrift.NewTBinaryProtocolFactoryDefault())
+			transport,
+			thrift.NewTBinaryProtocolFactoryDefault(),
+		)
 	}
 	return conn, nil
 }
