@@ -21,6 +21,21 @@ import (
 const (
 	spansDropped     = "spans.dropped"
 	logEncoderErrors = "log_encoder.errors"
+	// tags that explain why metrics were dropped by the client.
+	// reasonBufferFull: the buffer was full and no more metrics could be added. This could be b/c the collector is backed up
+	// or a burst of metrics were sent [TODO] figure out a way to differentiate.
+	reasonBufferFull = "#buffer_full"
+	// reasonCollectorServer: Collector returned a 5xx error
+	reasonCollectorServer = "#collector_server_error"
+	// reasonCollectorClient: Collector returned a 4xx error
+	reasonCollectorClient = "#collector_client_error"
+	// reasonCollectorUnkown: Collector returned a 0xx error
+	reasonCollectorUnkown = "#collector_unkown_error"
+	// reasonCollectorDeadlineExceeded: Collector returned a code.DeadlineExceeded error
+	reasonCollectorDeadlineExceeded = "#collector_deadline_exceeded_error"
+	// reasonCollectorThrift: Collector returned an error, using a thrift protocol, so the exact errror is unkown
+	// [TODO] determine if there is a way to pull out the same granularity
+	reasonCollectorThrift = "#collector_thrift_error"
 )
 
 var (
@@ -216,8 +231,32 @@ func convertToReporter(atts map[string]string, id uint64) *cpb.Reporter {
 func generateMetricsSample(b *reportBuffer) []*cpb.MetricsSample {
 	return []*cpb.MetricsSample{
 		&cpb.MetricsSample{
+			Name:  spansDropped + reasonBufferFull,
+			Value: &cpb.MetricsSample_IntValue{IntValue: b.droppedSpanCountBufferFull},
+		},
+		&cpb.MetricsSample{
+			Name:  spansDropped + reasonCollectorServer,
+			Value: &cpb.MetricsSample_IntValue{IntValue: b.droppedSpanCountServer},
+		},
+		&cpb.MetricsSample{
+			Name:  spansDropped + reasonCollectorClient,
+			Value: &cpb.MetricsSample_IntValue{IntValue: b.droppedSpanCountClient},
+		},
+		&cpb.MetricsSample{
+			Name:  spansDropped + reasonCollectorUnkown,
+			Value: &cpb.MetricsSample_IntValue{IntValue: b.droppedSpanCountUnknown},
+		},
+		&cpb.MetricsSample{
+			Name:  spansDropped + reasonCollectorDeadlineExceeded,
+			Value: &cpb.MetricsSample_IntValue{IntValue: b.droppedSpanCountDeadlineExceeded},
+		},
+		&cpb.MetricsSample{
+			Name:  spansDropped + reasonCollectorThrift,
+			Value: &cpb.MetricsSample_IntValue{IntValue: b.droppedSpanCountThrift},
+		},
+		&cpb.MetricsSample{
 			Name:  spansDropped,
-			Value: &cpb.MetricsSample_IntValue{IntValue: b.droppedSpanCount},
+			Value: &cpb.MetricsSample_IntValue{IntValue: b.droppedSpanCountTotal},
 		},
 		&cpb.MetricsSample{
 			Name:  logEncoderErrors,

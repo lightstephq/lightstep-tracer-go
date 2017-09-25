@@ -21,9 +21,15 @@ type collectorResponse interface {
 	Disable() bool
 }
 
+// reportRequest encapsulates internal thrift/grpc requests.
+type reportRequest interface {
+	//TBD
+}
+
 // collectorClient encapsulates internal thrift/grpc transports.
 type collectorClient interface {
-	Report(context.Context, *reportBuffer) (collectorResponse, error)
+	Translate(context.Context, *reportBuffer) (reportRequest, error)
+	Report(context.Context, reportRequest) (collectorResponse, error)
 	ConnectClient() (Connection, error)
 	ShouldReconnect() bool
 }

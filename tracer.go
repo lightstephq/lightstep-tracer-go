@@ -83,9 +83,10 @@ type tracerImpl struct {
 	flushing reportBuffer
 
 	// Flush state.
-	flushingLock      sync.Mutex
-	reportInFlight    bool
-	lastReportAttempt time.Time
+	flushingLock         sync.Mutex
+	reportInFlight       bool
+	translationInProcess bool
+	lastReportAttempt    time.Time
 
 	// We allow our remote peer to disable this instrumentation at any
 	// time, turning all potentially costly runtime operations into
@@ -302,9 +303,9 @@ func (r *tracerImpl) postFlush(resp collectorResponse, err error) {
 	r.reportInFlight = false
 	if err != nil {
 		// Restore the records that did not get sent correctly
-		r.buffer.mergeFrom(&r.flushing)
+		r.buffer.mergeFrom(&r.flushing, err)
 	} else {
-		droppedSent = r.flushing.droppedSpanCount
+		droppedSent = r.flushing.droppedSpanCountTotal
 		r.flushing.clear()
 
 		if resp.Disable() {

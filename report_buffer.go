@@ -4,12 +4,23 @@ import (
 	"time"
 )
 
+type droppedSpans struct {
+	droppedSpanCountTotal                             int64
+	droppedSpanCountBufferFull                        int64
+	droppedSpanCountBufferFullAndTranslationInProcess int64
+	droppedSpanCountDeadlineExceeded                  int64
+	droppedSpanCountServer                            int64
+	droppedSpanCountClient                            int64
+	droppedSpanCountUnknown                           int64
+	droppedSpanCountThrift                            int64
+}
+
 type reportBuffer struct {
 	rawSpans             []RawSpan
-	droppedSpanCount     int64
 	logEncoderErrorCount int64
-	reportStart          time.Time
-	reportEnd            time.Time
+	droppedSpans
+	reportStart time.Time
+	reportEnd   time.Time
 }
 
 func newSpansBuffer(size int) (b reportBuffer) {
@@ -36,23 +47,41 @@ func (b *reportBuffer) clear() {
 	b.rawSpans = b.rawSpans[:0]
 	b.reportStart = time.Time{}
 	b.reportEnd = time.Time{}
-	b.droppedSpanCount = 0
+	b.droppedSpanCountTotal = 0
+	b.droppedSpanCountBufferFull = 0
+	b.droppedSpanCountBufferFullAndTranslationInProcess = 0
+	b.droppedSpanCountServer = 0
+	b.droppedSpanCountClient = 0
+	b.droppedSpanCountDeadlineExceeded = 0
 	b.logEncoderErrorCount = 0
 }
 
 func (b *reportBuffer) addSpan(span RawSpan) {
 	if len(b.rawSpans) == cap(b.rawSpans) {
-		b.droppedSpanCount++
+		b.droppedSpanCountBufferFull++
 		return
 	}
 	b.rawSpans = append(b.rawSpans, span)
 }
 
+func mergeDroppedSpans(a droppedSpans, b droppedSpans) droppedSpans {
+	return droppedSpans{
+		droppedSpanCountTotal:                             a.droppedSpanCountTotal + b.droppedSpanCountTotal,
+		droppedSpanCountBufferFull:                        a.droppedSpanCountBufferFull + b.droppedSpanCountBufferFull,
+		droppedSpanCountBufferFullAndTranslationInProcess: a.droppedSpanCountBufferFullAndTranslationInProcess + b.droppedSpanCountBufferFullAndTranslationInProcess,
+		droppedSpanCountServer:                            a.droppedSpanCountServer + b.droppedSpanCountServer,
+		droppedSpanCountClient:                            a.droppedSpanCountClient + b.droppedSpanCountClient,
+		droppedSpanCountUnknown:                           a.droppedSpanCountUnknown + b.droppedSpanCountUnknown,
+		droppedSpanCountDeadlineExceeded:                  a.droppedSpanCountDeadlineExceeded + b.droppedSpanCountDeadlineExceeded,
+		droppedSpanCountThrift:                            a.droppedSpanCountThrift + b.droppedSpanCountThrift,
+	}
+}
+
 // mergeFrom combines the spans and metadata in `from` with `into`,
 // returning with `from` empty and `into` having a subset of the
 // combined data.
-func (into *reportBuffer) mergeFrom(from *reportBuffer) {
-	into.droppedSpanCount += from.droppedSpanCount
+func (into *reportBuffer) mergeFrom(from *reportBuffer, err error) {
+	into.droppedSpans = mergeDroppedSpans(into.droppedSpans, from.droppedSpans)
 	into.logEncoderErrorCount += from.logEncoderErrorCount
 	if from.reportStart.Before(into.reportStart) {
 		into.reportStart = from.reportStart
