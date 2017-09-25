@@ -20,6 +20,20 @@ import (
 var _ = Describe("SpanRecorder", func() {
 	var tracer Tracer
 
+	accessToken := "ACCESS_TOKEN"
+
+	Describe("A lightstep tracer", func() {
+		BeforeEach(func() {
+			tracer = NewTracer(Options{
+				AccessToken: accessToken,
+			})
+		})
+
+		It("should return the access token", func() {
+			Expect(GetLightStepAccessToken(tracer)).To(Equal(accessToken))
+		})
+	})
+
 	Describe("FlushLightstepTracer", func() {
 		var fakeClient *cpbfakes.FakeCollectorServiceClient
 		var cancelch chan struct{}
@@ -36,7 +50,7 @@ var _ = Describe("SpanRecorder", func() {
 
 			BeforeEach(func() {
 				tracer = NewTracer(Options{
-					AccessToken: "YOU SHALL NOT PASS",
+					AccessToken: accessToken,
 					ConnFactory: fakeGrpcConnection(fakeClient),
 				})
 				tracer.Disable()
@@ -57,7 +71,7 @@ var _ = Describe("SpanRecorder", func() {
 
 			BeforeEach(func() {
 				tracer = NewTracer(Options{
-					AccessToken: "YOU SHALL NOT PASS",
+					AccessToken: accessToken,
 					ConnFactory: fakeGrpcConnection(fakeClient),
 				})
 				err := tracer.Close()
@@ -79,7 +93,7 @@ var _ = Describe("SpanRecorder", func() {
 				fakeClient.ReportReturnsOnCall(0, nil, errors.New("fail"))
 				fakeClient.ReportReturns(new(cpb.ReportResponse), nil)
 				tracer = NewTracer(Options{
-					AccessToken:        "YOU SHALL NOT PASS",
+					AccessToken:        accessToken,
 					ConnFactory:        fakeGrpcConnection(fakeClient),
 					MinReportingPeriod: 10 * time.Minute,
 					ReportingPeriod:    10 * time.Minute,
@@ -105,7 +119,7 @@ var _ = Describe("SpanRecorder", func() {
 				}
 
 				tracer = NewTracer(Options{
-					AccessToken: "YOU SHALL NOT PASS",
+					AccessToken: accessToken,
 					ConnFactory: fakeGrpcConnection(fakeClient),
 				})
 			})
@@ -144,7 +158,7 @@ var _ = Describe("SpanRecorder", func() {
 			fakeClient.ReportReturns(&cpb.ReportResponse{}, nil)
 
 			tracer = NewTracer(Options{
-				AccessToken:        "token",
+				AccessToken:        accessToken,
 				ConnFactory:        fakeGrpcConnection(fakeClient),
 				MinReportingPeriod: 100 * time.Second,
 			})
@@ -166,7 +180,7 @@ var _ = Describe("SpanRecorder", func() {
 		BeforeEach(func() {
 			fakeRecorder = new(lightstepfakes.FakeSpanRecorder)
 			tracer = NewTracer(Options{
-				AccessToken: "value",
+				AccessToken: accessToken,
 				ConnFactory: fakeGrpcConnection(new(cpbfakes.FakeCollectorServiceClient)),
 				Recorder:    fakeRecorder,
 			})
@@ -185,7 +199,7 @@ var _ = Describe("SpanRecorder", func() {
 	Context("When tracer does not have a SpanRecorder", func() {
 		BeforeEach(func() {
 			tracer = NewTracer(Options{
-				AccessToken: "value",
+				AccessToken: accessToken,
 				ConnFactory: fakeGrpcConnection(new(cpbfakes.FakeCollectorServiceClient)),
 				Recorder:    nil,
 			})

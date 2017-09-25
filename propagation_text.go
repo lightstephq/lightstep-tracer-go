@@ -17,9 +17,11 @@ const (
 	fieldNameSampled      = prefixTracerState + "sampled"
 )
 
+var theTextMapPropagator textMapPropagator
+
 type textMapPropagator struct{}
 
-func (_ *textMapPropagator) Inject(
+func (textMapPropagator) Inject(
 	spanContext opentracing.SpanContext,
 	opaqueCarrier interface{},
 ) error {
@@ -41,13 +43,14 @@ func (_ *textMapPropagator) Inject(
 	return nil
 }
 
-func (_ *textMapPropagator) Extract(
+func (textMapPropagator) Extract(
 	opaqueCarrier interface{},
 ) (opentracing.SpanContext, error) {
 	carrier, ok := opaqueCarrier.(opentracing.TextMapReader)
 	if !ok {
 		return nil, opentracing.ErrInvalidCarrier
 	}
+
 	requiredFieldCount := 0
 	var traceID, spanID uint64
 	var err error

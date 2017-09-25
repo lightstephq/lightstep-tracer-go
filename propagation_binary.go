@@ -8,13 +8,14 @@ import (
 	opentracing "github.com/opentracing/opentracing-go"
 )
 
-// BinaryCarrier is used as the format parameter in inject/extract for lighstep
-// binary propogation.
+// BinaryCarrier is used as the format parameter in inject/extract for lighstep binary propagation.
 const BinaryCarrier = "lightstep_binary_carrier"
 
-type lightstepBinaryPropagator struct{}
+var theBinaryPropagator binaryPropagator
 
-func (lightstepBinaryPropagator) Inject(
+type binaryPropagator struct{}
+
+func (binaryPropagator) Inject(
 	spanContext opentracing.SpanContext,
 	opaqueCarrier interface{},
 ) error {
@@ -45,7 +46,7 @@ func (lightstepBinaryPropagator) Inject(
 	return nil
 }
 
-func (lightstepBinaryPropagator) Extract(
+func (binaryPropagator) Extract(
 	opaqueCarrier interface{},
 ) (opentracing.SpanContext, error) {
 	var data []byte

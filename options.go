@@ -138,7 +138,7 @@ type Options struct {
 
 	ReconnectPeriod time.Duration `yaml:"reconnect_period"`
 
-	// a hook for recieving finished span events
+	// A hook for receiving finished span events
 	Recorder SpanRecorder `yaml:"-" json:"-"`
 
 	// For testing purposes only
