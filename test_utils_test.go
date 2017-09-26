@@ -7,11 +7,11 @@ import (
 	. "github.com/lightstep/lightstep-tracer-go"
 	ot "github.com/opentracing/opentracing-go"
 
-	cpb "github.com/lightstep/lightstep-tracer-go/collectorpb"
-	cpbfakes "github.com/lightstep/lightstep-tracer-go/collectorpb/collectorpbfakes"
+	cpb "github.com/lightstep/lightstep-tracer-go/internal/collectorpb"
+	cpbfakes "github.com/lightstep/lightstep-tracer-go/internal/collectorpb/collectorpbfakes"
 
-	"github.com/lightstep/lightstep-tracer-go/lightstep_thrift"
-	thriftfakes "github.com/lightstep/lightstep-tracer-go/lightstep_thrift/lightstep_thriftfakes"
+	"github.com/lightstep/lightstep-tracer-go/internal/lightstep_thrift"
+	thriftfakes "github.com/lightstep/lightstep-tracer-go/internal/lightstep_thrift/lightstep_thriftfakes"
 
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/types"

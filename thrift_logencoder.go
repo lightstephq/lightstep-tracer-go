@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/lightstep/lightstep-tracer-go/lightstep_thrift"
+	"github.com/lightstep/lightstep-tracer-go/internal/lightstep_thrift"
 	"github.com/opentracing/opentracing-go/log"
 )
 

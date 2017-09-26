@@ -10,8 +10,8 @@ import (
 	"golang.org/x/net/context"
 
 	. "github.com/lightstep/lightstep-tracer-go"
-	cpb "github.com/lightstep/lightstep-tracer-go/collectorpb"
-	cpbfakes "github.com/lightstep/lightstep-tracer-go/collectorpb/collectorpbfakes"
+	cpb "github.com/lightstep/lightstep-tracer-go/internal/collectorpb"
+	cpbfakes "github.com/lightstep/lightstep-tracer-go/internal/collectorpb/collectorpbfakes"
 	"github.com/lightstep/lightstep-tracer-go/lightstepfakes"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"

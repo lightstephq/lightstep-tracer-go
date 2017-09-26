@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	. "github.com/lightstep/lightstep-tracer-go"
-	cpbfakes "github.com/lightstep/lightstep-tracer-go/collectorpb/collectorpbfakes"
+	cpbfakes "github.com/lightstep/lightstep-tracer-go/internal/collectorpb/collectorpbfakes"
 	ot "github.com/opentracing/opentracing-go"
 )
 
