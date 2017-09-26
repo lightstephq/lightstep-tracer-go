@@ -17,49 +17,49 @@ define generate_fake
 endef
 # Thrift
 ifeq (,$(wildcard $(GOPATH)/src/github.com/lightstep/common-go/crouton.thrift))
-lightstep_thrift/constants.go:
+internal/lightstep_thrift/constants.go:
 else
 # LightStep-specific: rebuilds the LightStep thrift protocol files.
 # Assumes the command is run within the LightStep development
 # environment (i.e., private repos are cloned in GOPATH).
-lightstep_thrift/constants.go: $(GOPATH)/src/github.com/lightstep/common-go/crouton.thrift
+internal/lightstep_thrift/constants.go: $(GOPATH)/src/github.com/lightstep/common-go/crouton.thrift
 	docker run --rm -v "$(GOPATH)/src/github.com/lightstep/common-go:/data" -v "$(PWD):/out" thrift:0.9.2 \
-	  thrift --gen go:package_prefix='github.com/lightstep/lightstep-tracer-go/',thrift_import='github.com/lightstep/lightstep-tracer-go/thrift_0_9_2/lib/go/thrift' -out /out /data/crouton.thrift
-	rm -rf lightstep_thrift/reporting_service-remote
+	  thrift --gen go:package_prefix='github.com/lightstep/lightstep-tracer-go/',thrift_import='github.com/lightstep/lightstep-tracer-go/internal/thrift_0_9_2/lib/go/thrift' -out /out /data/crouton.thrift
+	rm -rf internal/lightstep_thrift/reporting_service-remote
 endif
 
 lightstepfakes/fake_recorder.go: interfaces.go
 	$(call generate_fake,lightstepfakes/fake_recorder.go,interfaces.go,SpanRecorder)
 
-lightstep_thrift/lightstep_thriftfakes/fake_reporting_service.go: lightstep_thrift/reportingservice.go
-	$(call generate_fake,lightstep_thrift/lightstep_thriftfakes/fake_reporting_service.go,lightstep_thrift/reportingservice.go,ReportingService)
+internal/lightstep_thrift/internal/lightstep_thriftfakes/fake_reporting_service.go: internal/lightstep_thrift/reportingservice.go
+	$(call generate_fake,internal/lightstep_thrift/internal/lightstep_thriftfakes/fake_reporting_service.go,internal/lightstep_thrift/reportingservice.go,ReportingService)
 
-collectorpb/collectorpbfakes/fake_collector_service_client.go: collectorpb/collector.pb.go
-	$(call generate_fake,collectorpb/collectorpbfakes/fake_collector_service_client.go,collectorpb/collector.pb.go,CollectorServiceClient)
+internal/collectorpb/internal/collectorpbfakes/fake_collector_service_client.go: internal/collectorpb/collector.pb.go
+	$(call generate_fake,internal/collectorpb/internal/collectorpbfakes/fake_collector_service_client.go,internal/collectorpb/collector.pb.go,CollectorServiceClient)
 
 # gRPC
 ifeq (,$(wildcard lightstep-tracer-common/collector.proto))
-collectorpb/collector.pb.go:
+internal/collectorpb/collector.pb.go:
 else
-collectorpb/collector.pb.go: lightstep-tracer-common/collector.proto
-	docker run --rm -v $(shell pwd)/lightstep-tracer-common:/input:ro -v $(shell pwd)/collectorpb:/output \
+internal/collectorpb/collector.pb.go: lightstep-tracer-common/collector.proto
+	docker run --rm -v $(shell pwd)/lightstep-tracer-common:/input:ro -v $(shell pwd)/internal/collectorpb:/output \
 	  lightstep/protoc:latest \
 	  protoc --go_out=plugins=grpc:/output --proto_path=/input /input/collector.proto
 endif
 
 # gRPC
 ifeq (,$(wildcard lightstep-tracer-common/collector.proto))
-lightsteppb/lightstep_carrier.pb.go:
+internal/lightsteppb/lightstep_carrier.pb.go:
 else
-lightsteppb/lightstep_carrier.pb.go: lightstep-tracer-common/lightstep_carrier.proto
-	docker run --rm -v $(shell pwd)/lightstep-tracer-common:/input:ro -v $(shell pwd)/lightsteppb:/output \
+internal/lightsteppb/lightstep_carrier.pb.go: lightstep-tracer-common/lightstep_carrier.proto
+	docker run --rm -v $(shell pwd)/lightstep-tracer-common:/input:ro -v $(shell pwd)/internal/lightsteppb:/output \
 	  lightstep/protoc:latest \
 	  protoc --go_out=plugins=grpc:/output --proto_path=/input /input/lightstep_carrier.proto
 endif
 
-test: lightstep_thrift/constants.go collectorpb/collector.pb.go lightsteppb/lightstep_carrier.pb.go \
-		collectorpb/collectorpbfakes/fake_collector_service_client.go \
-		lightstep_thrift/lightstep_thriftfakes/fake_reporting_service.go lightstepfakes/fake_recorder.go
+test: internal/lightstep_thrift/constants.go internal/collectorpb/collector.pb.go internal/lightsteppb/lightstep_carrier.pb.go \
+		internal/collectorpb/internal/collectorpbfakes/fake_collector_service_client.go \
+		internal/lightstep_thrift/internal/lightstep_thriftfakes/fake_reporting_service.go lightstepfakes/fake_recorder.go
 ifeq ($(DOCKER_PRESENT),)
 	$(error "docker not found. Please install from https://www.docker.com/")
 endif
@@ -67,9 +67,9 @@ endif
 	  ginkgo -race -p /usergo/src/github.com/lightstep/lightstep-tracer-go
 	docker run --rm -v $(GOPATH):/input:ro lightstep/noglog:latest noglog github.com/lightstep/lightstep-tracer-go
 
-build: lightstep_thrift/constants.go collectorpb/collector.pb.go lightsteppb/lightstep_carrier.pb.go \
-		collectorpb/collectorpbfakes/fake_collector_service_client.go version.go \
-		lightstep_thrift/lightstep_thriftfakes/fake_reporting_service.go lightstepfakes/fake_recorder.go
+build: internal/lightstep_thrift/constants.go internal/collectorpb/collector.pb.go internal/lightsteppb/lightstep_carrier.pb.go \
+		internal/collectorpb/internal/collectorpbfakes/fake_collector_service_client.go version.go \
+		internal/lightstep_thrift/internal/lightstep_thriftfakes/fake_reporting_service.go lightstepfakes/fake_recorder.go
 ifeq ($(DOCKER_PRESENT),)
        	$(error "docker not found. Please install from https://www.docker.com/")
 endif	

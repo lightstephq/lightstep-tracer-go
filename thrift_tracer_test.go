@@ -7,8 +7,8 @@ import (
 	"time"
 
 	. "github.com/lightstep/lightstep-tracer-go"
-	"github.com/lightstep/lightstep-tracer-go/lightstep_thrift"
-	thriftfakes "github.com/lightstep/lightstep-tracer-go/lightstep_thrift/lightstep_thriftfakes"
+	"github.com/lightstep/lightstep-tracer-go/internal/lightstep_thrift"
+	thriftfakes "github.com/lightstep/lightstep-tracer-go/internal/lightstep_thrift/lightstep_thriftfakes"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	ot "github.com/opentracing/opentracing-go"

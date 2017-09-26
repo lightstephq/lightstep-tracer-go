@@ -4,7 +4,7 @@ package lightstep_thriftfakes
 import (
 	"sync"
 
-	"github.com/lightstep/lightstep-tracer-go/lightstep_thrift"
+	"github.com/lightstep/lightstep-tracer-go/internal/lightstep_thrift"
 )
 
 type FakeReportingService struct {

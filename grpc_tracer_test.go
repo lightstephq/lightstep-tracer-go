@@ -6,8 +6,8 @@ import (
 	"time"
 
 	. "github.com/lightstep/lightstep-tracer-go"
-	cpb "github.com/lightstep/lightstep-tracer-go/collectorpb"
-	cpbfakes "github.com/lightstep/lightstep-tracer-go/collectorpb/collectorpbfakes"
+	cpb "github.com/lightstep/lightstep-tracer-go/internal/collectorpb"
+	cpbfakes "github.com/lightstep/lightstep-tracer-go/internal/collectorpb/collectorpbfakes"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	ot "github.com/opentracing/opentracing-go"

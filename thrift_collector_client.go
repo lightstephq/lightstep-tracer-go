@@ -8,8 +8,8 @@ import (
 
 	"golang.org/x/net/context"
 
-	"github.com/lightstep/lightstep-tracer-go/lightstep_thrift"
-	"github.com/lightstep/lightstep-tracer-go/thrift_0_9_2/lib/go/thrift"
+	"github.com/lightstep/lightstep-tracer-go/internal/lightstep_thrift"
+	"github.com/lightstep/lightstep-tracer-go/internal/thrift_0_9_2/lib/go/thrift"
 )
 
 // thriftCollectorClient specifies how to send reports back to a LightStep
