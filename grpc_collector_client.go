@@ -136,8 +136,13 @@ func (client *grpcCollectorClient) convertToKeyValue(key string, value interface
 	case reflect.Bool:
 		kv.Value = &cpb.KeyValue_BoolValue{BoolValue: v.Bool()}
 	default:
-		kv.Value = &cpb.KeyValue_StringValue{StringValue: fmt.Sprint(v)}
-		maybeLogInfof("value: %v, %T, is an unsupported type, and has been converted to string", client.verbose, v, v)
+		var s string
+		if stringer, ok := value.(fmt.Stringer); ok {
+			s = stringer.String()
+		} else {
+			s = fmt.Sprintf("%#v", value)
+		}
+		kv.Value = &cpb.KeyValue_StringValue{StringValue: s}
 	}
 	return &kv
 }

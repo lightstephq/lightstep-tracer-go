@@ -115,6 +115,8 @@ func (client *thriftCollectorClient) Report(_ context.Context, buffer *reportBuf
 		var joinIds []*lightstep_thrift.TraceJoinId
 		var attributes []*lightstep_thrift.KeyValue
 		for key, value := range raw.Tags {
+			// Note: the gRPC tracer uses Sprintf("%#v") for non-scalar non-string
+			// values, differs from the treatment here:
 			if strings.HasPrefix(key, "join:") {
 				joinIds = append(joinIds, &lightstep_thrift.TraceJoinId{key, fmt.Sprint(value)})
 			} else {
