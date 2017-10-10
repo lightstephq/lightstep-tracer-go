@@ -9,11 +9,13 @@ import (
 	"io/ioutil"
 	"net/http"
 	"time"
+	"net/url"
+	"fmt"
 )
 
 const (
 	collectorHttpMethod                 = "POST"
-	collectorHttpPath                   = "/v1/report"
+	collectorHttpPath                   = "/api/v2/reports"
 	collectorHttpContentTypeHeaderValue = "application/octet-stream"
 
 	contentTypeHeaderKey = "Content-Type"
@@ -30,8 +32,8 @@ type httpCollectorClient struct {
 	reportTimeout time.Duration
 
 	// Remote service that will receive reports.
-	socketAddress string
-	client        *http.Client
+	url    *url.URL
+	client *http.Client
 
 	// converters
 	converter *protoConverter
@@ -47,15 +49,26 @@ func (closer *transportCloser) Close() error {
 	return nil
 }
 
-func newHttpCollectorClient(opts Options, reporterID uint64, attributes map[string]string) *httpCollectorClient {
+func newHttpCollectorClient(
+	opts Options,
+	reporterID uint64,
+	attributes map[string]string,
+) (*httpCollectorClient, error) {
+	url, err := url.Parse(opts.Collector.HostPort())
+	if err != nil {
+		fmt.Println("collector config does not produce valid url", err)
+		return nil, err
+	}
+	url.Path = collectorHttpPath
+
 	return &httpCollectorClient{
 		reporterID:  reporterID,
 		accessToken: opts.AccessToken,
 		attributes:  attributes,
 		reportTimeout: opts.ReportTimeout,
-		socketAddress: opts.Collector.HostPort(),
+		url: url,
 		converter: newProtoConverter(opts),
-	}
+	}, nil
 }
 
 func (client *httpCollectorClient) ConnectClient() (Connection, error) {
@@ -112,7 +125,7 @@ func (client *httpCollectorClient) toRequest(
 
 	requestBody := bytes.NewReader(buf)
 
-	request, err := http.NewRequest(collectorHttpMethod, client.socketAddress+collectorHttpPath, requestBody)
+	request, err := http.NewRequest(collectorHttpMethod, client.url.String(), requestBody)
 	if err != nil {
 		return nil, err
 	}

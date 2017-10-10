@@ -121,7 +121,11 @@ func NewTracer(opts Options) Tracer {
 
 	impl.buffer.setCurrent(now)
 
-	impl.client = newClient(opts, impl.reporterID, attributes)
+	impl.client, err = newClient(opts, impl.reporterID, attributes)
+	if err != nil {
+		fmt.Println("Failed to create to Collector client!", err)
+		return nil
+	}
 
 	conn, err := impl.client.ConnectClient()
 	if err != nil {
@@ -144,9 +148,9 @@ func NewTracer(opts Options) Tracer {
 }
 
 
-func newClient(opts Options, reporterId uint64, attributes map[string]string) collectorClient {
+func newClient(opts Options, reporterId uint64, attributes map[string]string) (collectorClient, error) {
 	if opts.UseThrift {
-		return newThriftCollectorClient(opts, reporterId, attributes)
+		return newThriftCollectorClient(opts, reporterId, attributes), nil
 	}
 
 	if opts.UseHttp {
@@ -154,11 +158,11 @@ func newClient(opts Options, reporterId uint64, attributes map[string]string) co
 	}
 
 	if opts.UseGRPC {
-		return newGrpcCollectorClient(opts, reporterId, attributes)
+		return newGrpcCollectorClient(opts, reporterId, attributes), nil
 	}
 
 	// No transport specified, defaulting to GRPC
-	return newGrpcCollectorClient(opts, reporterId, attributes)
+	return newGrpcCollectorClient(opts, reporterId, attributes), nil
 }
 
 func (tracer *tracerImpl) Options() Options {
