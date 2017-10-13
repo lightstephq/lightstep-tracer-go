@@ -147,7 +147,6 @@ func NewTracer(opts Options) Tracer {
 	return impl
 }
 
-
 func newClient(opts Options, reporterId uint64, attributes map[string]string) (collectorClient, error) {
 	if opts.UseThrift {
 		return newThriftCollectorClient(opts, reporterId, attributes), nil

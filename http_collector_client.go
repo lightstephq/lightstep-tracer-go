@@ -2,23 +2,26 @@ package lightstep
 
 import (
 	"bytes"
+	"fmt"
 	"github.com/golang/protobuf/proto"
 	"github.com/lightstep/lightstep-tracer-go/collectorpb"
 	"golang.org/x/net/context"
 	"golang.org/x/net/http2"
 	"io/ioutil"
 	"net/http"
-	"time"
 	"net/url"
-	"fmt"
+	"time"
+)
+
+var (
+	acceptHeader      = http.CanonicalHeaderKey("Accept")
+	contentTypeHeader = http.CanonicalHeaderKey("Content-Type")
 )
 
 const (
-	collectorHttpMethod                 = "POST"
-	collectorHttpPath                   = "/api/v2/reports"
-	collectorHttpContentTypeHeaderValue = "application/octet-stream"
-
-	contentTypeHeaderKey = "Content-Type"
+	collectorHttpMethod = "POST"
+	collectorHttpPath   = "/api/v2/reports"
+	protoContentType    = "application/octet-stream"
 )
 
 // grpcCollectorClient specifies how to send reports back to a LightStep
@@ -62,12 +65,12 @@ func newHttpCollectorClient(
 	url.Path = collectorHttpPath
 
 	return &httpCollectorClient{
-		reporterID:  reporterID,
-		accessToken: opts.AccessToken,
-		attributes:  attributes,
+		reporterID:    reporterID,
+		accessToken:   opts.AccessToken,
+		attributes:    attributes,
 		reportTimeout: opts.ReportTimeout,
-		url: url,
-		converter: newProtoConverter(opts),
+		url:           url,
+		converter:     newProtoConverter(opts),
 	}, nil
 }
 
@@ -130,7 +133,8 @@ func (client *httpCollectorClient) toRequest(
 		return nil, err
 	}
 	request = request.WithContext(context)
-	request.Header.Set(contentTypeHeaderKey, collectorHttpContentTypeHeaderValue)
+	request.Header.Set(contentTypeHeader, protoContentType)
+	request.Header.Set(acceptHeader, protoContentType)
 
 	return request, nil
 }

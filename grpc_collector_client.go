@@ -32,7 +32,7 @@ type grpcCollectorClient struct {
 	reporterID uint64
 
 	// accessToken is the access token used for explicit trace collection requests.
-	accessToken string
+	accessToken        string
 	maxReportingPeriod time.Duration // set by GrpcOptions.MaxReportingPeriod
 	reconnectPeriod    time.Duration // set by GrpcOptions.ReconnectPeriod
 	reportingTimeout   time.Duration // set by GrpcOptions.ReportTimeout

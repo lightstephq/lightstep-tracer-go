@@ -134,8 +134,8 @@ type Options struct {
 	// If multiple are set to true, the following order is used to select for the first option: thrift, http, grpc.
 	// If none are set to true, GRPC is defaulted to.
 	UseThrift bool `yaml:"use_thrift"`
-	UseHttp bool `yaml:"use_http"`
-	UseGRPC bool `yaml:"usegrpc"`
+	UseHttp   bool `yaml:"use_http"`
+	UseGRPC   bool `yaml:"usegrpc"`
 
 	ReconnectPeriod time.Duration `yaml:"reconnect_period"`
 
