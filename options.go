@@ -54,6 +54,12 @@ const (
 	plaintextProtocol = "http"
 )
 
+// Validation Errors
+var (
+	validationErrorNoAccessToken = fmt.Errorf("Options invalid: AccessToken must not be empty")
+	validationErrorGUIDKey       = fmt.Errorf("Options invalid: setting the %v tag is no longer supported", GUIDKey)
+)
+
 // Endpoint describes a collector or web API host/port and whether or
 // not to use plaintext communication.
 type Endpoint struct {
@@ -151,12 +157,9 @@ type Options struct {
 // Initialize validates options, and sets default values for unset options.
 // This is called automatically when creating a new Tracer.
 func (opts *Options) Initialize() error {
-	if len(opts.AccessToken) == 0 {
-		return fmt.Errorf("LightStep Recorder options.AccessToken must not be empty")
-	}
-
-	if _, found := opts.Tags[GUIDKey]; found {
-		return fmt.Errorf("Passing in your own %v is no longer supported\n", GUIDKey)
+	err := opts.Validate()
+	if err != nil {
+		return err
 	}
 
 	// Note: opts is a copy of the user's data, ok to modify.
@@ -219,6 +222,20 @@ func (opts *Options) Initialize() error {
 		} else {
 			opts.Collector.Port = DefaultSecurePort
 		}
+	}
+
+	return nil
+}
+
+// Validate checks that all required fields are set, and no options are incorrectly
+// configured.
+func (opts *Options) Validate() error {
+	if len(opts.AccessToken) == 0 {
+		return validationErrorNoAccessToken
+	}
+
+	if _, found := opts.Tags[GUIDKey]; found {
+		return validationErrorGUIDKey
 	}
 
 	return nil
