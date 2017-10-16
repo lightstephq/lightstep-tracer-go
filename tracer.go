@@ -212,14 +212,15 @@ func (tracer *tracerImpl) Close(ctx context.Context) {
 // RecordSpan records a finished Span.
 func (tracer *tracerImpl) RecordSpan(raw RawSpan) {
 	tracer.lock.Lock()
-	defer tracer.lock.Unlock()
 
 	// Early-out for disabled runtimes
 	if tracer.disabled {
+		tracer.lock.Unlock()
 		return
 	}
 
 	tracer.buffer.addSpan(raw)
+	tracer.lock.Unlock()
 
 	if tracer.opts.Recorder != nil {
 		tracer.opts.Recorder.RecordSpan(raw)
