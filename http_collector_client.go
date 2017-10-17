@@ -57,7 +57,7 @@ func newHttpCollectorClient(
 	reporterID uint64,
 	attributes map[string]string,
 ) (*httpCollectorClient, error) {
-	url, err := url.Parse(opts.Collector.HostPort())
+	url, err := url.Parse(opts.Collector.URL())
 	if err != nil {
 		fmt.Println("collector config does not produce valid url", err)
 		return nil, err
@@ -75,7 +75,9 @@ func newHttpCollectorClient(
 }
 
 func (client *httpCollectorClient) ConnectClient() (Connection, error) {
-	transport := &http2.Transport{}
+	transport := &http2.Transport{
+		AllowHTTP: true,
+	}
 
 	client.client = &http.Client{
 		Transport: transport,
