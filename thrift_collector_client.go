@@ -106,7 +106,19 @@ func (*thriftCollectorClient) ShouldReconnect() bool {
 	return false
 }
 
-func (client *thriftCollectorClient) Report(_ context.Context, buffer *reportBuffer) (collectorResponse, error) {
+func (client *thriftCollectorClient) Report(_ context.Context, req reportRequest) (collectorResponse, error) {
+	if req.thriftRequest == nil {
+		return nil, fmt.Errorf("thriftRequest cannot be null")
+	}
+	resp, err := client.thriftClient.Report(client.auth, req.thriftRequest)
+	if err != nil {
+		return nil, err
+	}
+
+	return resp, err
+}
+
+func (client *thriftCollectorClient) Translate(_ context.Context, buffer *reportBuffer) (reportRequest, error) {
 	rawSpans := buffer.rawSpans
 	// Convert them to thrift.
 	recs := make([]*lightstep_thrift.SpanRecord, len(rawSpans))
@@ -172,12 +184,10 @@ func (client *thriftCollectorClient) Report(_ context.Context, buffer *reportBuf
 		InternalMetrics: &metrics,
 	}
 
-	resp, err := client.thriftClient.Report(client.auth, req)
-	if err != nil {
-		return nil, err
-	}
+	return reportRequest{
+		thriftRequest: req,
+	}, nil
 
-	return resp, err
 }
 
 // caller must hold r.lock

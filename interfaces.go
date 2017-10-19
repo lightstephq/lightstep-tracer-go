@@ -3,6 +3,8 @@ package lightstep
 import (
 	"io"
 
+	cpb "github.com/lightstep/lightstep-tracer-go/collectorpb"
+	"github.com/lightstep/lightstep-tracer-go/lightstep_thrift"
 	ot "github.com/opentracing/opentracing-go"
 	"golang.org/x/net/context"
 )
@@ -21,9 +23,15 @@ type collectorResponse interface {
 	Disable() bool
 }
 
+type reportRequest struct {
+	thriftRequest *lightstep_thrift.ReportRequest
+	grpcRequest   *cpb.ReportRequest
+}
+
 // collectorClient encapsulates internal thrift/grpc transports.
 type collectorClient interface {
-	Report(context.Context, *reportBuffer) (collectorResponse, error)
+	Translate(context.Context, *reportBuffer) (reportRequest, error)
+	Report(context.Context, reportRequest) (collectorResponse, error)
 	ConnectClient() (Connection, error)
 	ShouldReconnect() bool
 }

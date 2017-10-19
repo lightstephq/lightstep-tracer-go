@@ -91,7 +91,7 @@ func (client *grpcCollectorClient) ConnectClient() (Connection, error) {
 
 		grpcClient, ok := uncheckedClient.(cpb.CollectorServiceClient)
 		if !ok {
-			return nil, fmt.Errorf("Grpc connector factory did not provide valid client!")
+			return nil, fmt.Errorf("grpc connector factory did not provide valid client")
 		}
 
 		conn = transport
@@ -194,13 +194,23 @@ func (client *grpcCollectorClient) makeReportRequest(buffer *reportBuffer) *cpb.
 
 }
 
-func (client *grpcCollectorClient) Report(ctx context.Context, buffer *reportBuffer) (collectorResponse, error) {
-	resp, err := client.grpcClient.Report(ctx, client.makeReportRequest(buffer))
+func (client *grpcCollectorClient) Report(ctx context.Context, req reportRequest) (collectorResponse, error) {
+	if req.grpcRequest == nil {
+		return nil, fmt.Errorf("grpcRequest cannot be null")
+	}
+	resp, err := client.grpcClient.Report(ctx, req.grpcRequest)
 	if err != nil {
 		return nil, err
 	}
 
 	return resp, nil
+}
+
+func (client *grpcCollectorClient) Translate(ctx context.Context, buffer *reportBuffer) (reportRequest, error) {
+	req := client.makeReportRequest(buffer)
+	return reportRequest{
+		grpcRequest: req,
+	}, nil
 }
 
 func translateAttributes(atts map[string]string) []*cpb.KeyValue {
