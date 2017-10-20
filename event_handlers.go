@@ -11,7 +11,6 @@ func init() {
 }
 
 var eventHandler atomic.Value
-var eventHandlerLock sync.Mutex
 
 // An OnEventHandler can be registered with OnEvent to
 type OnEventHandler func(Event)
@@ -36,8 +35,6 @@ func onEvent(event Event) {
 // mechanism for controling or restarting the tracer. Connection issues, retry
 // logic, and other transient errors are handled internally by the tracer.
 func OnEvent(handler OnEventHandler) {
-	eventHandlerLock.Lock()
-	defer eventHandlerLock.Unlock()
 	eventHandler.Store(handler)
 }
 
