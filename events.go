@@ -161,8 +161,17 @@ type eventStatusReport struct {
 	encodingErrors int
 }
 
-func newEventStatusReport(startTime, finishTime time.Time, sentSpans, droppedSpans, encodingErrors int) *eventStatusReport {
-	return &eventStatusReport{startTime: startTime, finishTime: finishTime, sentSpans: sentSpans, droppedSpans: droppedSpans, encodingErrors: encodingErrors}
+func newEventStatusReport(
+	startTime, finishTime time.Time,
+	sentSpans, droppedSpans, encodingErrors int,
+) *eventStatusReport {
+	return &eventStatusReport{
+		startTime:      startTime,
+		finishTime:     finishTime,
+		sentSpans:      sentSpans,
+		droppedSpans:   droppedSpans,
+		encodingErrors: encodingErrors,
+	}
 }
 
 func (*eventStatusReport) Event() {}
@@ -198,7 +207,12 @@ func (s *eventStatusReport) EncodingErrors() int {
 }
 
 func (s *eventStatusReport) String() string {
-	return fmt.Sprint("STATUS REPORT start: ", s.startTime, ", end: ", s.finishTime, ", dropped spans: ", s.droppedSpans, ", encoding errors: ", s.encodingErrors)
+	return fmt.Sprint(
+		"STATUS REPORT start: ", s.startTime,
+		", end: ", s.finishTime,
+		", dropped spans: ", s.droppedSpans,
+		", encoding errors: ", s.encodingErrors,
+	)
 }
 
 // EventUnsupportedTracer occurs when a tracer being passed to a helper function
