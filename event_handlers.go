@@ -70,7 +70,7 @@ func (l *logOneError) OnEvent(event Event) {
 	switch event := event.(type) {
 	case ErrorEvent:
 		l.Once.Do(func() {
-			log.Printf("LS Tracer error: (%s). NOTE: Set the Verbose option to enable more logging.\n", event.Error())
+			log.Printf("LS Tracer error: (%s). NOTE: Set the OnEvent handler to log events.\n", event.Error())
 		})
 	}
 }
