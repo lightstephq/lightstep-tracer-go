@@ -269,14 +269,17 @@ type eventUnsupportedValue struct {
 	err   error
 }
 
-func newEventUnsupportedValue(key string, value interface{}) EventUnsupportedValue {
+func newEventUnsupportedValue(key string, value interface{}, err error) EventUnsupportedValue {
+	if err == nil {
+		err = fmt.Errorf(
+			"value `%v` of type `%T` for key `%s` is an unsupported type",
+			value, value, key,
+		)
+	}
 	return &eventUnsupportedValue{
 		key:   key,
 		value: value,
-		err: fmt.Errorf(
-			"value `%v` of type `%T` for key `%s` is an unsupported type",
-			value, value, key,
-		),
+		err:   err,
 	}
 }
 
