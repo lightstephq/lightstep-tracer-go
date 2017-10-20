@@ -10,7 +10,7 @@ import (
 func Flush(ctx context.Context, tracer opentracing.Tracer) {
 	lsTracer, ok := tracer.(Tracer)
 	if !ok {
-		onEvent(newEventUnsupportedTracer(tracer))
+		emitEvent(newEventUnsupportedTracer(tracer))
 		return
 	}
 	lsTracer.Flush(ctx)
@@ -20,7 +20,7 @@ func Flush(ctx context.Context, tracer opentracing.Tracer) {
 func Close(ctx context.Context, tracer opentracing.Tracer) {
 	lsTracer, ok := tracer.(Tracer)
 	if !ok {
-		onEvent(newEventUnsupportedTracer(tracer))
+		emitEvent(newEventUnsupportedTracer(tracer))
 		return
 	}
 	lsTracer.Close(ctx)

@@ -41,8 +41,8 @@ var _ = Describe("A new Tracer", func() {
 		fakeConn = fakeGrpcConnection(fakeClient)
 		fakeRecorder = new(lightstepfakes.FakeSpanRecorder)
 
-		eventHandler, eventChan = NewOnEventChannel(eventBufferSize)
-		OnEvent(eventHandler)
+		eventHandler, eventChan = NewEventChannel(eventBufferSize)
+		SetGlobalEventHandler(eventHandler)
 	})
 
 	JustBeforeEach(func() {
@@ -84,7 +84,7 @@ var _ = Describe("A new Tracer", func() {
 				}
 			})
 
-			It("OnEvent emits EventStatusReport", func(done Done) {
+			It("emits EventStatusReport", func(done Done) {
 				tracer.Flush(context.Background())
 
 				err := <-eventChan
@@ -95,7 +95,7 @@ var _ = Describe("A new Tracer", func() {
 				close(done)
 			})
 
-			It("OnEvent emits exactly one event", func() {
+			It("emits exactly one event", func() {
 				tracer.Flush(context.Background())
 
 				Eventually(eventChan).Should(Receive())
@@ -118,7 +118,7 @@ var _ = Describe("A new Tracer", func() {
 				Consistently(fakeClient.ReportCallCount).Should(Equal(reportCallCount))
 			}, 5)
 
-			It("OnEvent emits EventFlushError", func(done Done) {
+			It("emits EventFlushError", func(done Done) {
 				tracer.Flush(context.Background())
 
 				event := <-eventChan
@@ -128,7 +128,7 @@ var _ = Describe("A new Tracer", func() {
 				close(done)
 			})
 
-			It("OnEvent emits exactly one event", func() {
+			It("emits exactly one event", func() {
 				tracer.Flush(context.Background())
 
 				Eventually(eventChan).Should(Receive())
@@ -153,7 +153,7 @@ var _ = Describe("A new Tracer", func() {
 				Consistently(fakeClient.ReportCallCount).Should(Equal(reportCallCount))
 			})
 
-			It("OnEvent emits EventFlushError", func(done Done) {
+			It("emits EventFlushError", func(done Done) {
 				tracer.Flush(context.Background())
 
 				Eventually(eventChan).Should(Receive())
@@ -165,7 +165,7 @@ var _ = Describe("A new Tracer", func() {
 				close(done)
 			})
 
-			It("OnEvent emits exactly two events", func() {
+			It("emits exactly two events", func() {
 				tracer.Flush(context.Background())
 
 				Eventually(eventChan).Should(Receive())

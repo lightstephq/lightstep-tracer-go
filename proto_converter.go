@@ -115,7 +115,7 @@ func (converter *protoConverter) toField(key string, value interface{}) *cpb.Key
 		field.Value = &cpb.KeyValue_BoolValue{BoolValue: reflectedValue.Bool()}
 	default:
 		field.Value = &cpb.KeyValue_StringValue{StringValue: fmt.Sprint(reflectedValue)}
-		onEvent(newEventUnsupportedValue(key, value, nil))
+		emitEvent(newEventUnsupportedValue(key, value, nil))
 	}
 	return &field
 }

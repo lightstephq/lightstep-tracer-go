@@ -20,7 +20,7 @@ type handler2 struct {
 
 func (h handler2) OnEvent(event Event) {}
 
-var _ = Describe("OnEvent", func() {
+var _ = Describe("SetGlobalEventHandler", func() {
 	var h1 handler1
 	var h2 handler2
 	BeforeEach(func() {
@@ -29,23 +29,23 @@ var _ = Describe("OnEvent", func() {
 	})
 
 	It("can be updated with different types of event handlers", func() {
-		Expect(func() { OnEvent(h1.OnEvent) }).NotTo(Panic())
-		Expect(func() { OnEvent(h2.OnEvent) }).NotTo(Panic())
+		Expect(func() { SetGlobalEventHandler(h1.OnEvent) }).NotTo(Panic())
+		Expect(func() { SetGlobalEventHandler(h2.OnEvent) }).NotTo(Panic())
 	})
 
 	It("does not race when setting and calling the handler", func() {
 		for i := 0; i < 100; i++ {
 			go func() {
-				OnEvent(h1.OnEvent)
+				SetGlobalEventHandler(h1.OnEvent)
 			}()
 			go func() {
-				onEvent(newEventStartError(nil))
+				emitEvent(newEventStartError(nil))
 			}()
 			go func() {
-				OnEvent(h2.OnEvent)
+				SetGlobalEventHandler(h2.OnEvent)
 			}()
 			go func() {
-				onEvent(newEventStartError(nil))
+				emitEvent(newEventStartError(nil))
 			}()
 		}
 		time.Sleep(time.Millisecond)

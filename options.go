@@ -134,12 +134,13 @@ type Options struct {
 	DropSpanLogs bool `yaml:"drop_span_logs"`
 
 	// DEPRECATED: The LightStep library prints the first error to stdout by default.
-	// See the documentation on the OnEvent handler for guidance on how to integrate
-	// tracer diagnostics with your applicaiton's logging and metrics systems.
+	// See the documentation on the SetGlobalEventHandler function for guidance on
+	// how to integrate tracer diagnostics with your applicaiton's logging and
+	// metrics systems.
 	Verbose bool `yaml:"verbose"`
 
-	// Force the use of a specific transport protocol.
-	// If multiple are set to true, the following order is used to select for the first option: thrift, http, grpc.
+	// Force the use of a specific transport protocol. If multiple are set to true,
+	// the following order is used to select for the first option: thrift, http, grpc.
 	// If none are set to true, GRPC is defaulted to.
 	UseThrift bool `yaml:"use_thrift"`
 	UseHttp   bool `yaml:"use_http"`

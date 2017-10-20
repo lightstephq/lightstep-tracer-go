@@ -61,7 +61,7 @@ type tracerImpl struct {
 func NewTracer(opts Options) Tracer {
 	err := opts.Initialize()
 	if err != nil {
-		onEvent(newEventStartError(err))
+		emitEvent(newEventStartError(err))
 		return nil
 	}
 
@@ -92,7 +92,7 @@ func NewTracer(opts Options) Tracer {
 
 	conn, err := impl.client.ConnectClient()
 	if err != nil {
-		onEvent(newEventStartError(err))
+		emitEvent(newEventStartError(err))
 		return nil
 	}
 
@@ -161,7 +161,7 @@ func (tracer *tracerImpl) Extract(format interface{}, carrier interface{}) (ot.S
 func (tracer *tracerImpl) reconnectClient(now time.Time) {
 	conn, err := tracer.client.ConnectClient()
 	if err != nil {
-		onEvent(newEventConnectionError(err))
+		emitEvent(newEventConnectionError(err))
 	} else {
 		tracer.lock.Lock()
 		oldConn := tracer.connection
@@ -204,7 +204,7 @@ func (tracer *tracerImpl) Close(ctx context.Context) {
 	if conn != nil {
 		err := conn.Close()
 		if err != nil {
-			onEvent(newEventConnectionError(err))
+			emitEvent(newEventConnectionError(err))
 		}
 	}
 }
@@ -235,7 +235,7 @@ func (tracer *tracerImpl) Flush(ctx context.Context) {
 
 	flushErrorEvent = tracer.preFlush()
 	if flushErrorEvent != nil {
-		onEvent(flushErrorEvent)
+		emitEvent(flushErrorEvent)
 		return
 	}
 
@@ -253,10 +253,10 @@ func (tracer *tracerImpl) Flush(ctx context.Context) {
 	statusReportEvent := tracer.postFlush(flushErrorEvent)
 
 	if flushErrorEvent != nil {
-		onEvent(flushErrorEvent)
+		emitEvent(flushErrorEvent)
 	}
 
-	onEvent(statusReportEvent)
+	emitEvent(statusReportEvent)
 
 	if flushErr == nil && resp.Disable() {
 		tracer.Disable()

@@ -10,12 +10,13 @@ import (
 )
 
 // Events are emitted by the LightStep tracer as a reporting mechanism. They are
-// handled by adding an OnEvent callback to the Options passed to NewTracer. Events
-// may be cast to specific event types in order access additional information.
+// handled by registering an EventHandler callback via SetGlobalEventHandler. The
+// emitted events may be cast to specific event types in order access additional
+// information.
 //
 // NOTE: To ensure that events can be accurately identified, each event type contains
-// a sentinel method matching the name of the type. This method is a no-op, it is only used
-// for type coersion.
+// a sentinel method matching the name of the type. This method is a no-op, it is
+// only used for type coersion.
 type Event interface {
 	Event()
 	String() string
