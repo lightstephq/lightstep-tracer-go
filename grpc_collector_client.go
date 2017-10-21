@@ -84,7 +84,7 @@ func (client *grpcCollectorClient) ConnectClient() (Connection, error) {
 
 		grpcClient, ok := uncheckedClient.(cpb.CollectorServiceClient)
 		if !ok {
-			return nil, fmt.Errorf("grpc connector factory did not provide valid client")
+			return nil, fmt.Errorf("Grpc connector factory did not provide valid client!")
 		}
 
 		conn = transport
@@ -108,7 +108,7 @@ func (client *grpcCollectorClient) ShouldReconnect() bool {
 
 func (client *grpcCollectorClient) Report(ctx context.Context, req reportRequest) (collectorResponse, error) {
 	if req.protoRequest == nil {
-		return nil, fmt.Errorf("grpcRequest cannot be null")
+		return nil, fmt.Errorf("protoRequest cannot be null")
 	}
 	resp, err := client.grpcClient.Report(ctx, req.protoRequest)
 	if err != nil {
@@ -127,17 +127,4 @@ func (client *grpcCollectorClient) Translate(ctx context.Context, buffer *report
 	return reportRequest{
 		protoRequest: req,
 	}, nil
-}
-
-func generateMetricsSample(b *reportBuffer) []*cpb.MetricsSample {
-	return []*cpb.MetricsSample{
-		&cpb.MetricsSample{
-			Name:  spansDropped,
-			Value: &cpb.MetricsSample_IntValue{IntValue: b.droppedSpanCount},
-		},
-		&cpb.MetricsSample{
-			Name:  logEncoderErrors,
-			Value: &cpb.MetricsSample_IntValue{IntValue: b.logEncoderErrorCount},
-		},
-	}
 }

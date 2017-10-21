@@ -113,13 +113,13 @@ func (converter *protoConverter) toField(key string, value interface{}) *cpb.Key
 	case reflect.Bool:
 		field.Value = &cpb.KeyValue_BoolValue{BoolValue: reflectedValue.Bool()}
 	default:
-		field.Value = &cpb.KeyValue_StringValue{StringValue: fmt.Sprint(reflectedValue)}
-		maybeLogInfof(
-			"value: %v, %T, is an unsupported type, and has been converted to string",
-			converter.verbose,
-			reflectedValue,
-			reflectedValue,
-		)
+		var s string
+		if stringer, ok := value.(fmt.Stringer); ok {
+			s = stringer.String()
+		} else {
+			s = fmt.Sprintf("%#v", value)
+		}
+		field.Value = &cpb.KeyValue_StringValue{StringValue: s}
 	}
 	return &field
 }
