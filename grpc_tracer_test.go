@@ -2,6 +2,7 @@ package lightstep_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 	"time"
 
@@ -13,6 +14,20 @@ import (
 	ot "github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/log"
 )
+
+type StructString struct {
+	s string
+}
+
+func (s *StructString) String() string {
+	return "<" + s.s + ">"
+}
+
+type StringString string
+
+func (s StringString) String() string {
+	return "<" + string(s) + ">"
+}
 
 var _ = Describe("Tracer", func() {
 	var tracer ot.Tracer
@@ -71,6 +86,38 @@ var _ = Describe("Tracer", func() {
 				Eventually(latestSpans).Should(HaveLen(1))
 				spans := latestSpans()
 				Expect(spans[0].GetTags()).To(HaveKeyValues(KeyValue("tag", "you're it!")))
+			})
+
+			It("Should use fmt.Stringer for tags", func() {
+				ss1 := StructString{"Hello"}
+				ss2 := StringString("Hello")
+				span := tracer.StartSpan("very good")
+				span.SetTag("tag1", &ss1)
+				span.SetTag("tag2", ss1)
+				span.SetTag("tag3", &ss2)
+				span.SetTag("tag4", ss2)
+				span.Finish()
+
+				Eventually(latestSpans).Should(HaveLen(1))
+				spans := latestSpans()
+				Expect(spans[0].GetTags()).To(
+					HaveKeyValues(
+						KeyValue("tag1", "<Hello>"),
+						KeyValue("tag2", "lightstep_test.StructString{s:\"Hello\"}"),
+						KeyValue("tag3", "<Hello>"),
+						KeyValue("tag4", "Hello")))
+			})
+
+			It("Shouldn't format pointers to pointers", func() {
+				ss1 := StructString{"Hello"}
+				ss2 := &ss1
+				span := tracer.StartSpan("pointers")
+				span.SetTag("tag", &ss2)
+				span.Finish()
+
+				Eventually(latestSpans).Should(HaveLen(1))
+				spans := latestSpans()
+				Expect(spans[0].GetTags()).To(HaveKeyValues(KeyValue("tag", fmt.Sprintf("%#v", &ss2))))
 			})
 
 			It("Should send baggage info to the collector", func() {

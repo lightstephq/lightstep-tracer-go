@@ -271,7 +271,8 @@ func (tracer *tracerImpl) Flush() {
 
 	ctx, cancel := context.WithTimeout(context.Background(), tracer.opts.ReportTimeout)
 	defer cancel()
-	resp, err := tracer.client.Report(ctx, &tracer.flushing)
+	req, err := tracer.client.Translate(ctx, &tracer.flushing)
+	resp, err := tracer.client.Report(ctx, req)
 
 	if err != nil {
 		maybeLogError(err, tracer.opts.Verbose)
