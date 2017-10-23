@@ -17,12 +17,12 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var _ = Describe("SpanRecorder", func() {
+var _ = Describe("Tracer", func() {
 	var tracer Tracer
 
-	accessToken := "ACCESS_TOKEN"
+	const accessToken = "ACCESS_TOKEN"
 
-	Describe("A lightstep tracer", func() {
+	Describe("GetLightStepAccessToken", func() {
 		BeforeEach(func() {
 			tracer = NewTracer(Options{
 				AccessToken: accessToken,
@@ -150,7 +150,7 @@ var _ = Describe("SpanRecorder", func() {
 
 	})
 
-	Context("CloseLightstepTracer", func() {
+	Describe("CloseLightstepTracer", func() {
 		var fakeClient *cpbfakes.FakeCollectorServiceClient
 
 		BeforeEach(func() {
@@ -174,45 +174,46 @@ var _ = Describe("SpanRecorder", func() {
 		})
 	})
 
-	Context("When tracer has a SpanRecorder", func() {
-		var fakeRecorder *lightstepfakes.FakeSpanRecorder
+	Describe("SpanRecorder", func() {
+		Context("when tracer has a SpanRecorder", func() {
+			var fakeRecorder *lightstepfakes.FakeSpanRecorder
 
-		BeforeEach(func() {
-			fakeRecorder = new(lightstepfakes.FakeSpanRecorder)
-			tracer = NewTracer(Options{
-				AccessToken: accessToken,
-				ConnFactory: fakeGrpcConnection(new(cpbfakes.FakeCollectorServiceClient)),
-				Recorder:    fakeRecorder,
+			BeforeEach(func() {
+				fakeRecorder = new(lightstepfakes.FakeSpanRecorder)
+				tracer = NewTracer(Options{
+					AccessToken: accessToken,
+					ConnFactory: fakeGrpcConnection(new(cpbfakes.FakeCollectorServiceClient)),
+					Recorder:    fakeRecorder,
+				})
+			})
+
+			AfterEach(func() {
+				closeTestTracer(tracer)
+			})
+
+			It("calls RecordSpan after finishing a span", func() {
+				tracer.StartSpan("span").Finish()
+				Expect(fakeRecorder.RecordSpanCallCount()).ToNot(BeZero())
 			})
 		})
 
-		AfterEach(func() {
-			closeTestTracer(tracer)
-		})
+		Context("when tracer does not have a SpanRecorder", func() {
+			BeforeEach(func() {
+				tracer = NewTracer(Options{
+					AccessToken: accessToken,
+					ConnFactory: fakeGrpcConnection(new(cpbfakes.FakeCollectorServiceClient)),
+					Recorder:    nil,
+				})
+			})
 
-		It("calls RecordSpan after finishing a span", func() {
-			tracer.StartSpan("span").Finish()
-			Expect(fakeRecorder.RecordSpanCallCount()).ToNot(BeZero())
-		})
-	})
+			AfterEach(func() {
+				closeTestTracer(tracer)
+			})
 
-	Context("When tracer does not have a SpanRecorder", func() {
-		BeforeEach(func() {
-			tracer = NewTracer(Options{
-				AccessToken: accessToken,
-				ConnFactory: fakeGrpcConnection(new(cpbfakes.FakeCollectorServiceClient)),
-				Recorder:    nil,
+			It("doesn't call RecordSpan after finishing a span", func() {
+				span := tracer.StartSpan("span")
+				Expect(span.Finish).ToNot(Panic())
 			})
 		})
-
-		AfterEach(func() {
-			closeTestTracer(tracer)
-		})
-
-		It("doesn't call RecordSpan after finishing a span", func() {
-			span := tracer.StartSpan("span")
-			Expect(span.Finish).ToNot(Panic())
-		})
 	})
-
 })
