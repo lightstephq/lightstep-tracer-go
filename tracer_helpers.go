@@ -8,52 +8,62 @@ import (
 
 // Flush forces a synchronous Flush.
 func Flush(ctx context.Context, tracer opentracing.Tracer) {
-	lsTracer, ok := tracer.(Tracer)
-	if !ok {
+	switch lsTracer := tracer.(type) {
+	case Tracer:
+		lsTracer.Flush(ctx)
+	case *tracerv0_14:
+		Flush(ctx, lsTracer.Tracer)
+	default:
 		emitEvent(newEventUnsupportedTracer(tracer))
-		return
 	}
-	lsTracer.Flush(ctx)
 }
 
 // CloseTracer synchronously flushes the tracer, then terminates it.
 func Close(ctx context.Context, tracer opentracing.Tracer) {
-	lsTracer, ok := tracer.(Tracer)
-	if !ok {
+	switch lsTracer := tracer.(type) {
+	case Tracer:
+		lsTracer.Close(ctx)
+	case *tracerv0_14:
+		Close(ctx, lsTracer.Tracer)
+	default:
 		emitEvent(newEventUnsupportedTracer(tracer))
-		return
 	}
-	lsTracer.Close(ctx)
 }
 
 // GetLightStepAccessToken returns the currently configured AccessToken.
 func GetLightStepAccessToken(tracer opentracing.Tracer) (string, error) {
-	lsTracer, ok := tracer.(Tracer)
-	if !ok {
+	switch lsTracer := tracer.(type) {
+	case Tracer:
+		return lsTracer.Options().AccessToken, nil
+	case *tracerv0_14:
+		return GetLightStepAccessToken(lsTracer.Tracer)
+	default:
 		return "", newEventUnsupportedTracer(tracer)
 	}
-
-	return lsTracer.Options().AccessToken, nil
 }
 
 // DEPRECATED: use Flush instead.
-func FlushLightStepTracer(lsTracer opentracing.Tracer) error {
-	tracer, ok := lsTracer.(Tracer)
-	if !ok {
-		return newEventUnsupportedTracer(lsTracer)
+func FlushLightStepTracer(tracer opentracing.Tracer) error {
+	switch lsTracer := tracer.(type) {
+	case Tracer:
+		lsTracer.Flush(context.Background())
+		return nil
+	case *tracerv0_14:
+		return FlushLightStepTracer(lsTracer.Tracer)
+	default:
+		return newEventUnsupportedTracer(tracer)
 	}
-
-	tracer.Flush(context.Background())
-	return nil
 }
 
 // DEPRECATED: use Close instead.
 func CloseTracer(tracer opentracing.Tracer) error {
-	lsTracer, ok := tracer.(Tracer)
-	if !ok {
+	switch lsTracer := tracer.(type) {
+	case Tracer:
+		lsTracer.Close(context.Background())
+		return nil
+	case *tracerv0_14:
+		return CloseTracer(lsTracer.Tracer)
+	default:
 		return newEventUnsupportedTracer(tracer)
 	}
-
-	lsTracer.Close(context.Background())
-	return nil
 }
