@@ -42,6 +42,10 @@ type httpCollectorClient struct {
 	converter *protoConverter
 }
 
+type HttpRequest struct {
+	http.Request
+}
+
 type transportCloser struct {
 	transport http2.Transport
 }
@@ -57,7 +61,7 @@ func newHttpCollectorClient(
 	reporterID uint64,
 	attributes map[string]string,
 ) (*httpCollectorClient, error) {
-	url, err := url.Parse(opts.Collector.HostPort())
+	url, err := url.Parse(opts.Collector.URL())
 	if err != nil {
 		fmt.Println("collector config does not produce valid url", err)
 		return nil, err
@@ -75,7 +79,9 @@ func newHttpCollectorClient(
 }
 
 func (client *httpCollectorClient) ConnectClient() (Connection, error) {
-	transport := &http2.Transport{}
+	transport := &http2.Transport{
+		AllowHTTP: true,
+	}
 
 	client.client = &http.Client{
 		Transport: transport,
@@ -90,13 +96,9 @@ func (client *httpCollectorClient) ShouldReconnect() bool {
 	return false
 }
 
-func (client *httpCollectorClient) Report(context context.Context, buffer *reportBuffer) (collectorResponse, error) {
-	httpRequest, err := client.toRequest(context, buffer)
-	if err != nil {
-		return nil, err
-	}
+func (client *httpCollectorClient) Report(context context.Context, req reportRequest) (collectorResponse, error) {
 
-	httpResponse, err := client.client.Do(httpRequest)
+	httpResponse, err := client.client.Do(req.httpRequest)
 	if err != nil {
 		return nil, err
 	}
@@ -108,6 +110,17 @@ func (client *httpCollectorClient) Report(context context.Context, buffer *repor
 	}
 
 	return response, nil
+}
+
+func (client *httpCollectorClient) Translate(ctx context.Context, buffer *reportBuffer) (reportRequest, error) {
+
+	httpRequest, err := client.toRequest(ctx, buffer)
+	if err != nil {
+		return reportRequest{}, err
+	}
+	return reportRequest{
+		httpRequest: httpRequest,
+	}, nil
 }
 
 func (client *httpCollectorClient) toRequest(

@@ -18,7 +18,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var _ = Describe("A new Tracer", func() {
+var _ = Describe("Tracer", func() {
 	var tracer Tracer
 	var opts Options
 

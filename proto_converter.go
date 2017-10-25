@@ -114,8 +114,14 @@ func (converter *protoConverter) toField(key string, value interface{}) *cpb.Key
 	case reflect.Bool:
 		field.Value = &cpb.KeyValue_BoolValue{BoolValue: reflectedValue.Bool()}
 	default:
-		field.Value = &cpb.KeyValue_StringValue{StringValue: fmt.Sprint(reflectedValue)}
-		emitEvent(newEventUnsupportedValue(key, value, nil))
+		var s string
+		if stringer, ok := value.(fmt.Stringer); ok {
+			s = stringer.String()
+		} else {
+			s = fmt.Sprintf("%#v", value)
+			emitEvent(newEventUnsupportedValue(key, value, nil))
+		}
+		field.Value = &cpb.KeyValue_StringValue{StringValue: s}
 	}
 	return &field
 }

@@ -12,7 +12,7 @@ import (
 	"google.golang.org/grpc/credentials"
 
 	// N.B.(jmacd): Do not use google.golang.org/glog in this package.
-	"github.com/lightstep/lightstep-tracer-go/collectorpb"
+	cpb "github.com/lightstep/lightstep-tracer-go/collectorpb"
 )
 
 const (
@@ -39,7 +39,7 @@ type grpcCollectorClient struct {
 
 	// Remote service that will receive reports.
 	hostPort      string
-	grpcClient    collectorpb.CollectorServiceClient
+	grpcClient    cpb.CollectorServiceClient
 	connTimestamp time.Time
 	dialOptions   []grpc.DialOption
 
@@ -82,7 +82,7 @@ func (client *grpcCollectorClient) ConnectClient() (Connection, error) {
 			return nil, err
 		}
 
-		grpcClient, ok := uncheckedClient.(collectorpb.CollectorServiceClient)
+		grpcClient, ok := uncheckedClient.(cpb.CollectorServiceClient)
 		if !ok {
 			return nil, fmt.Errorf("Grpc connector factory did not provide valid client!")
 		}
@@ -96,7 +96,7 @@ func (client *grpcCollectorClient) ConnectClient() (Connection, error) {
 		}
 
 		conn = transport
-		client.grpcClient = collectorpb.NewCollectorServiceClient(transport)
+		client.grpcClient = cpb.NewCollectorServiceClient(transport)
 	}
 	client.connTimestamp = now
 	return conn, nil
@@ -106,15 +106,25 @@ func (client *grpcCollectorClient) ShouldReconnect() bool {
 	return time.Now().Sub(client.connTimestamp) > client.reconnectPeriod
 }
 
-func (client *grpcCollectorClient) Report(ctx context.Context, buffer *reportBuffer) (collectorResponse, error) {
-	resp, err := client.grpcClient.Report(ctx, client.converter.toReportRequest(
-		client.reporterID,
-		client.attributes,
-		client.accessToken,
-		buffer,
-	))
+func (client *grpcCollectorClient) Report(ctx context.Context, req reportRequest) (collectorResponse, error) {
+	if req.protoRequest == nil {
+		return nil, fmt.Errorf("protoRequest cannot be null")
+	}
+	resp, err := client.grpcClient.Report(ctx, req.protoRequest)
 	if err != nil {
 		return nil, err
 	}
 	return resp, nil
+}
+
+func (client *grpcCollectorClient) Translate(ctx context.Context, buffer *reportBuffer) (reportRequest, error) {
+	req := client.converter.toReportRequest(
+		client.reporterID,
+		client.attributes,
+		client.accessToken,
+		buffer,
+	)
+	return reportRequest{
+		protoRequest: req,
+	}, nil
 }

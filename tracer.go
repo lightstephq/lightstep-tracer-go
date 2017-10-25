@@ -242,7 +242,8 @@ func (tracer *tracerImpl) Flush(ctx context.Context) {
 	ctx, cancel := context.WithTimeout(ctx, tracer.opts.ReportTimeout)
 	defer cancel()
 
-	resp, flushErr := tracer.client.Report(ctx, &tracer.flushing)
+	req, flushErr := tracer.client.Translate(ctx, &tracer.flushing)
+	resp, flushErr := tracer.client.Report(ctx, req)
 
 	if flushErr != nil {
 		flushErrorEvent = newEventFlushError(flushErr, FlushErrorTransport)
