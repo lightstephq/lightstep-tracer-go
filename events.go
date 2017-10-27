@@ -306,3 +306,24 @@ func (e *eventUnsupportedValue) Error() string {
 func (e *eventUnsupportedValue) Err() error {
 	return e.err
 }
+
+const tracerDisabled = "the tracer has been disabled"
+
+// EventTracerDisabled occurs when a tracer is disabled by either the user or
+// the collector.
+type EventTracerDisabled interface {
+	Event
+	EventTracerDisabled()
+}
+
+type eventTracerDisabled struct{}
+
+func newEventTracerDisabled() EventTracerDisabled {
+	return eventTracerDisabled{}
+}
+
+func (eventTracerDisabled) Event()               {}
+func (eventTracerDisabled) EventTracerDisabled() {}
+func (eventTracerDisabled) String() string {
+	return tracerDisabled
+}

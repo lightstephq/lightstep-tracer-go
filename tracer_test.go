@@ -106,6 +106,7 @@ var _ = Describe("Tracer", func() {
 		Context("when the tracer is disabled", func() {
 			JustBeforeEach(func() {
 				tracer.Disable()
+				Eventually(eventChan).Should(Receive())
 			})
 
 			It("should not flush spans", func() {

@@ -314,16 +314,16 @@ func (tracer *tracerImpl) postFlush(flushEventError *eventFlushError) *eventStat
 
 func (tracer *tracerImpl) Disable() {
 	tracer.lock.Lock()
-	defer tracer.lock.Unlock()
+	disabled := tracer.disabled
+	tracer.disabled = true
+	tracer.buffer.clear()
+	tracer.lock.Unlock()
 
-	if tracer.disabled {
+	if disabled {
 		return
 	}
 
-	fmt.Printf("Disabling Runtime instance: %p", tracer)
-
-	tracer.buffer.clear()
-	tracer.disabled = true
+	emitEvent(newEventTracerDisabled())
 }
 
 // Every MinReportingPeriod the reporting loop wakes up and checks to see if
