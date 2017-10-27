@@ -26,6 +26,11 @@ type tracerImpl struct {
 	reporterID uint64 // the LightStep tracer guid
 	opts       Options
 
+	// report loop management
+	closeOnce               sync.Once
+	closeReportLoopChannel  chan struct{}
+	reportLoopClosedChannel chan struct{}
+
 	//////////////////////////////////////////////////////////
 	// MUTABLE MUTABLE MUTABLE MUTABLE MUTABLE MUTABLE MUTABLE
 	//////////////////////////////////////////////////////////
@@ -34,10 +39,8 @@ type tracerImpl struct {
 	lock sync.Mutex
 
 	// Remote service that will receive reports.
-	client            collectorClient
-	connection        Connection
-	closeChannel      chan struct{}
-	reportLoopChannel chan struct{}
+	client     collectorClient
+	connection Connection
 
 	// Two buffers of data.
 	buffer   reportBuffer
@@ -76,10 +79,12 @@ func NewTracer(opts Options) Tracer {
 
 	now := time.Now()
 	impl := &tracerImpl{
-		opts:       opts,
-		reporterID: genSeededGUID(),
-		buffer:     newSpansBuffer(opts.MaxBufferedSpans),
-		flushing:   newSpansBuffer(opts.MaxBufferedSpans),
+		opts:                    opts,
+		reporterID:              genSeededGUID(),
+		buffer:                  newSpansBuffer(opts.MaxBufferedSpans),
+		flushing:                newSpansBuffer(opts.MaxBufferedSpans),
+		closeReportLoopChannel:  make(chan struct{}),
+		reportLoopClosedChannel: make(chan struct{}),
 	}
 
 	impl.buffer.setCurrent(now)
@@ -95,17 +100,9 @@ func NewTracer(opts Options) Tracer {
 		emitEvent(newEventStartError(err))
 		return nil
 	}
-
 	impl.connection = conn
-	impl.closeChannel = make(chan struct{})
-	impl.reportLoopChannel = make(chan struct{})
 
-	// Important! incase close is called before go routine is kicked off
-	closech := impl.closeChannel
-	go func() {
-		impl.reportLoop(closech)
-		close(impl.reportLoopChannel)
-	}()
+	go impl.reportLoop()
 
 	return impl
 }
@@ -172,41 +169,32 @@ func (tracer *tracerImpl) reconnectClient(now time.Time) {
 	}
 }
 
-// Close flushes and then terminates the LightStep collector.
+// Close flushes and then terminates the LightStep collector. Close may only be
+// called once; subsequent calls to Close are no-ops.
 func (tracer *tracerImpl) Close(ctx context.Context) {
-	tracer.lock.Lock()
-	closech := tracer.closeChannel
-	tracer.closeChannel = nil
-	tracer.lock.Unlock()
-
-	if closech != nil {
+	tracer.closeOnce.Do(func() {
 		// notify report loop that we are closing
-		close(closech)
+		close(tracer.closeReportLoopChannel)
+		select {
+		case <-tracer.reportLoopClosedChannel:
+			tracer.Flush(ctx)
+		case <-ctx.Done():
+			return
+		}
 
-		// wait for report loop to finish
-		if tracer.reportLoopChannel != nil {
-			select {
-			case <-tracer.reportLoopChannel:
-				tracer.Flush(ctx)
-			case <-ctx.Done():
-				return
+		// now its safe to close the connection
+		tracer.lock.Lock()
+		conn := tracer.connection
+		tracer.connection = nil
+		tracer.lock.Unlock()
+
+		if conn != nil {
+			err := conn.Close()
+			if err != nil {
+				emitEvent(newEventConnectionError(err))
 			}
 		}
-	}
-
-	// now its safe to close the connection
-	tracer.lock.Lock()
-	conn := tracer.connection
-	tracer.connection = nil
-	tracer.reportLoopChannel = nil
-	tracer.lock.Unlock()
-
-	if conn != nil {
-		err := conn.Close()
-		if err != nil {
-			emitEvent(newEventConnectionError(err))
-		}
-	}
+	})
 }
 
 // RecordSpan records a finished Span.
@@ -349,7 +337,7 @@ func (tracer *tracerImpl) shouldFlushLocked(now time.Time) bool {
 	return false
 }
 
-func (tracer *tracerImpl) reportLoop(closech chan struct{}) {
+func (tracer *tracerImpl) reportLoop() {
 	tickerChan := time.Tick(tracer.opts.MinReportingPeriod)
 	for {
 		select {
@@ -371,7 +359,8 @@ func (tracer *tracerImpl) reportLoop(closech chan struct{}) {
 			if reconnect {
 				tracer.reconnectClient(now)
 			}
-		case <-closech:
+		case <-tracer.closeReportLoopChannel:
+			close(tracer.reportLoopClosedChannel)
 			return
 		}
 	}
