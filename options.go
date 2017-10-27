@@ -60,6 +60,12 @@ var (
 	validationErrorGUIDKey       = fmt.Errorf("Options invalid: setting the %v tag is no longer supported", GUIDKey)
 )
 
+// A SpanRecorder handles all of the `RawSpan` data generated via an
+// associated `Tracer` instance.
+type SpanRecorder interface {
+	RecordSpan(RawSpan)
+}
+
 // Endpoint describes a collector or web API host/port and whether or
 // not to use plaintext communication.
 type Endpoint struct {
@@ -278,6 +284,11 @@ type SetParentSpanID uint64
 func (sid SetParentSpanID) Apply(sso *ot.StartSpanOptions) {}
 func (sid SetParentSpanID) applyLS(sso *startSpanOptions) {
 	sso.SetParentSpanID = uint64(sid)
+}
+
+// lightStepStartSpanOption is used to identify lightstep-specific Span options.
+type lightStepStartSpanOption interface {
+	applyLS(*startSpanOptions)
 }
 
 type startSpanOptions struct {

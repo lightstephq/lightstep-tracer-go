@@ -28,8 +28,8 @@ lightstep_thrift/constants.go: $(GOPATH)/src/github.com/lightstep/common-go/crou
 	rm -rf lightstep_thrift/reporting_service-remote
 endif
 
-lightstepfakes/fake_recorder.go: interfaces.go
-	$(call generate_fake,lightstepfakes/fake_recorder.go,interfaces.go,SpanRecorder)
+lightstepfakes/fake_recorder.go: options.go
+	$(call generate_fake,lightstepfakes/fake_recorder.go,options.go,SpanRecorder)
 
 lightstep_thrift/lightstep_thriftfakes/fake_reporting_service.go: lightstep_thrift/reportingservice.go
 	$(call generate_fake,lightstep_thrift/lightstep_thriftfakes/fake_reporting_service.go,lightstep_thrift/reportingservice.go,ReportingService)

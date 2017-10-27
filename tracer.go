@@ -13,6 +13,23 @@ import (
 	ot "github.com/opentracing/opentracing-go"
 )
 
+// Tracer extends the `opentracing.Tracer` interface with methods for manual
+// flushing and closing. To access these methods, you can take the global
+// tracer and typecast it to a `lightstep.Tracer`. As a convenience, the
+// lightstep package provides static functions which perform the typecasting.
+type Tracer interface {
+	ot.Tracer
+
+	// Close flushes and then terminates the LightStep collector
+	Close(context.Context)
+	// Flush sends all spans currently in the buffer to the LighStep collector
+	Flush(context.Context)
+	// Options gets the Options used in New() or NewWithOptions().
+	Options() Options
+	// Disable prevents the tracer from recording spans or flushing
+	Disable()
+}
+
 // Implements the `Tracer` interface. Buffers spans and forwards the to a Lightstep collector.
 type tracerImpl struct {
 	//////////////////////////////////////////////////////////////
@@ -84,7 +101,7 @@ func NewTracer(opts Options) Tracer {
 
 	impl.buffer.setCurrent(now)
 
-	impl.client, err = newClient(opts, impl.reporterID, attributes)
+	impl.client, err = newCollectorClient(opts, impl.reporterID, attributes)
 	if err != nil {
 		fmt.Println("Failed to create to Collector client!", err)
 		return nil
@@ -108,23 +125,6 @@ func NewTracer(opts Options) Tracer {
 	}()
 
 	return impl
-}
-
-func newClient(opts Options, reporterId uint64, attributes map[string]string) (collectorClient, error) {
-	if opts.UseThrift {
-		return newThriftCollectorClient(opts, reporterId, attributes), nil
-	}
-
-	if opts.UseHttp {
-		return newHttpCollectorClient(opts, reporterId, attributes)
-	}
-
-	if opts.UseGRPC {
-		return newGrpcCollectorClient(opts, reporterId, attributes), nil
-	}
-
-	// No transport specified, defaulting to GRPC
-	return newGrpcCollectorClient(opts, reporterId, attributes), nil
 }
 
 func (tracer *tracerImpl) Options() Options {
