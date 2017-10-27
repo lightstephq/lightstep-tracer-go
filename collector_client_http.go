@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"time"
+	"errors"
 )
 
 var (
@@ -79,8 +80,15 @@ func newHttpCollectorClient(
 }
 
 func (client *httpCollectorClient) ConnectClient() (Connection, error) {
-	transport := &http2.Transport{
-		AllowHTTP: true,
+	// The golang http2 client implementation doesn't support plaintext http2 (a.k.a h2c) out of the box.
+	// According to https://github.com/golang/go/issues/14141, they don't have plans to.
+	// For now, we are falling back to http1 for plaintext.
+	// In the future, we might want to add out own h2c implementation (see https://github.com/hkwi/h2c).
+	var transport http.RoundTripper
+	if client.url.Scheme == "https" {
+		transport = &http2.Transport{}
+	} else {
+		transport = &http.Transport{}
 	}
 
 	client.client = &http.Client{
@@ -153,6 +161,10 @@ func (client *httpCollectorClient) toRequest(
 }
 
 func (client *httpCollectorClient) toResponse(response *http.Response) (collectorResponse, error) {
+	if response.StatusCode != http.StatusOK {
+		return nil, errors.New(fmt.Sprintf("status code (%d) is not ok", response.StatusCode))
+	}
+
 	body, err := ioutil.ReadAll(response.Body)
 	if err != nil {
 		return nil, err
