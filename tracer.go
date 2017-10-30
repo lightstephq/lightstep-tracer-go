@@ -314,14 +314,13 @@ func (tracer *tracerImpl) postFlush(flushEventError *eventFlushError) *eventStat
 
 func (tracer *tracerImpl) Disable() {
 	tracer.lock.Lock()
-	disabled := tracer.disabled
+	if tracer.disabled {
+		tracer.lock.Unlock()
+		return
+	}
 	tracer.disabled = true
 	tracer.buffer.clear()
 	tracer.lock.Unlock()
-
-	if disabled {
-		return
-	}
 
 	emitEvent(newEventTracerDisabled())
 }
