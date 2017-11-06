@@ -85,6 +85,11 @@ func NewTracer(opts Options) Tracer {
 		return nil
 	}
 
+	if opts.Verbose {
+		SetGlobalEventHandler(NewEventLogger())
+		emitEvent(verboseOptionDeprecated)
+	}
+
 	attributes := map[string]string{}
 	for k, v := range opts.Tags {
 		attributes[k] = fmt.Sprint(v)

@@ -141,13 +141,13 @@ type Options struct {
 
 	// DEPRECATED: The LightStep library prints the first error to stdout by default.
 	// See the documentation on the SetGlobalEventHandler function for guidance on
-	// how to integrate tracer diagnostics with your applicaiton's logging and
+	// how to integrate tracer diagnostics with your application's logging and
 	// metrics systems.
 	Verbose bool `yaml:"verbose"`
 
 	// Force the use of a specific transport protocol. If multiple are set to true,
 	// the following order is used to select for the first option: thrift, http, grpc.
-	// If none are set to true, GRPC is defaulted to.
+	// If none are set to true, grpc is defaulted to.
 	UseThrift bool `yaml:"use_thrift"`
 	UseHttp   bool `yaml:"use_http"`
 	UseGRPC   bool `yaml:"usegrpc"`

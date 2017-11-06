@@ -35,8 +35,6 @@ type thriftCollectorClient struct {
 	// collection requests.
 	AccessToken string
 
-	verbose bool
-
 	// flags replacement
 	maxLogMessageLen int
 	maxLogKeyLen     int
@@ -60,7 +58,6 @@ func newThriftCollectorClient(opts Options, guid uint64, attributes map[string]s
 		attributes:             attributes,
 		startTime:              now,
 		maxReportingPeriod:     opts.ReportingPeriod,
-		verbose:                opts.Verbose,
 		collectorURL:           opts.Collector.URL(),
 		AccessToken:            opts.AccessToken,
 		maxLogMessageLen:       opts.MaxLogValueLen,
@@ -100,6 +97,7 @@ func (client *thriftCollectorClient) ConnectClient() (Connection, error) {
 			thrift.NewTBinaryProtocolFactoryDefault(),
 		)
 	}
+
 	return conn, nil
 }
 

@@ -16,14 +16,14 @@ import (
 //
 // NOTE: To ensure that events can be accurately identified, each event type contains
 // a sentinel method matching the name of the type. This method is a no-op, it is
-// only used for type coersion.
+// only used for type coercion.
 type Event interface {
 	Event()
 	String() string
 }
 
 // The ErrorEvent type can be used to filter events. The `Err` method
-// retuns the underlying error.
+// returns the underlying error.
 type ErrorEvent interface {
 	Event
 	error
@@ -326,4 +326,39 @@ func (eventTracerDisabled) Event()               {}
 func (eventTracerDisabled) EventTracerDisabled() {}
 func (eventTracerDisabled) String() string {
 	return tracerDisabled
+}
+
+// EventTracerDisabled occurs when a tracer is disabled by either the user or
+// the collector.
+type EventOptionDeprecated interface {
+	Event
+	EventOptionDeprecated()
+}
+
+var verboseOptionDeprecated = newOptionDeprecated(
+	"Verbose",
+	"Use `SetGlobalEventHandler(NewEventLogger())` instead.",
+)
+
+var optionDeprecated = "%s has been deprecated and will be removed in a future version. %s"
+
+type eventOptionDeprecated struct {
+	optionName  string
+	alternative string
+}
+
+func newOptionDeprecated(
+	optionName string,
+	alternative string,
+) EventOptionDeprecated {
+	return &eventOptionDeprecated{
+		optionName:  optionName,
+		alternative: alternative,
+	}
+}
+
+func (event *eventOptionDeprecated) Event()                 {}
+func (event *eventOptionDeprecated) EventOptionDeprecated() {}
+func (event *eventOptionDeprecated) String() string {
+	return fmt.Sprintf(optionDeprecated, event.optionName, event.alternative)
 }

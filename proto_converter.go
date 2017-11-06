@@ -11,14 +11,12 @@ import (
 )
 
 type protoConverter struct {
-	verbose        bool
 	maxLogKeyLen   int // see GrpcOptions.MaxLogKeyLen
 	maxLogValueLen int // see GrpcOptions.MaxLogValueLen
 }
 
 func newProtoConverter(options Options) *protoConverter {
 	return &protoConverter{
-		verbose:        options.Verbose,
 		maxLogKeyLen:   options.MaxLogKeyLen,
 		maxLogValueLen: options.MaxLogValueLen,
 	}

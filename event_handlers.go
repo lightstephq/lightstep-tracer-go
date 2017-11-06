@@ -15,7 +15,7 @@ var eventHandler atomic.Value
 // An OnEventHandler can be registered with SetGlobalEventHandler to
 type EventHandler func(Event)
 
-// emitEvent is a thread-safe function for emiting tracer events.
+// emitEvent is a thread-safe function for emitting tracer events.
 func emitEvent(event Event) {
 	handler := eventHandler.Load().(EventHandler)
 	handler(event)
@@ -32,7 +32,7 @@ func emitEvent(event Event) {
 // LogOnceOnError handler is set by default.
 //
 // NOTE: Event handling is for reporting purposes only. It is not intended as a
-// mechanism for controling or restarting the tracer. Connection issues, retry
+// mechanism for controlling or restarting the tracer. Connection issues, retry
 // logic, and other transient errors are handled internally by the tracer.
 func SetGlobalEventHandler(handler EventHandler) {
 	eventHandler.Store(handler)
