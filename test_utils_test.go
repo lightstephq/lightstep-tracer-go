@@ -57,16 +57,30 @@ func (matcher haveKeyValuesMatcher) Match(actual interface{}) (bool, error) {
 func (matcher haveKeyValuesMatcher) MatchProtos(actualKeyValues []*cpb.KeyValue) (bool, error) {
 	expectedKeyValues := []*cpb.KeyValue(matcher)
 	if len(expectedKeyValues) != len(actualKeyValues) {
-		return false, nil
+		return false, fmt.Errorf(
+			"expected %d KeyValues and got %d",
+			len(expectedKeyValues),
+			len(actualKeyValues),
+		)
 	}
 
-	for i := range actualKeyValues {
-		if !reflect.DeepEqual(actualKeyValues[i], expectedKeyValues[i]) {
+	for _, actualKeyValue := range actualKeyValues {
+		if !matcher.MatchAnyProto(actualKeyValue) {
 			return false, nil
 		}
 	}
 
 	return true, nil
+}
+
+func (matcher haveKeyValuesMatcher) MatchAnyProto(actualKeyValue *cpb.KeyValue) bool {
+	expectedKeyValues := []*cpb.KeyValue(matcher)
+	for i := range expectedKeyValues {
+		if reflect.DeepEqual(actualKeyValue, expectedKeyValues[i]) {
+			return true
+		}
+	}
+	return false
 }
 
 func (matcher haveKeyValuesMatcher) MatchThrift(actualKeyValues []*lightstep_thrift.KeyValue) (bool, error) {
@@ -75,24 +89,44 @@ func (matcher haveKeyValuesMatcher) MatchThrift(actualKeyValues []*lightstep_thr
 		return false, nil
 	}
 
-	for i := range actualKeyValues {
-		if !reflect.DeepEqual(actualKeyValues[i].Key, expectedKeyValues[i].Key) {
-			fmt.Println("KEY NOT EQUAL")
-			return false, nil
-		}
-
-		if len(expectedKeyValues[i].GetStringValue()) == 0 {
-			fmt.Println("NO STRING VALUE")
-			return false, nil
-		}
-
-		if !reflect.DeepEqual(actualKeyValues[i].Value, expectedKeyValues[i].GetStringValue()) {
-			fmt.Println("VALUE NOT EQUAL")
-			return false, nil
-		}
+	for _, actualKeyValue := range actualKeyValues {
+		matcher.MatchAnyThrift(actualKeyValue)
 	}
 
 	return true, nil
+}
+
+func (matcher haveKeyValuesMatcher) MatchAnyThrift(
+	actualKeyValue *lightstep_thrift.KeyValue,
+) bool {
+	expectedKeyValues := []*cpb.KeyValue(matcher)
+
+	for _, expectedKeyValue := range expectedKeyValues {
+		if matchesThrift(expectedKeyValue, actualKeyValue) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func matchesThrift(
+	expectedKeyValue *cpb.KeyValue,
+	actualKeyValue *lightstep_thrift.KeyValue,
+) bool {
+	if !reflect.DeepEqual(actualKeyValue.Key, expectedKeyValue.Key) {
+		return false
+	}
+
+	if len(expectedKeyValue.GetStringValue()) == 0 {
+		return false
+	}
+
+	if !reflect.DeepEqual(actualKeyValue.Value, expectedKeyValue.GetStringValue()) {
+		return false
+	}
+
+	return true
 }
 
 func (matcher haveKeyValuesMatcher) FailureMessage(actual interface{}) string {

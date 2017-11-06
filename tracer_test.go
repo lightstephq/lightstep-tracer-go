@@ -18,6 +18,20 @@ import (
 	. "github.com/onsi/gomega"
 )
 
+type StructString struct {
+	s string
+}
+
+func (s *StructString) String() string {
+	return "<" + s.s + ">"
+}
+
+type StringString string
+
+func (s StringString) String() string {
+	return "<" + string(s) + ">"
+}
+
 var _ = Describe("Tracer", func() {
 	var tracer Tracer
 	var opts Options
@@ -255,7 +269,7 @@ var _ = Describe("Tracer", func() {
 		})
 	})
 
-	Describe("valid SpanRecorder", func() {
+	Describe("Recorder", func() {
 		BeforeEach(func() {
 			opts = Options{
 				AccessToken: accessToken,
@@ -268,20 +282,20 @@ var _ = Describe("Tracer", func() {
 			tracer.StartSpan("span").Finish()
 			Expect(fakeRecorder.RecordSpanCallCount()).ToNot(BeZero())
 		})
-	})
 
-	Describe("nil SpanRecorder", func() {
-		BeforeEach(func() {
-			opts = Options{
-				AccessToken: accessToken,
-				ConnFactory: fakeConn,
-				Recorder:    nil,
-			}
-		})
+		Context("with nil SpanRecorder", func() {
+			BeforeEach(func() {
+				opts = Options{
+					AccessToken: accessToken,
+					ConnFactory: fakeConn,
+					Recorder:    nil,
+				}
+			})
 
-		It("doesn't call RecordSpan after finishing a span", func() {
-			span := tracer.StartSpan("span")
-			Expect(span.Finish).ToNot(Panic())
+			It("doesn't call RecordSpan after finishing a span", func() {
+				span := tracer.StartSpan("span")
+				Expect(span.Finish).ToNot(Panic())
+			})
 		})
 	})
 })

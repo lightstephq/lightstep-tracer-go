@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"fmt"
 	. "github.com/lightstep/lightstep-tracer-go"
 	"github.com/lightstep/lightstep-tracer-go/collectorpb"
 	. "github.com/onsi/ginkgo"
@@ -99,6 +100,43 @@ var _ = Describe("Tracer Transports", func() {
 				Eventually(fakeClient.GetSpansLen).Should(Equal(1))
 				Expect(fakeClient.GetSpan(0).GetTags()).To(HaveKeyValues(KeyValue("tag", "you're it!")))
 			})
+
+			if testOptions.supportsTypedValues {
+				It("Should use fmt.Stringer for tags", func() {
+					ss1 := StructString{"Hello"}
+					ss2 := StringString("Hello")
+
+					span := tracer.StartSpan("very good")
+					span.SetTag("tag1", &ss1)
+					span.SetTag("tag2", ss1)
+					span.SetTag("tag3", &ss2)
+					span.SetTag("tag4", ss2)
+					span.Finish()
+
+					Eventually(fakeClient.GetSpansLen).Should(Equal(1))
+					Expect(fakeClient.GetSpan(0).GetTags()).To(
+						HaveKeyValues(
+							KeyValue("tag1", "<Hello>"),
+							KeyValue("tag2", "lightstep_test.StructString{s:\"Hello\"}"),
+							KeyValue("tag3", "<Hello>"),
+							KeyValue("tag4", "Hello"),
+						),
+					)
+				})
+
+				It("Shouldn't format pointers to pointers", func() {
+					ss1 := StructString{"Hello"}
+					ss2 := &ss1
+					span := tracer.StartSpan("pointers")
+					span.SetTag("tag", &ss2)
+					span.Finish()
+
+					Eventually(fakeClient.GetSpansLen).Should(Equal(1))
+					Expect(fakeClient.GetSpan(0).GetTags()).To(
+						HaveKeyValues(KeyValue("tag", fmt.Sprintf("%#v", &ss2))),
+					)
+				})
+			}
 
 			if testOptions.supportsBaggage {
 				It("Should send baggage info to the collector", func() {
@@ -304,7 +342,7 @@ var _ = Describe("Tracer Transports", func() {
 			})
 		})
 
-		Context("With custom log length", func() {
+		Context("with custom log length", func() {
 			BeforeEach(func() {
 				options.AccessToken = "0987654321"
 				options.Collector = Endpoint{"localhost", port, true}
@@ -354,7 +392,7 @@ var _ = Describe("Tracer Transports", func() {
 			})
 		})
 
-		Context("With custom MaxBufferedSpans", func() {
+		Context("with custom MaxBufferedSpans", func() {
 			BeforeEach(func() {
 				options.AccessToken = "0987654321"
 				options.Collector = Endpoint{"localhost", port, true}
@@ -377,7 +415,7 @@ var _ = Describe("Tracer Transports", func() {
 			})
 		})
 
-		Context("With DropSpanLogs set", func() {
+		Context("with DropSpanLogs set", func() {
 			BeforeEach(func() {
 				options.AccessToken = "0987654321"
 				options.Collector = Endpoint{"localhost", port, true}
@@ -400,7 +438,7 @@ var _ = Describe("Tracer Transports", func() {
 			})
 		})
 
-		Context("With MaxLogsPerSpan set", func() {
+		Context("with MaxLogsPerSpan set", func() {
 			BeforeEach(func() {
 				options.AccessToken = "0987654321"
 				options.Collector = Endpoint{"localhost", port, true}
