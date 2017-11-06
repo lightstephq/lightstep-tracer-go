@@ -1,6 +1,13 @@
 # Changelog
+
+## v0.15.0
+* Replaces the logger code with event handler code. You now have more flexibility on where you send your errors.
+* Added context to the `tracer.Close` and `tracer.Flush` APIs to allow setting a deadline. (Take a look at `Tracerv0_14` for a backward compatible version).
+* Added client support for upcoming http transport layer.
+* Internal changes to increase performance and code read-ability.
+
 ## v0.14.0
-* Flush buffer syncronously on Close
+* Flush buffer synchronously on Close
 * Flush twice if a flush is already in flight.
 * remove gogo in favor of golang/protobuf
 * requires grpc-go >= 1.4.0

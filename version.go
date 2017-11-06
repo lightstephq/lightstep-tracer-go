@@ -1,3 +1,3 @@
 package lightstep
 
-const TracerVersionValue = "0.14.0"
+const TracerVersionValue = "0.15.0"
