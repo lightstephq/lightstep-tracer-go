@@ -3,7 +3,6 @@ package lightstep
 import (
 	"errors"
 	"fmt"
-	"reflect"
 	"time"
 
 	opentracing "github.com/opentracing/opentracing-go"
@@ -232,7 +231,7 @@ type eventUnsupportedTracer struct {
 func newEventUnsupportedTracer(tracer opentracing.Tracer) EventUnsupportedTracer {
 	return &eventUnsupportedTracer{
 		tracer: tracer,
-		err:    fmt.Errorf("unsupported tracer type: %v", reflect.TypeOf(tracer)),
+		err:    fmt.Errorf("unsupported tracer type: %T", tracer),
 	}
 }
 
