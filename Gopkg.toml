@@ -1,5 +1,3 @@
-ignored = ["github.com/lightstep/lightstep-tracer-go/collectorpb", "github.com/lightstep/lightstep-tracer-go/lightsteppb"]
-
 [[constraint]]
   name = "github.com/lightstep/lightstep-tracer-common"
   branch = "jmacd/gogo-tracer-common"
