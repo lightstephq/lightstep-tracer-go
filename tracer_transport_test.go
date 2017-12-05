@@ -5,13 +5,14 @@ import (
 	"strings"
 	"time"
 
+	"strconv"
+
+	"github.com/lightstep/lightstep-tracer-common/golang/protobuf/collectorpb"
 	. "github.com/lightstep/lightstep-tracer-go"
-	"github.com/lightstep/lightstep-tracer-go/collectorpb"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	ot "github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/log"
-	"strconv"
 )
 
 // Interfaces

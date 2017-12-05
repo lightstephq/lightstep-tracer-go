@@ -2,16 +2,17 @@ package lightstep
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
-	"github.com/golang/protobuf/proto"
-	"github.com/lightstep/lightstep-tracer-go/collectorpb"
-	"golang.org/x/net/context"
-	"golang.org/x/net/http2"
 	"io/ioutil"
 	"net/http"
 	"net/url"
 	"time"
-	"errors"
+
+	"github.com/golang/protobuf/proto"
+	"github.com/lightstep/lightstep-tracer-common/golang/protobuf/collectorpb"
+	"golang.org/x/net/context"
+	"golang.org/x/net/http2"
 )
 
 var (
@@ -175,5 +176,5 @@ func (client *httpCollectorClient) toResponse(response *http.Response) (collecto
 		return nil, err
 	}
 
-	return protoResponse, nil
+	return grpcCollectorResponse{protoResponse}, nil
 }

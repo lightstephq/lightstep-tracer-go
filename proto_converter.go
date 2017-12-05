@@ -6,7 +6,7 @@ import (
 	"time"
 
 	google_protobuf "github.com/golang/protobuf/ptypes/timestamp"
-	cpb "github.com/lightstep/lightstep-tracer-go/collectorpb"
+	cpb "github.com/lightstep/lightstep-tracer-common/golang/protobuf/collectorpb"
 	ot "github.com/opentracing/opentracing-go"
 )
 

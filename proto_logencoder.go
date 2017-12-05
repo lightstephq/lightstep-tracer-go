@@ -3,7 +3,7 @@ package lightstep
 import (
 	"encoding/json"
 
-	cpb "github.com/lightstep/lightstep-tracer-go/collectorpb"
+	cpb "github.com/lightstep/lightstep-tracer-common/golang/protobuf/collectorpb"
 	"github.com/opentracing/opentracing-go/log"
 )
 
