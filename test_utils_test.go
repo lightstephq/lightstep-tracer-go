@@ -8,8 +8,8 @@ import (
 	. "github.com/lightstep/lightstep-tracer-go"
 	ot "github.com/opentracing/opentracing-go"
 
-	cpb "github.com/lightstep/lightstep-tracer-common/golang/protobuf/collectorpb"
-	cpbfakes "github.com/lightstep/lightstep-tracer-common/golang/protobuf/collectorpb/collectorpbfakes"
+	cpb "github.com/lightstep/lightstep-tracer-go/collectorpb"
+	cpbfakes "github.com/lightstep/lightstep-tracer-go/collectorpb/collectorpbfakes"
 
 	"github.com/lightstep/lightstep-tracer-go/lightstep_thrift"
 	thriftfakes "github.com/lightstep/lightstep-tracer-go/lightstep_thrift/lightstep_thriftfakes"

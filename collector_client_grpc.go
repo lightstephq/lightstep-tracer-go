@@ -11,7 +11,8 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
-	cpb "github.com/lightstep/lightstep-tracer-common/golang/protobuf/collectorpb"
+	// N.B.(jmacd): Do not use google.golang.org/glog in this package.
+	cpb "github.com/lightstep/lightstep-tracer-go/collectorpb"
 )
 
 const (
@@ -21,12 +22,6 @@ const (
 
 var (
 	intType = reflect.TypeOf(int64(0))
-)
-
-type (
-	grpcCollectorResponse struct {
-		*cpb.ReportResponse
-	}
 )
 
 // grpcCollectorClient specifies how to send reports back to a LightStep
@@ -119,7 +114,7 @@ func (client *grpcCollectorClient) Report(ctx context.Context, req reportRequest
 	if err != nil {
 		return nil, err
 	}
-	return grpcCollectorResponse{resp}, nil
+	return resp, nil
 }
 
 func (client *grpcCollectorClient) Translate(ctx context.Context, buffer *reportBuffer) (reportRequest, error) {
@@ -132,13 +127,4 @@ func (client *grpcCollectorClient) Translate(ctx context.Context, buffer *report
 	return reportRequest{
 		protoRequest: req,
 	}, nil
-}
-
-func (greq grpcCollectorResponse) Disable() bool {
-	for _, c := range greq.Commands {
-		if c.Disable {
-			return true
-		}
-	}
-	return false
 }

@@ -6,8 +6,8 @@ import (
 	"sync/atomic"
 	"testing"
 
-	cpbfakes "github.com/lightstep/lightstep-tracer-common/golang/protobuf/collectorpb/collectorpbfakes"
 	. "github.com/lightstep/lightstep-tracer-go"
+	cpbfakes "github.com/lightstep/lightstep-tracer-go/collectorpb/collectorpbfakes"
 	ot "github.com/opentracing/opentracing-go"
 )
 
