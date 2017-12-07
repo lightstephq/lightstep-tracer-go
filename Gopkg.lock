@@ -8,10 +8,10 @@
   revision = "1e59b77b52bf8e4b449a57e6f79f21226d571845"
 
 [[projects]]
-  branch = "jmacd/gogo-tracer-common"
   name = "github.com/lightstep/lightstep-tracer-common"
   packages = ["golang/protobuf/collectorpb","golang/protobuf/collectorpb/collectorpbfakes","golang/protobuf/lightsteppb"]
-  revision = "558ed89f38ac4aa538c274270da0956eb8cb8d66"
+  revision = "4c649d1a7ac52b9cafc7f8d21fe304f8fa4a4ae3"
+  version = "v1.0.0"
 
 [[projects]]
   name = "github.com/onsi/ginkgo"
@@ -70,6 +70,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "63356e53b99d6c374c17b8b72aafbbc5bec1eff0a2903946f5ddb23b8c05635f"
+  inputs-digest = "398fda09e08d0e60dacad97982696393727f7ff46302014919c16c526c80b454"
   solver-name = "gps-cdcl"
   solver-version = 1

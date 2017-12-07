@@ -1,6 +1,6 @@
 [[constraint]]
   name = "github.com/lightstep/lightstep-tracer-common"
-  branch = "jmacd/gogo-tracer-common"
+  version = "1.0.0"
 
 [[constraint]]
   name = "github.com/onsi/ginkgo"
