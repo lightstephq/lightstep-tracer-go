@@ -6,7 +6,7 @@ import (
 
 	"golang.org/x/net/context"
 
-	cpb "github.com/lightstep/lightstep-tracer-go/collectorpb"
+	cpb "github.com/lightstep/lightstep-tracer-common/golang/protobuf/collectorpb"
 	"github.com/lightstep/lightstep-tracer-go/lightstep_thrift"
 )
 

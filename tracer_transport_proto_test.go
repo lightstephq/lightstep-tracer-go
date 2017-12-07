@@ -1,8 +1,8 @@
 package lightstep_test
 
 import (
+	cpb "github.com/lightstep/lightstep-tracer-common/golang/protobuf/collectorpb"
 	. "github.com/lightstep/lightstep-tracer-go"
-	cpb "github.com/lightstep/lightstep-tracer-go/collectorpb"
 )
 
 type cpbSpan struct {
