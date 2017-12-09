@@ -15,9 +15,5 @@
   name = "golang.org/x/net"
 
 [[constraint]]
-  branch = "master"
-  name = "google.golang.org/genproto"
-
-[[constraint]]
   name = "google.golang.org/grpc"
   version = "1.4.3"
