@@ -284,4 +284,20 @@ var _ = Describe("Tracer", func() {
 			Expect(span.Finish).ToNot(Panic())
 		})
 	})
+
+	Describe("provides its ReporterID", func() {
+		BeforeEach(func() {
+			opts = Options{
+				AccessToken: accessToken,
+				ConnFactory: fakeConn,
+				Recorder:    nil,
+			}
+		})
+
+		It("is non-zero", func() {
+			rid, err := GetLightStepReporterID(tracer)
+			Expect(err).To(BeNil())
+			Expect(rid).To(Not(BeZero()))
+		})
+	})
 })

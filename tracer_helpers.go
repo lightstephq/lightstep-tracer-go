@@ -67,3 +67,15 @@ func CloseTracer(tracer opentracing.Tracer) error {
 		return newEventUnsupportedTracer(tracer)
 	}
 }
+
+// GetLightStepReporterID returns the currently configured Reporter ID.
+func GetLightStepReporterID(tracer opentracing.Tracer) (uint64, error) {
+	switch lsTracer := tracer.(type) {
+	case *tracerImpl:
+		return lsTracer.reporterID, nil
+	case *tracerv0_14:
+		return GetLightStepReporterID(lsTracer.Tracer)
+	default:
+		return 0, newEventUnsupportedTracer(tracer)
+	}
+}
