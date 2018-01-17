@@ -16,6 +16,7 @@ import (
 	"github.com/lightstep/lightstep-tracer-go/lightstepfakes"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	opentracing "github.com/opentracing/opentracing-go"
 )
 
 var _ = Describe("Tracer", func() {
@@ -298,6 +299,22 @@ var _ = Describe("Tracer", func() {
 			rid, err := GetLightStepReporterID(tracer)
 			Expect(err).To(BeNil())
 			Expect(rid).To(Not(BeZero()))
+		})
+	})
+})
+
+var _ = Describe("UnsupportedTracer", func() {
+	type unsupportedTracer struct {
+		opentracing.Tracer
+	}
+
+	tracer := unsupportedTracer{}
+
+	Describe("has no ReporterID", func() {
+		It("is an error", func() {
+			rid, err := GetLightStepReporterID(tracer)
+			Expect(err).To(Not(BeNil()))
+			Expect(rid).To(BeZero())
 		})
 	})
 })

@@ -9,6 +9,7 @@ import (
 	"github.com/lightstep/lightstep-tracer-go/lightstepfakes"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	opentracing "github.com/opentracing/opentracing-go"
 )
 
 var _ = Describe("Tracerv0_14", func() {
@@ -69,6 +70,14 @@ var _ = Describe("Tracerv0_14", func() {
 		It("FlushLightStepTracer flushes the tracer", func() {
 			err := lightstep.FlushLightStepTracer(tracer)
 			Expect(err).ToNot(HaveOccurred())
+		})
+	})
+
+	Describe("provides its ReporterID", func() {
+		It("is non-zero", func() {
+			rid, err := lightstep.GetLightStepReporterID(opentracing.Tracer(tracer))
+			Expect(err).To(BeNil())
+			Expect(rid).To(Not(BeZero()))
 		})
 	})
 })
