@@ -17,7 +17,7 @@ $ go get 'github.com/lightstep/lightstep-tracer-go'
 Godoc: https://godoc.org/github.com/lightstep/lightstep-tracer-go
 
 ## Initialization: Starting a new tracer
-To initialize a tracer, configure it with a valid Access Token and optional tuning parameters. Regsiter the tracer as the OpenTracing global tracer so that it will become available to your installed intstrumentations libraries.
+To initialize a tracer, configure it with a valid Access Token and optional tuning parameters. Register the tracer as the OpenTracing global tracer so that it will become available to your installed intstrumentations libraries.
 
 ```go
 import (
@@ -101,4 +101,16 @@ func main() {
 }
 ```
 
-Event handlers will recieve events from any active tracers, as well as errors in static functions. It is suggested that you set up event handling before initializing your tracer to catch any errors on initialization.
+Event handlers will receive events from any active tracers, as well as errors in static functions. It is suggested that you set up event handling before initializing your tracer to catch any errors on initialization.
+
+## Advanced Configuration: Transport and Serialization Protocols
+
+By default, the tracer will send information to LightStep using GRPC and Protocol Buffers which is the recommended configuration. If there are no specific transport protocol needs you have, there is no need to change this default.
+
+There are three total options for transport protocols:
+
+- [Protocol Buffers](https://developers.google.com/protocol-buffers/) over [GRPC](https://grpc.io/) - The recommended, default, and most performant solution.
+- [Thrift](https://thrift.apache.org/) over HTTP - A legacy implementation not recommended for new deployments.
+- \[ EXPERIMENTAL \] [Protocol Buffers](https://developers.google.com/protocol-buffers/) over HTTP - New transport protocol supported for use cases where GRPC isn't an option. In order to enable HTTP you will need to configure the LightStep collectors receiving the data to accept HTTP traffic. Reach out to LightStep for support in this.
+
+You can configure which transport protocol the tracer uses using the `UseGRPC`, `UseThrift`, and `UseHttp` flags in the options.
