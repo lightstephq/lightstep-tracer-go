@@ -40,13 +40,16 @@ collectorpb/collectorpbfakes/fake_collector_service_client.go: collectorpb/colle
 	$(call generate_fake,collectorpb/collectorpbfakes/fake_collector_service_client.go,collectorpb/collector.pb.go,CollectorServiceClient)
 
 # gRPC
+GOGO_OPTS = Mgoogle/protobuf/timestamp.proto=github.com/gogo/protobuf/types,Mgoogle/protobuf/duration.proto=github.com/gogo/protobuf/types,
 ifeq (,$(wildcard lightstep-tracer-common/collector.proto))
 collectorpb/collector.pb.go:
 else
 collectorpb/collector.pb.go: lightstep-tracer-common/collector.proto
 	docker run --rm -v $(shell pwd)/lightstep-tracer-common:/input:ro -v $(shell pwd)/collectorpb:/output \
 	  lightstep/grpc-gateway:latest \
-	  protoc -I/root/go/src/tmp/vendor/github.com/grpc-ecosystem/grpc-gateway/third_party/googleapis --go_out=plugins=grpc:/output --proto_path=/input /input/collector.proto
+	  protoc -I/root/go/src/tmp/vendor/github.com/grpc-ecosystem/grpc-gateway/third_party/googleapis \
+	  --gogofaster_out=$(GOGO_OPTS)plugins=grpc:/output \
+	  --proto_path=/input /input/collector.proto
 endif
 
 # gRPC
