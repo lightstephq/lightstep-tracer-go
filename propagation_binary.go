@@ -2,6 +2,8 @@ package lightstep
 
 import (
 	"encoding/base64"
+	"io"
+	"io/ioutil"
 
 	"github.com/golang/protobuf/proto"
 	lightstep "github.com/lightstep/lightstep-tracer-go/lightsteppb"
@@ -34,6 +36,13 @@ func (binaryPropagator) Inject(
 	if err != nil {
 		return err
 	}
+	if carrier, ok := opaqueCarrier.(io.Writer); ok {
+		buf := make([]byte, base64.StdEncoding.EncodedLen(len(data)))
+		base64.StdEncoding.Encode(buf, data)
+		_, err = carrier.Write(buf)
+		return err
+	}
+
 	switch carrier := opaqueCarrier.(type) {
 	case *string:
 		*carrier = base64.StdEncoding.EncodeToString(data)
@@ -52,22 +61,30 @@ func (binaryPropagator) Extract(
 	var data []byte
 	var err error
 
-	// Decode from string, *string, *[]byte, or []byte
-	switch carrier := opaqueCarrier.(type) {
-	case *string:
-		if carrier != nil {
-			data, err = base64.StdEncoding.DecodeString(*carrier)
+	if carrier, ok := opaqueCarrier.(io.Reader); ok {
+		buf, err := ioutil.ReadAll(carrier)
+		if err != nil {
+			return nil, err
 		}
-	case string:
-		data, err = base64.StdEncoding.DecodeString(carrier)
-	case *[]byte:
-		if carrier != nil {
-			data, err = decodeBase64Bytes(*carrier)
+		data, err = decodeBase64Bytes(buf)
+	} else {
+		// Decode from string, *string, *[]byte, or []byte
+		switch carrier := opaqueCarrier.(type) {
+		case *string:
+			if carrier != nil {
+				data, err = base64.StdEncoding.DecodeString(*carrier)
+			}
+		case string:
+			data, err = base64.StdEncoding.DecodeString(carrier)
+		case *[]byte:
+			if carrier != nil {
+				data, err = decodeBase64Bytes(*carrier)
+			}
+		case []byte:
+			data, err = decodeBase64Bytes(carrier)
+		default:
+			return nil, opentracing.ErrInvalidCarrier
 		}
-	case []byte:
-		data, err = decodeBase64Bytes(carrier)
-	default:
-		return nil, opentracing.ErrInvalidCarrier
 	}
 	if err != nil {
 		return nil, err
