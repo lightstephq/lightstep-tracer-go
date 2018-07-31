@@ -194,7 +194,7 @@ func (s *spanImpl) FinishWithOptions(opts ot.FinishOptions) {
 
 	// If the duration is already set, this span has already been finished.
 	// Return so we don't double submit the span.
-	if s.raw.Duration > 0 {
+	if s.raw.Duration >= 0 {
 		return
 	}
 
