@@ -127,15 +127,6 @@ func (lr *LockedRand) Perm(n int) (r []int) {
 	return
 }
 
-// Shuffle pseudo-randomizes the order of elements.
-// n is the number of elements. Shuffle panics if n < 0.
-// swap swaps the elements with indexes i and j.
-func (lr *LockedRand) Shuffle(n int, swap func(i, j int)) {
-	lr.lk.Lock()
-	lr.r.Shuffle(n, swap)
-	lr.lk.Unlock()
-}
-
 // Read generates len(p) random bytes and writes them into p. It
 // always returns len(p) and a nil error.
 // Read should not be called concurrently with any other Rand method.
