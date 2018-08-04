@@ -2,7 +2,7 @@ package lightstep
 
 import (
 	"math/rand"
-		"sync/atomic"
+	"sync/atomic"
 )
 
 // RandPool represents a pool of random number generators.
