@@ -2,8 +2,7 @@ package lightstep
 
 import (
 	"math/rand"
-	"time"
-	"sync/atomic"
+		"sync/atomic"
 )
 
 // RandPool represents a pool of random number generators.
@@ -46,7 +45,7 @@ func NewRandPool(seed int64, size uint64) *RandPool {
 // seed initializes the pool using a randomized sequence with given seed.
 func (r *RandPool) seed(seed int64) {
 	// init a random sequence to seed all sources
-	seedRan := rand.NewSource(time.Now().UnixNano())
+	seedRan := rand.NewSource(seed)
 	for i := uint64(0); i < r.size; i++ {
 		r.sources[i] = NewLockedRand(seedRan.Int63())
 	}
