@@ -6,9 +6,18 @@ import (
 )
 
 var (
-	// create a random pool with size equal to number of CPU Cores
-	randompool = NewRandPool(time.Now().UnixNano(), uint64(runtime.NumCPU()))
+	// create a random pool with size equal to 8 generators or number of CPU Cores which ever is higher to spread
+	// random int call loads across multiple go routines.
+	randompool = NewRandPool(time.Now().UnixNano(), uint64(max(8, runtime.NumCPU())))
 )
+
+// max returns the larger value among a and b
+func max(x, y int) int {
+	if x > y {
+		return x
+	}
+	return y
+}
 
 func genSeededGUID() uint64 {
 	return uint64(randompool.Pick().Int63())
