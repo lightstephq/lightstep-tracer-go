@@ -6,9 +6,10 @@ import (
 )
 
 var (
-	// create a random pool with size equal to 8 generators or number of CPU Cores which ever is higher to spread
-	// random int call loads across multiple go routines.
-	randompool = NewRandPool(time.Now().UnixNano(), uint64(max(8, runtime.NumCPU())))
+	// create a random pool with size equal to 16 generators or number of CPU Cores which ever is higher to spread
+	// random int call loads across multiple go routines. This number is obtained via local benchmarking
+	// where any number more than 16 reaches a point of diminishing return given the test scenario.
+	randompool = NewRandPool(time.Now().UnixNano(), uint64(max(16, runtime.NumCPU())))
 )
 
 // max returns the larger value among a and b
