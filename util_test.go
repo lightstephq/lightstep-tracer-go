@@ -9,7 +9,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
-	"github.com/lzuwei/lightstep-tracer-go/lightstep/rand"
+	"github.com/lightstep/lightstep-tracer-go/lightstep/rand"
 )
 
 var _ = Describe("GenSeededGUID", func() {

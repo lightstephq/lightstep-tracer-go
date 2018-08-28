@@ -4,7 +4,7 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/lzuwei/lightstep-tracer-go/lightstep/rand"
+	"github.com/lightstep/lightstep-tracer-go/lightstep/rand"
 )
 
 var (
