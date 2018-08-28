@@ -1,19 +1,21 @@
 package lightstep
 
 import (
-	"math/rand"
+	gorand "math/rand"
+	"sync"
 	"testing"
 	"time"
-	"sync"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+
+	"github.com/lzuwei/lightstep-tracer-go/lightstep/rand"
 )
 
 var _ = Describe("GenSeededGUID", func() {
 	Context("With a many calls on genSeededGUID", func() {
 		It("should not generate any duplicates", func() {
-			randompool = NewRandPool(time.Now().UnixNano(), 10)
+			randompool = rand.NewPool(time.Now().UnixNano(), 10)
 			uniques := 1000000
 			ids := map[uint64]bool{}
 			for i := 0; i < uniques; i++ {
@@ -26,7 +28,7 @@ var _ = Describe("GenSeededGUID", func() {
 
 	Context("With a many calls on genSeededGUID2", func() {
 		It("should not generate any duplicates", func() {
-			randompool = NewRandPool(time.Now().UnixNano(), 10)
+			randompool = rand.NewPool(time.Now().UnixNano(), 10)
 			uniques := 1000000
 			ids := map[uint64]bool{}
 			for i := 0; i < uniques; i++ {
@@ -65,7 +67,7 @@ var _ = Measure("Single Source GenSeededGUID should handle concurrency badly", f
 var _ = Measure("Random Pool GenSeededGUID should handle concurrency efficiently", func(b Benchmarker) {
 	goroutines := 100
 	calls := 50000
-	randompool = NewRandPool(time.Now().UnixNano(), 16)
+	randompool = rand.NewPool(time.Now().UnixNano(), 16)
 	b.Time("runtime", func() {
 		barrier := make(chan struct{})
 		group := &sync.WaitGroup{}
@@ -87,7 +89,7 @@ var _ = Measure("Random Pool GenSeededGUID should handle concurrency efficiently
 }, 10)
 
 var (
-	seededGUIDGen     *rand.Rand
+	seededGUIDGen     *gorand.Rand
 	seededGUIDGenOnce sync.Once
 	seededGUIDLock    sync.Mutex
 )
@@ -96,7 +98,7 @@ var (
 func singleSourceGenSeededGUID() uint64 {
 	// Golang does not seed the rng for us. Make sure it happens.
 	seededGUIDGenOnce.Do(func() {
-		seededGUIDGen = rand.New(rand.NewSource(time.Now().UnixNano()))
+		seededGUIDGen = gorand.New(gorand.NewSource(time.Now().UnixNano()))
 	})
 
 	// The golang random generators are *not* intrinsically thread-safe.
@@ -118,7 +120,7 @@ func BenchmarkSingleSourceGenSeededGUID(b *testing.B) {
 func BenchmarkGenSeededRandomID(b *testing.B) {
 	// run with 100000 goroutines
 	b.SetParallelism(100000)
-	randompool = NewRandPool(time.Now().UnixNano(), 16) // 16 random generators
+	randompool = rand.NewPool(time.Now().UnixNano(), 16) // 16 random generators
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
 			genSeededGUID()

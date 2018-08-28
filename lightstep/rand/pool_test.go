@@ -1,4 +1,4 @@
-package lightstep
+package rand
 
 import (
 	. "github.com/onsi/ginkgo"
@@ -48,10 +48,10 @@ var _ = Describe("Fast modulus", func() {
 	})
 })
 
-var _ = Describe("RandPool", func() {
+var _ = Describe("Pool", func() {
 	Context("With any input size", func() {
 		It("should return a pool of random number generators of length in the power 2", func() {
-			pool := NewRandPool(1, 3)
+			pool := NewPool(1, 3)
 			Expect(len(pool.sources)).To(Equal(4))
 		})
 	})

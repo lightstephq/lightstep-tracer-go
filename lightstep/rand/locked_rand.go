@@ -1,11 +1,11 @@
-package lightstep
+package rand
 
 import (
 	"math/rand"
 	"sync"
 )
 
-// LockedRand implements Rand that is safe for concurrent use.
+// LockedRand implements NumberGenerator and embeds Rand that is safe for concurrent use.
 type LockedRand struct {
 	lk sync.Mutex
 	r  *rand.Rand

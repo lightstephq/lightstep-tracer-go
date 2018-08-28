@@ -1,17 +1,17 @@
-package lightstep
+package rand
 
 import (
 	"math/rand"
 	"sync/atomic"
 )
 
-// RandPool represents a pool of random number generators.
+// Pool represents a pool of random number generators.
 // To generate a random id, round robin through the source pool with atomic increment.
-// With more and more goroutines, RandPool improves the performance of Random vs naive global random
+// With more and more goroutines, Pool improves the performance of Random vs naive global random
 // mutex exponentially.
 // Try tests with 20000 goroutines and 500 calls to observe the difference
-type RandPool struct {
-	sources []*LockedRand
+type Pool struct {
+	sources []NumberGenerator
 	counter uint64 // used for round robin
 	size    uint64
 }
@@ -29,13 +29,13 @@ func nextNearestPow2uint64(v uint64) uint64 {
 	return v
 }
 
-// NewRandPool takes in a size and creates a pool of random id generators with size equal to next closest power of 2.
+// NewPool takes in a size and creates a pool of random id generators with size equal to next closest power of 2.
 // eg: NewPool(10) returns a pool with 2^4 = 16 random sources.
-func NewRandPool(seed int64, size uint64) *RandPool {
+func NewPool(seed int64, size uint64) *Pool {
 	groupsize := nextNearestPow2uint64(size)
-	pool := &RandPool{
+	pool := &Pool{
 		size:    groupsize,
-		sources: make([]*LockedRand, groupsize),
+		sources: make([]NumberGenerator, groupsize),
 	}
 	// seed the pool
 	pool.seed(seed)
@@ -43,7 +43,7 @@ func NewRandPool(seed int64, size uint64) *RandPool {
 }
 
 // seed initializes the pool using a randomized sequence with given seed.
-func (r *RandPool) seed(seed int64) {
+func (r *Pool) seed(seed int64) {
 	// init a random sequence to seed all sources
 	seedRan := rand.NewSource(seed)
 	for i := uint64(0); i < r.size; i++ {
@@ -51,8 +51,8 @@ func (r *RandPool) seed(seed int64) {
 	}
 }
 
-// Pick returns a LockedRand from a pool of LockedRand
-func (r *RandPool) Pick() *LockedRand {
+// Pick returns a NumberGenerator from a pool of NumberGenerators
+func (r *Pool) Pick() NumberGenerator {
 	// use round robin with fast modulus of pow2 numbers
 	selection := atomic.AddUint64(&r.counter, 1) & (r.size - 1)
 	return r.sources[selection]
