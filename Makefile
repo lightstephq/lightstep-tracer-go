@@ -51,15 +51,15 @@ endif
 
 # gRPC
 ifeq (,$(wildcard lightstep-tracer-common/collector.proto))
-lightsteppb/lightstep_carrier.pb.go:
+lightsteppb/lightstep.pb.go:
 else
-lightsteppb/lightstep_carrier.pb.go: lightstep-tracer-common/lightstep_carrier.proto
+lightsteppb/lightstep.pb.go: lightstep-tracer-common/lightstep.proto
 	docker run --rm -v $(shell pwd)/lightstep-tracer-common:/input:ro -v $(shell pwd)/lightsteppb:/output \
 	  lightstep/protoc:latest \
-	  protoc --go_out=plugins=grpc:/output --proto_path=/input /input/lightstep_carrier.proto
+	  protoc --go_out=plugins=grpc:/output --proto_path=/input /input/lightstep.proto
 endif
 
-test: lightstep_thrift/constants.go collectorpb/collector.pb.go lightsteppb/lightstep_carrier.pb.go \
+test: lightstep_thrift/constants.go collectorpb/collector.pb.go lightsteppb/lightstep.pb.go \
 		collectorpb/collectorpbfakes/fake_collector_service_client.go \
 		lightstep_thrift/lightstep_thriftfakes/fake_reporting_service.go lightstepfakes/fake_recorder.go
 ifeq ($(DOCKER_PRESENT),)
@@ -69,13 +69,13 @@ endif
 	  ginkgo -race -p /usergo/src/github.com/lightstep/lightstep-tracer-go
 	bash -c "! git grep -q '[g]ithub.com/golang/glog'"
 
-build: lightstep_thrift/constants.go collectorpb/collector.pb.go lightsteppb/lightstep_carrier.pb.go \
+build: lightstep_thrift/constants.go collectorpb/collector.pb.go lightsteppb/lightstep.pb.go \
 		collectorpb/collectorpbfakes/fake_collector_service_client.go version.go \
 		lightstep_thrift/lightstep_thriftfakes/fake_reporting_service.go lightstepfakes/fake_recorder.go
 ifeq ($(DOCKER_PRESENT),)
-       	$(error "docker not found. Please install from https://www.docker.com/")
+	$(error "docker not found. Please install from https://www.docker.com/")
 endif
-	${GO} build github.com/lightstep/lightstep-tracer-go/...
+	${GO} build github.com/lightstep/lightstep-tracer-go
 
 # When releasing significant changes, make sure to update the semantic
 # version number in `./VERSION`, merge changes, then run `make release_tag`.

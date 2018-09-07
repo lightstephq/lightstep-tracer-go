@@ -192,6 +192,12 @@ func (s *spanImpl) FinishWithOptions(opts ot.FinishOptions) {
 	s.Lock()
 	defer s.Unlock()
 
+	// If the duration is already set, this span has already been finished.
+	// Return so we don't double submit the span.
+	if s.raw.Duration >= 0 {
+		return
+	}
+
 	for _, lr := range opts.LogRecords {
 		s.appendLog(lr)
 	}

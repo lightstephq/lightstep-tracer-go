@@ -16,7 +16,7 @@ import (
 	"github.com/lightstep/lightstep-tracer-go/lightstepfakes"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	opentracing "github.com/opentracing/opentracing-go"
+	"github.com/opentracing/opentracing-go"
 )
 
 var _ = Describe("Tracer", func() {
@@ -52,6 +52,50 @@ var _ = Describe("Tracer", func() {
 
 	AfterEach(func() {
 		closeTestTracer(tracer)
+	})
+
+	Describe("Start Span", func() {
+		BeforeEach(func() {
+			opts = Options{
+				AccessToken: accessToken,
+				ConnFactory: fakeConn,
+			}
+		})
+
+		It("should start a span than can be finished", func() {
+			span := tracer.StartSpan("operation_name")
+			if !Expect(span).To(Not(BeNil())) {
+				return
+			}
+			span.Finish()
+
+			tracer.Flush(context.Background())
+
+			if !Expect(fakeClient.ReportCallCount()).To(Equal(1)) {
+				return
+			}
+
+			_, request, _ := fakeClient.ReportArgsForCall(0)
+			Expect(request.Spans).To(HaveLen(1))
+		})
+
+		It("should start a span that can be finished twice but only reports once", func() {
+			span := tracer.StartSpan("operation_name")
+			if !Expect(span).To(Not(BeNil())) {
+				return
+			}
+			span.Finish()
+			span.Finish()
+
+			tracer.Flush(context.Background())
+
+			if !Expect(fakeClient.ReportCallCount()).To(Equal(1)) {
+				return
+			}
+
+			_, request, _ := fakeClient.ReportArgsForCall(0)
+			Expect(request.Spans).To(HaveLen(1))
+		})
 	})
 
 	Describe("Access Token", func() {
@@ -237,7 +281,6 @@ var _ = Describe("Tracer", func() {
 	})
 
 	Describe("Close", func() {
-
 		BeforeEach(func() {
 			opts = Options{
 				AccessToken:        accessToken,
