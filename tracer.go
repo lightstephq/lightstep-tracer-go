@@ -137,8 +137,10 @@ func (tracer *tracerImpl) StartSpan(
 
 func (tracer *tracerImpl) Inject(sc ot.SpanContext, format interface{}, carrier interface{}) error {
 	switch format {
-	case ot.TextMap, ot.HTTPHeaders:
+	case ot.TextMap:
 		return theTextMapPropagator.Inject(sc, carrier)
+	case ot.HTTPHeaders:
+		return theHTTPHeadersPropagator.Inject(sc, carrier)
 	case BinaryCarrier:
 		return theBinaryPropagator.Inject(sc, carrier)
 	}
