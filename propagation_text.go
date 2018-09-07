@@ -18,8 +18,10 @@ const (
 )
 
 var theTextMapPropagator textMapPropagator
+var theHTTPHeadersPropagator httpHeadersPropagator
 
 type textMapPropagator struct{}
+type httpHeadersPropagator struct{}
 
 func (textMapPropagator) Inject(
 	spanContext opentracing.SpanContext,
@@ -94,4 +96,32 @@ func (textMapPropagator) Extract(
 		SpanID:  spanID,
 		Baggage: decodedBaggage,
 	}, nil
+}
+
+func (httpHeadersPropagator) Inject(
+	spanContext opentracing.SpanContext,
+	opaqueCarrier interface{},
+) error {
+	sc, ok := spanContext.(SpanContext)
+	if !ok {
+		return opentracing.ErrInvalidSpanContext
+	}
+	carrier, ok := opaqueCarrier.(opentracing.HTTPHeadersCarrier)
+	if !ok {
+		return opentracing.ErrInvalidCarrier
+	}
+	carrier.Set(fieldNameTraceID, strconv.FormatUint(sc.TraceID, 16))
+	carrier.Set(fieldNameSpanID, strconv.FormatUint(sc.SpanID, 16))
+	carrier.Set(fieldNameSampled, "true")
+
+	for k, v := range sc.Baggage {
+		carrier.Set(prefixBaggage+k, v)
+	}
+	return nil
+}
+
+func (httpHeadersPropagator) Extract(
+	opaqueCarrier interface{},
+) (opentracing.SpanContext, error) {
+	return theTextMapPropagator.Extract(opaqueCarrier)
 }
