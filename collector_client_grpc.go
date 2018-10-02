@@ -51,13 +51,14 @@ type grpcCollectorClient struct {
 
 func newGrpcCollectorClient(opts Options, reporterID uint64, attributes map[string]string) *grpcCollectorClient {
 	rec := &grpcCollectorClient{
-		accessToken:          opts.AccessToken,
 		attributes:           attributes,
-		maxReportingPeriod:   opts.ReportingPeriod,
-		reportingTimeout:     opts.ReportTimeout,
 		reporterID:           reporterID,
-		hostPort:             opts.Collector.HostPort(),
+		accessToken:          opts.AccessToken,
+		maxReportingPeriod:   opts.ReportingPeriod,
 		reconnectPeriod:      opts.ReconnectPeriod,
+		reportingTimeout:     opts.ReportTimeout,
+		hostPort:             opts.Collector.HostPort(),
+		dialOptions:          opts.DialOptions,
 		converter:            newProtoConverter(opts),
 		grpcConnectorFactory: opts.ConnFactory,
 	}

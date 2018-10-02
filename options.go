@@ -12,6 +12,7 @@ import (
 	// N.B.(jmacd): Do not use google.golang.org/glog in this package.
 
 	ot "github.com/opentracing/opentracing-go"
+	"google.golang.org/grpc"
 )
 
 // Default Option values.
@@ -153,6 +154,12 @@ type Options struct {
 	UseGRPC   bool `yaml:"usegrpc"`
 
 	ReconnectPeriod time.Duration `yaml:"reconnect_period"`
+
+	// DialOptions allows customizing the grpc dial options passed to the grpc.Dial(...) call.
+	// This is an advanced feature added to allow for a custom balancer or middleware.
+	// It can be safely ignored if you have no custom dialing requirements.
+	// If UseGRPC is not set, these dial options are ignored.
+	DialOptions []grpc.DialOption `yaml:"-" json:"-"`
 
 	// A hook for receiving finished span events
 	Recorder SpanRecorder `yaml:"-" json:"-"`
