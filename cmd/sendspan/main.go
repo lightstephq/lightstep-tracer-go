@@ -28,8 +28,10 @@ func main() {
 		Collector: lightstep.Endpoint{
 			Host:      *flagHost,
 			Port:      *flagPort,
-			Plaintext: !*flagSecure},
-		UseThrift: !*flagUseGRPC})
+			Plaintext: !*flagSecure,
+		},
+		UseThrift: !*flagUseGRPC,
+	})
 
 	fmt.Println("Sending span...")
 	span := t.StartSpan(*flagOperation)

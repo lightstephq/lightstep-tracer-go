@@ -2,6 +2,8 @@
 
 ## [Pending Release](https://github.com/lightstep/lightstep-tracer-go/compare/v0.15.5...HEAD)
 
+* We added a new field to Endpoint. If callers are using struct construction without field names (i.e. Endpoint{"host", port, ...}), they will need to add a new field (scheme = ""). Scheme shouldn't be set unless it needs to overridden, it will default correctly.
+
 ## [v0.15.5](https://github.com/lightstep/lightstep-tracer-go/compare/v0.15.4...v0.15.5)
 * Internal performance optimizations and a bug fix for issue [#161](https://github.com/lightstep/lightstep-tracer-go/issues/161)
 

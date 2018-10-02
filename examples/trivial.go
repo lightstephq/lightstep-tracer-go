@@ -46,7 +46,7 @@ func main() {
 	// Use LightStep as the global OpenTracing Tracer.
 	opentracing.InitGlobalTracer(lightstep.NewTracer(lightstep.Options{
 		AccessToken: *accessToken,
-		Collector:   lightstep.Endpoint{"localhost", 9997, true},
+		Collector:   lightstep.Endpoint{Host: "localhost", Port: 9997, Plaintext: true},
 		UseGRPC:     true,
 	}))
 

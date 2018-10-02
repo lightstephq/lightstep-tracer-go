@@ -75,7 +75,7 @@ var _ = Describe("Tracer Transports", func() {
 		Context("with default options", func() {
 			BeforeEach(func() {
 				options.AccessToken = "0987654321"
-				options.Collector = Endpoint{"localhost", port, true}
+				options.Collector = Endpoint{Host: "localhost", Port: port, Plaintext: true}
 				options.ReportingPeriod = 1 * time.Millisecond
 				options.MinReportingPeriod = 1 * time.Millisecond
 				options.ReportTimeout = 10 * time.Millisecond
@@ -333,7 +333,7 @@ var _ = Describe("Tracer Transports", func() {
 		Context("With custom log length", func() {
 			BeforeEach(func() {
 				options.AccessToken = "0987654321"
-				options.Collector = Endpoint{"localhost", port, true}
+				options.Collector = Endpoint{Host: "localhost", Port: port, Plaintext: true}
 				options.ReportingPeriod = 1 * time.Millisecond
 				options.MinReportingPeriod = 1 * time.Millisecond
 				options.ReportTimeout = 10 * time.Millisecond
@@ -383,7 +383,7 @@ var _ = Describe("Tracer Transports", func() {
 		Context("With custom MaxBufferedSpans", func() {
 			BeforeEach(func() {
 				options.AccessToken = "0987654321"
-				options.Collector = Endpoint{"localhost", port, true}
+				options.Collector = Endpoint{Host: "localhost", Port: port, Plaintext: true}
 				options.ReportingPeriod = 1 * time.Millisecond
 				options.MinReportingPeriod = 1 * time.Millisecond
 				options.ReportTimeout = 10 * time.Millisecond
@@ -406,7 +406,7 @@ var _ = Describe("Tracer Transports", func() {
 		Context("With DropSpanLogs set", func() {
 			BeforeEach(func() {
 				options.AccessToken = "0987654321"
-				options.Collector = Endpoint{"localhost", port, true}
+				options.Collector = Endpoint{Host: "localhost", Port: port, Plaintext: true}
 				options.ReportingPeriod = 1 * time.Millisecond
 				options.MinReportingPeriod = 1 * time.Millisecond
 				options.ReportTimeout = 10 * time.Millisecond
@@ -429,7 +429,7 @@ var _ = Describe("Tracer Transports", func() {
 		Context("With MaxLogsPerSpan set", func() {
 			BeforeEach(func() {
 				options.AccessToken = "0987654321"
-				options.Collector = Endpoint{"localhost", port, true}
+				options.Collector = Endpoint{Host: "localhost", Port: port, Plaintext: true}
 				options.ReportingPeriod = 1 * time.Millisecond
 				options.MinReportingPeriod = 1 * time.Millisecond
 				options.ReportTimeout = 10 * time.Millisecond
