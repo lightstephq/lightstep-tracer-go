@@ -2,7 +2,6 @@ package lightstep
 
 import (
 	"fmt"
-	"math/rand"
 	"reflect"
 	"time"
 
@@ -58,7 +57,7 @@ func newGrpcCollectorClient(opts Options, reporterID uint64, attributes map[stri
 		reportingTimeout:     opts.ReportTimeout,
 		reporterID:           reporterID,
 		hostPort:             opts.Collector.HostPort(),
-		reconnectPeriod:      time.Duration(float64(opts.ReconnectPeriod) * (1 + 0.2*rand.Float64())),
+		reconnectPeriod:      opts.ReconnectPeriod,
 		converter:            newProtoConverter(opts),
 		grpcConnectorFactory: opts.ConnFactory,
 	}
