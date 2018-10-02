@@ -28,7 +28,7 @@ func main() {
 		Collector: lightstep.Endpoint{
 			Host:      *flagHost,
 			Port:      *flagPort,
-			Plaintext: !*flagSecure},
+			Plaintext: *flagSecure},
 		UseThrift: !*flagUseGRPC})
 
 	fmt.Println("Sending span...")
