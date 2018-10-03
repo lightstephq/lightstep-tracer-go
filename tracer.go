@@ -231,8 +231,12 @@ func (tracer *tracerImpl) Flush(ctx context.Context) {
 	defer cancel()
 
 	req, flushErr := tracer.client.Translate(ctx, &tracer.flushing)
-	resp, flushErr := tracer.client.Report(ctx, req)
+	if flushErr != nil {
+		emitEvent(newEventFlushError(flushErr, FlushErrorTranslate))
+		return
+	}
 
+	resp, flushErr := tracer.client.Report(ctx, req)
 	if flushErr != nil {
 		flushErrorEvent = newEventFlushError(flushErr, FlushErrorTransport)
 	} else if len(resp.GetErrors()) > 0 {
