@@ -2,16 +2,17 @@ package lightstep
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
-	"github.com/golang/protobuf/proto"
-	"github.com/lightstep/lightstep-tracer-go/collectorpb"
-	"golang.org/x/net/context"
-	"golang.org/x/net/http2"
 	"io/ioutil"
 	"net/http"
 	"net/url"
 	"time"
-	"errors"
+
+	"github.com/golang/protobuf/proto"
+	"github.com/lightstep/lightstep-tracer-go/collectorpb"
+	"golang.org/x/net/context"
+	"golang.org/x/net/http2"
 )
 
 var (
@@ -105,6 +106,9 @@ func (client *httpCollectorClient) ShouldReconnect() bool {
 }
 
 func (client *httpCollectorClient) Report(context context.Context, req reportRequest) (collectorResponse, error) {
+	if req.httpRequest == nil {
+		return nil, fmt.Errorf("httpRequest cannot be null")
+	}
 
 	httpResponse, err := client.client.Do(req.httpRequest)
 	if err != nil {
