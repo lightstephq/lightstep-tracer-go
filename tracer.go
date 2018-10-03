@@ -220,8 +220,8 @@ func (tracer *tracerImpl) Flush(ctx context.Context) {
 	tracer.flushingLock.Lock()
 	defer tracer.flushingLock.Unlock()
 
-	if flushErr := tracer.preFlush(); flushErr != nil {
-		emitEvent(flushErr)
+	if errorEvent := tracer.preFlush(); errorEvent != nil {
+		emitEvent(errorEvent)
 		return
 	}
 
@@ -230,28 +230,27 @@ func (tracer *tracerImpl) Flush(ctx context.Context) {
 
 	req, err := tracer.client.Translate(ctx, &tracer.flushing)
 	if err != nil {
-		flushErr := newEventFlushError(err, FlushErrorTranslate)
-		emitEvent(flushErr)
+		errorEvent := newEventFlushError(err, FlushErrorTranslate)
+		emitEvent(errorEvent)
 		// call postflush to prevent the tracer from going into an invalid state.
-		emitEvent(tracer.postFlush(flushErr))
+		emitEvent(tracer.postFlush(errorEvent))
 		return
 	}
 
-	var flushErrorEvent *eventFlushError
-	resp, flushErr := tracer.client.Report(ctx, req)
-	if flushErr != nil {
-		flushErrorEvent = newEventFlushError(flushErr, FlushErrorTransport)
+	var errorEvent *eventFlushError
+	resp, err := tracer.client.Report(ctx, req)
+	if err != nil {
+		errorEvent = newEventFlushError(err, FlushErrorTransport)
 	} else if len(resp.GetErrors()) > 0 {
-		flushErrorEvent = newEventFlushError(fmt.Errorf(resp.GetErrors()[0]), FlushErrorReport)
+		errorEvent = newEventFlushError(fmt.Errorf(resp.GetErrors()[0]), FlushErrorReport)
 	}
 
-	if flushErrorEvent != nil {
-		emitEvent(flushErrorEvent)
+	emitEvent(tracer.postFlush(errorEvent))
+	if errorEvent != nil {
+		emitEvent(errorEvent)
 	}
 
-	emitEvent(tracer.postFlush(flushErrorEvent))
-
-	if flushErr == nil && resp.Disable() {
+	if err == nil && resp.Disable() {
 		tracer.Disable()
 	}
 }
@@ -301,14 +300,13 @@ func (tracer *tracerImpl) postFlush(flushEventError *eventFlushError) *eventStat
 	switch flushEventError.State() {
 	case FlushErrorTranslate:
 		// When there's a translation error, we do not want to retry.
-		// Clear the buffer and set the spans sent to 0.
-		statusReportEvent.SetSentSpans(0)
 		tracer.flushing.clear()
 	default:
 		// Restore the records that did not get sent correctly
 		tracer.buffer.mergeFrom(&tracer.flushing)
-		statusReportEvent.SetSentSpans(0)
 	}
+
+	statusReportEvent.SetSentSpans(0)
 
 	return statusReportEvent
 }
