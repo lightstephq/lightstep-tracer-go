@@ -245,10 +245,10 @@ func (tracer *tracerImpl) Flush(ctx context.Context) {
 		errorEvent = newEventFlushError(fmt.Errorf(resp.GetErrors()[0]), FlushErrorReport)
 	}
 
-	emitEvent(tracer.postFlush(errorEvent))
 	if errorEvent != nil {
 		emitEvent(errorEvent)
 	}
+	emitEvent(tracer.postFlush(errorEvent))
 
 	if err == nil && resp.Disable() {
 		tracer.Disable()
