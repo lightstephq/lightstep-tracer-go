@@ -237,18 +237,18 @@ func (tracer *tracerImpl) Flush(ctx context.Context) {
 		return
 	}
 
-	var errorEvent *eventFlushError
+	var reportErrorEvent *eventFlushError
 	resp, err := tracer.client.Report(ctx, req)
 	if err != nil {
-		errorEvent = newEventFlushError(err, FlushErrorTransport)
+		reportErrorEvent = newEventFlushError(err, FlushErrorTransport)
 	} else if len(resp.GetErrors()) > 0 {
-		errorEvent = newEventFlushError(fmt.Errorf(resp.GetErrors()[0]), FlushErrorReport)
+		reportErrorEvent = newEventFlushError(fmt.Errorf(resp.GetErrors()[0]), FlushErrorReport)
 	}
 
-	if errorEvent != nil {
-		emitEvent(errorEvent)
+	if reportErrorEvent != nil {
+		emitEvent(reportErrorEvent)
 	}
-	emitEvent(tracer.postFlush(errorEvent))
+	emitEvent(tracer.postFlush(reportErrorEvent))
 
 	if err == nil && resp.Disable() {
 		tracer.Disable()
