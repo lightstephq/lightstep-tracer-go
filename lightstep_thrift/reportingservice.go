@@ -6,6 +6,7 @@ package lightstep_thrift
 import (
 	"bytes"
 	"fmt"
+
 	"github.com/lightstep/lightstep-tracer-go/thrift_0_9_2/lib/go/thrift"
 )
 

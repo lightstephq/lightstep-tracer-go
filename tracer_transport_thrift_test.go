@@ -1,10 +1,11 @@
 package lightstep_test
 
 import (
+	"strconv"
+
 	. "github.com/lightstep/lightstep-tracer-go"
 	"github.com/lightstep/lightstep-tracer-go/lightstep_thrift"
 	thriftfakes "github.com/lightstep/lightstep-tracer-go/lightstep_thrift/lightstep_thriftfakes"
-	"strconv"
 )
 
 type thriftFakeClient struct {
