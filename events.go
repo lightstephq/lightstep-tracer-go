@@ -68,6 +68,7 @@ const (
 	FlushErrorTracerDisabled EventFlushErrorState = "flush failed, the tracer is disabled."
 	FlushErrorTransport      EventFlushErrorState = "flush failed, could not send report to Collector"
 	FlushErrorReport         EventFlushErrorState = "flush failed, report contained errors"
+	FlushErrorTranslate      EventFlushErrorState = "flush failed, could not translate report"
 )
 
 var (

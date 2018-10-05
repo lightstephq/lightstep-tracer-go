@@ -106,6 +106,9 @@ func (client *httpCollectorClient) ShouldReconnect() bool {
 }
 
 func (client *httpCollectorClient) Report(context context.Context, req reportRequest) (collectorResponse, error) {
+	if req.httpRequest == nil {
+		return nil, fmt.Errorf("httpRequest cannot be null")
+	}
 
 	httpResponse, err := client.client.Do(req.httpRequest)
 	if err != nil {
