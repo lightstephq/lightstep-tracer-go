@@ -37,7 +37,7 @@ type grpcCollectorClient struct {
 	reportingTimeout   time.Duration // set by GrpcOptions.ReportTimeout
 
 	// Remote service that will receive reports.
-	hostPort      string
+	address       string
 	grpcClient    cpb.CollectorServiceClient
 	connTimestamp time.Time
 	dialOptions   []grpc.DialOption
@@ -57,10 +57,15 @@ func newGrpcCollectorClient(opts Options, reporterID uint64, attributes map[stri
 		maxReportingPeriod:   opts.ReportingPeriod,
 		reconnectPeriod:      opts.ReconnectPeriod,
 		reportingTimeout:     opts.ReportTimeout,
-		hostPort:             opts.Collector.HostPort(),
 		dialOptions:          opts.DialOptions,
 		converter:            newProtoConverter(opts),
 		grpcConnectorFactory: opts.ConnFactory,
+	}
+
+	if len(opts.Collector.Scheme) > 0 {
+		rec.address = opts.Collector.urlWithoutPath()
+	} else {
+		rec.address = opts.Collector.SocketAddress()
 	}
 
 	rec.dialOptions = append(rec.dialOptions, grpc.WithDefaultCallOptions(grpc.MaxCallSendMsgSize(opts.GRPCMaxCallSendMsgSizeBytes)))
@@ -90,7 +95,7 @@ func (client *grpcCollectorClient) ConnectClient() (Connection, error) {
 		conn = transport
 		client.grpcClient = grpcClient
 	} else {
-		transport, err := grpc.Dial(client.hostPort, client.dialOptions...)
+		transport, err := grpc.Dial(client.address, client.dialOptions...)
 		if err != nil {
 			return nil, err
 		}

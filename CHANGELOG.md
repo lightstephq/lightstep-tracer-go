@@ -2,6 +2,14 @@
 
 ## [Pending Release](https://github.com/lightstep/lightstep-tracer-go/compare/v0.15.5...HEAD)
 
+* Add a new field to Options: DialOptions. These allow setting custom grpc dial options when using grpc.
+  * This is necessary to have customer balancers or interceptors.
+  * DialOptions shouldn't be set unless it is needed, it will default correctly.
+* Added a new field to Endpoint: Scheme. Scheme can be used to override the default schemes (http/https) or set a custom scheme (for grpc).
+  * This is necessary for using custom grpc resolvers.
+  * If callers are using struct construction without field names (i.e. Endpoint{"host", port, ...}), they will need to add a new field (scheme = "").
+  * Scheme shouldn't be set unless it needs to overridden, it will default correctly.
+
 ## [v0.15.5](https://github.com/lightstep/lightstep-tracer-go/compare/v0.15.4...v0.15.5)
 * Internal performance optimizations and a bug fix for issue [#161](https://github.com/lightstep/lightstep-tracer-go/issues/161)
 

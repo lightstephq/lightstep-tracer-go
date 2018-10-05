@@ -51,8 +51,8 @@ const (
 )
 
 const (
-	secureProtocol    = "https"
-	plaintextProtocol = "http"
+	secureScheme    = "https"
+	plaintextScheme = "http"
 )
 
 // Validation Errors
@@ -70,22 +70,42 @@ type SpanRecorder interface {
 // Endpoint describes a collector or web API host/port and whether or
 // not to use plaintext communication.
 type Endpoint struct {
-	Host      string `yaml:"host" usage:"host on which the endpoint is running"`
-	Port      int    `yaml:"port" usage:"port on which the endpoint is listening"`
-	Plaintext bool   `yaml:"plaintext" usage:"whether or not to encrypt data send to the endpoint"`
+	Scheme    string `yaml:"scheme" json:"scheme" usage:"scheme to use for the endpoint, defaults to appropriate one if no custom one is required"`
+	Host      string `yaml:"host" json:"host" usage:"host on which the endpoint is running"`
+	Port      int    `yaml:"port" json:"port" usage:"port on which the endpoint is listening"`
+	Plaintext bool   `yaml:"plaintext" json:"plaintext" usage:"whether or not to encrypt data send to the endpoint"`
 }
 
-// HostPort returns an address suitable for dialing grpc connections
+// Deprecated: HostPort use SocketAddress instead.
 func (e Endpoint) HostPort() string {
+	return e.SocketAddress()
+}
+
+// SocketAddress returns an address suitable for dialing grpc connections
+func (e Endpoint) SocketAddress() string {
 	return fmt.Sprintf("%s:%d", e.Host, e.Port)
 }
 
 // URL returns an address suitable for dialing thrift connections
 func (e Endpoint) URL() string {
-	if e.Plaintext {
-		return fmt.Sprintf("%s://%s:%d%s", plaintextProtocol, e.Host, e.Port, DefaultCollectorPath)
+	return fmt.Sprintf("%s%s", e.urlWithoutPath(), DefaultCollectorPath)
+}
+
+// urlWithoutPath returns an address suitable for grpc connections if a custom scheme is provided
+func (e Endpoint) urlWithoutPath() string {
+	return fmt.Sprintf("%s://%s", e.scheme(), e.SocketAddress())
+}
+
+func (e Endpoint) scheme() string {
+	if len(e.Scheme) > 0 {
+		return e.Scheme
 	}
-	return fmt.Sprintf("%s://%s:%d%s", secureProtocol, e.Host, e.Port, DefaultCollectorPath)
+
+	if e.Plaintext {
+		return plaintextScheme
+	}
+
+	return secureScheme
 }
 
 // Options control how the LightStep Tracer behaves.
