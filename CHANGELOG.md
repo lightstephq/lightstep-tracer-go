@@ -1,7 +1,10 @@
 # Changelog
 
-## [Pending Release](https://github.com/lightstep/lightstep-tracer-go/compare/v0.15.5...HEAD)
+## [Pending Release](https://github.com/lightstep/lightstep-tracer-go/compare/v0.15.6...HEAD)
 
+## [v0.15.6](https://github.com/lightstep/lightstep-tracer-go/compare/v0.15.5...v0.15.6)
+
+* Minor update to `sendspan` to make it easier to pick which transport protocol to use.
 * Add a new field to Options: DialOptions. These allow setting custom grpc dial options when using grpc.
   * This is necessary to have customer balancers or interceptors.
   * DialOptions shouldn't be set unless it is needed, it will default correctly.
