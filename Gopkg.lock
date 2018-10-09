@@ -3,7 +3,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:3b760d3b93f994df8eb1d9ebfad17d3e9e37edcb7f7efaa15b427c0d7a64f4e4"
+  digest = "1:b5a22bac9656361e084f5414d06228ca03efe6d9bcba93256c44a32584111805"
   name = "github.com/golang/protobuf"
   packages = [
     "proto",
@@ -13,11 +13,11 @@
     "ptypes/duration",
     "ptypes/timestamp",
   ]
-  pruneopts = ""
+  pruneopts = "UT"
   revision = "1e59b77b52bf8e4b449a57e6f79f21226d571845"
 
 [[projects]]
-  digest = "1:32b27072cd55bd2fb7244de0425943d125da6a552ae2b6517cdd965a662baf18"
+  digest = "1:f4cbb10407f60c0263738e7b219b80ba99516aa9da187f44680d5b29360b3c9f"
   name = "github.com/onsi/ginkgo"
   packages = [
     ".",
@@ -39,12 +39,12 @@
     "reporters/stenographer/support/go-isatty",
     "types",
   ]
-  pruneopts = ""
+  pruneopts = "UT"
   revision = "9eda700730cba42af70d53180f9dcce9266bc2bc"
   version = "v1.4.0"
 
 [[projects]]
-  digest = "1:a4e59d0b2821c983b58c317f141cd77df20570979632da8a7a352e5d12698de7"
+  digest = "1:3f33175654fb22600581d63dbbb5098a2095d19423a8d180c0c92f55755f68dd"
   name = "github.com/onsi/gomega"
   packages = [
     ".",
@@ -60,24 +60,24 @@
     "matchers/support/goraph/util",
     "types",
   ]
-  pruneopts = ""
+  pruneopts = "UT"
   revision = "c893efa28eb45626cdaa76c9f653b62488858837"
   version = "v1.2.0"
 
 [[projects]]
-  digest = "1:78fb99d6011c2ae6c72f3293a83951311147b12b06a5ffa43abf750c4fab6ac5"
+  digest = "1:9d7b1f07e44cada28e6160cb0a808ad2f71f32bd7114793fb0baa302db0e6229"
   name = "github.com/opentracing/opentracing-go"
   packages = [
     ".",
     "log",
   ]
-  pruneopts = ""
+  pruneopts = "UT"
   revision = "1949ddbfd147afd4d964a9f00b24eb291e0e7c38"
   version = "v1.0.2"
 
 [[projects]]
   branch = "master"
-  digest = "1:950b672f2ee80d0fc4c95a15a976ba9ee573a6fb8ede8a777770b2230776367e"
+  digest = "1:cc32defc38df9a25930b779524a15990df53a49141102cd57247465c92c11757"
   name = "golang.org/x/net"
   packages = [
     "context",
@@ -91,20 +91,20 @@
     "lex/httplex",
     "trace",
   ]
-  pruneopts = ""
+  pruneopts = "UT"
   revision = "dc871a5d77e227f5bbf6545176ef3eeebf87e76e"
 
 [[projects]]
   branch = "master"
-  digest = "1:5da11ab130476e2736f32140f3c1aed2a3a96e9ba8963711a7d38db783d042bd"
+  digest = "1:dbeb68e1adb188a04a049b3f755b0b4156321a51dcc252addf485a62198f1743"
   name = "golang.org/x/sys"
   packages = ["unix"]
-  pruneopts = ""
+  pruneopts = "UT"
   revision = "a0f4589a76f1f83070cb9e5613809e1d07b97c13"
 
 [[projects]]
   branch = "master"
-  digest = "1:1c70f7bb89783a026dc32920575a3feef48e065ef6e170ad227903e8194d7a36"
+  digest = "1:a3ad8306be13e0c0bd874b2d33d6e1c4634111f56e71015317b2739d881f469d"
   name = "golang.org/x/text"
   packages = [
     "collate",
@@ -134,22 +134,22 @@
     "unicode/norm",
     "unicode/rangetable",
   ]
-  pruneopts = ""
+  pruneopts = "UT"
   revision = "be25de41fadfae372d6470bda81ca6beb55ef551"
 
 [[projects]]
   branch = "master"
-  digest = "1:6c15114fafeac4c833544476dec4207a3476799d50ab5165af79eb97806884cf"
+  digest = "1:ef835bcab313797c76d8210bcc3e586c8bfa3a7d968692015dc5bdbfd3842476"
   name = "google.golang.org/genproto"
   packages = [
     "googleapis/api/annotations",
     "googleapis/rpc/status",
   ]
-  pruneopts = ""
+  pruneopts = "UT"
   revision = "7f0da29060c682909f650ad8ed4e515bd74fa12a"
 
 [[projects]]
-  digest = "1:6c00b4702c146631d30396090d40bfc0486f8b3af5c976d6f0daf2bc737cd7b2"
+  digest = "1:1ea5a83ec689fa194d28cd6cc134c5c7c9cb917daa1cd30f5595c7d7ce546c05"
   name = "google.golang.org/grpc"
   packages = [
     ".",
@@ -175,16 +175,16 @@
     "tap",
     "transport",
   ]
-  pruneopts = ""
+  pruneopts = "UT"
   revision = "be077907e29fdb945d351e4284eb5361e7f8924e"
   version = "v1.8.1"
 
 [[projects]]
   branch = "v2"
-  digest = "1:f769ed60e075e4221612c2f4162fccc9d3795ef358fa463425e3b3d7a5debb27"
+  digest = "1:c46d0fb245dbc49cb816b3e2818d1830e29d03bee1663b1e201f3ed918ec6e60"
   name = "gopkg.in/yaml.v2"
   packages = ["."]
-  pruneopts = ""
+  pruneopts = "UT"
   revision = "287cf08546ab5e7e37d55a84f7ed3fd1db036de5"
 
 [solve-meta]
