@@ -18,6 +18,12 @@ var (
 	flagOperation   = flag.String("operation_name", "test-operation", "The operation to use for the test span")
 )
 
+func init() {
+	lightstep.SetGlobalEventHandler(func(event lightstep.Event) {
+		fmt.Println(event)
+	})
+}
+
 func main() {
 	flag.Parse()
 
