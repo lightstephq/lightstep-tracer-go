@@ -1,6 +1,7 @@
 package lightstep
 
 import (
+	"context"
 	"errors"
 	"fmt"
 
@@ -8,7 +9,6 @@ import (
 	cpbfakes "github.com/lightstep/lightstep-tracer-go/collectorpb/collectorpbfakes"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"golang.org/x/net/context"
 )
 
 var _ = Describe("TracerImpl", func() {

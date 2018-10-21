@@ -2,6 +2,7 @@ package lightstep
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -11,7 +12,6 @@ import (
 
 	"github.com/golang/protobuf/proto"
 	"github.com/lightstep/lightstep-tracer-go/collectorpb"
-	"golang.org/x/net/context"
 	"golang.org/x/net/http2"
 )
 

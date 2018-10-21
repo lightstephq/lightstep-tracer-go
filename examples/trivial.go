@@ -6,15 +6,14 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"os"
 	"time"
 
-	"golang.org/x/net/context"
-
-	"github.com/lightstep/lightstep-tracer-go"
-	"github.com/opentracing/opentracing-go"
+	lightstep "github.com/lightstep/lightstep-tracer-go"
+	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/log"
 )
 

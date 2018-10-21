@@ -1,12 +1,11 @@
 package lightstep
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 	"strings"
 	"time"
-
-	"golang.org/x/net/context"
 
 	"github.com/lightstep/lightstep-tracer-go/lightstep_thrift"
 	"github.com/lightstep/lightstep-tracer-go/thrift_0_9_2/lib/go/thrift"

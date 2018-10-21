@@ -1,11 +1,10 @@
 package lightstep
 
 import (
+	"context"
 	"fmt"
 	"reflect"
 	"time"
-
-	"golang.org/x/net/context"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"

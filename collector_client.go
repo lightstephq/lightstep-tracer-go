@@ -1,10 +1,9 @@
 package lightstep
 
 import (
+	"context"
 	"io"
 	"net/http"
-
-	"golang.org/x/net/context"
 
 	cpb "github.com/lightstep/lightstep-tracer-go/collectorpb"
 	"github.com/lightstep/lightstep-tracer-go/lightstep_thrift"

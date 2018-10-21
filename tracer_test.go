@@ -1,6 +1,7 @@
 package lightstep_test
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"sync"
@@ -8,15 +9,13 @@ import (
 
 	"google.golang.org/grpc"
 
-	"golang.org/x/net/context"
-
 	. "github.com/lightstep/lightstep-tracer-go"
 	cpb "github.com/lightstep/lightstep-tracer-go/collectorpb"
 	cpbfakes "github.com/lightstep/lightstep-tracer-go/collectorpb/collectorpbfakes"
 	"github.com/lightstep/lightstep-tracer-go/lightstepfakes"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"github.com/opentracing/opentracing-go"
+	opentracing "github.com/opentracing/opentracing-go"
 )
 
 var _ = Describe("Tracer", func() {

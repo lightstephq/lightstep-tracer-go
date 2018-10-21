@@ -2,10 +2,9 @@
 package lightstep
 
 import (
+	"context"
 	"fmt"
 	"time"
-
-	"golang.org/x/net/context"
 
 	"runtime"
 	"sync"
