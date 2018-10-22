@@ -6,13 +6,13 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"net/url"
 	"time"
 
 	"github.com/golang/protobuf/proto"
 	"github.com/lightstep/lightstep-tracer-go/collectorpb"
-	"golang.org/x/net/http2"
 )
 
 var (
@@ -34,7 +34,8 @@ type httpCollectorClient struct {
 	accessToken string // accessToken is the access token used for explicit trace collection requests.
 	attributes  map[string]string
 
-	reportTimeout time.Duration
+	reportTimeout   time.Duration
+	reportingPeriod time.Duration
 
 	// Remote service that will receive reports.
 	url    *url.URL
@@ -49,12 +50,11 @@ type HttpRequest struct {
 }
 
 type transportCloser struct {
-	transport http2.Transport
+	*http.Transport
 }
 
-func (closer *transportCloser) Close() error {
-	closer.transport.CloseIdleConnections()
-
+func (closer transportCloser) Close() error {
+	closer.CloseIdleConnections()
 	return nil
 }
 
@@ -71,25 +71,31 @@ func newHttpCollectorClient(
 	url.Path = collectorHttpPath
 
 	return &httpCollectorClient{
-		reporterID:    reporterID,
-		accessToken:   opts.AccessToken,
-		attributes:    attributes,
-		reportTimeout: opts.ReportTimeout,
-		url:           url,
-		converter:     newProtoConverter(opts),
+		reporterID:      reporterID,
+		accessToken:     opts.AccessToken,
+		attributes:      attributes,
+		reportTimeout:   opts.ReportTimeout,
+		reportingPeriod: opts.ReportingPeriod,
+		url:             url,
+		converter:       newProtoConverter(opts),
 	}, nil
 }
 
 func (client *httpCollectorClient) ConnectClient() (Connection, error) {
-	// The golang http2 client implementation doesn't support plaintext http2 (a.k.a h2c) out of the box.
-	// According to https://github.com/golang/go/issues/14141, they don't have plans to.
-	// For now, we are falling back to http1 for plaintext.
-	// In the future, we might want to add out own h2c implementation (see https://github.com/hkwi/h2c).
-	var transport http.RoundTripper
-	if client.url.Scheme == "https" {
-		transport = &http2.Transport{}
-	} else {
-		transport = &http.Transport{}
+	// Use a transport independent from http.DefaultTransport to provide sane
+	// defaults that make sense in the context of the lightstep client.
+	transport := &http.Transport{
+		Proxy: http.ProxyFromEnvironment,
+		DialContext: (&net.Dialer{
+			Timeout:   client.reportTimeout / 2,
+			DualStack: true,
+		}).DialContext,
+		DisableCompression:     true,
+		IdleConnTimeout:        2 * client.reportingPeriod,
+		TLSHandshakeTimeout:    client.reportTimeout / 2,
+		ResponseHeaderTimeout:  client.reportTimeout,
+		ExpectContinueTimeout:  client.reportTimeout,
+		MaxResponseHeaderBytes: 64 * 1024, // 64 KB, just a safeguard
 	}
 
 	client.client = &http.Client{
@@ -97,11 +103,11 @@ func (client *httpCollectorClient) ConnectClient() (Connection, error) {
 		Timeout:   client.reportTimeout,
 	}
 
-	return &transportCloser{}, nil
+	return transportCloser{transport}, nil
 }
 
 func (client *httpCollectorClient) ShouldReconnect() bool {
-	// http2 will handle connection reuse under the hood
+	// http.Transport will handle connection reuse under the hood
 	return false
 }
 
@@ -110,7 +116,7 @@ func (client *httpCollectorClient) Report(context context.Context, req reportReq
 		return nil, fmt.Errorf("httpRequest cannot be null")
 	}
 
-	httpResponse, err := client.client.Do(req.httpRequest)
+	httpResponse, err := client.client.Do(req.httpRequest.WithContext(context))
 	if err != nil {
 		return nil, err
 	}
