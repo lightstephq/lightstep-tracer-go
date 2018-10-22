@@ -1,6 +1,8 @@
 # Changelog
 
 ## [Pending Release](https://github.com/lightstep/lightstep-tracer-go/compare/v0.15.6...HEAD)
+* Requires go >= 1.7
+* Imports `context` via the standard library instead of `golang.org/x/net/context`
 
 ## [v0.15.6](https://github.com/lightstep/lightstep-tracer-go/compare/v0.15.5...v0.15.6)
 
