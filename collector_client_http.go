@@ -83,13 +83,17 @@ func newHttpCollectorClient(
 
 func (client *httpCollectorClient) ConnectClient() (Connection, error) {
 	// Use a transport independent from http.DefaultTransport to provide sane
-	// defaults that make sense in the context of the lightstep client.
+	// defaults that make sense in the context of the lightstep client. The
+	// differences are mostly on setting timeouts based on the report timeout
+	// and period.
 	transport := &http.Transport{
 		Proxy: http.ProxyFromEnvironment,
 		DialContext: (&net.Dialer{
 			Timeout:   client.reportTimeout / 2,
 			DualStack: true,
 		}).DialContext,
+		// The collector responses are very small, there is no point asking for
+		// a compressed payload, explicitly disabling it.
 		DisableCompression:     true,
 		IdleConnTimeout:        2 * client.reportingPeriod,
 		TLSHandshakeTimeout:    client.reportTimeout / 2,
