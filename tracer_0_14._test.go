@@ -6,7 +6,6 @@ import (
 	lightstep "github.com/lightstep/lightstep-tracer-go"
 	cpb "github.com/lightstep/lightstep-tracer-go/collectorpb"
 	cpbfakes "github.com/lightstep/lightstep-tracer-go/collectorpb/collectorpbfakes"
-	"github.com/lightstep/lightstep-tracer-go/lightstepfakes"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	opentracing "github.com/opentracing/opentracing-go"
@@ -21,19 +20,15 @@ var _ = Describe("Tracerv0_14", func() {
 	var fakeClient *cpbfakes.FakeCollectorServiceClient
 	var fakeConn lightstep.ConnectorFactory
 
-	var fakeRecorder *lightstepfakes.FakeSpanRecorder
-
 	var eventHandler lightstep.EventHandler
-	var eventChan <-chan lightstep.Event
 	const eventBufferSize = 10
 
 	BeforeEach(func() {
 		fakeClient = new(cpbfakes.FakeCollectorServiceClient)
 		fakeClient.ReportReturns(&cpb.ReportResponse{}, nil)
 		fakeConn = fakeGrpcConnection(fakeClient)
-		fakeRecorder = new(lightstepfakes.FakeSpanRecorder)
 
-		eventHandler, eventChan = lightstep.NewEventChannel(eventBufferSize)
+		eventHandler, _ = lightstep.NewEventChannel(eventBufferSize)
 		lightstep.SetGlobalEventHandler(eventHandler)
 	})
 
