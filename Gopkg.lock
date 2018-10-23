@@ -17,7 +17,7 @@
   revision = "1e59b77b52bf8e4b449a57e6f79f21226d571845"
 
 [[projects]]
-  branch = "0.9.2"
+  branch = "master"
   digest = "1:b486888585e9070ef97f0c9b2df560e007dc2eafb8ace96b13a2cb85ccec3df1"
   name = "github.com/lightstep/thrift"
   packages = ["lib/go/thrift"]
