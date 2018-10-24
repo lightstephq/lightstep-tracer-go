@@ -12,7 +12,7 @@ func init() {
 
 var eventHandler atomic.Value
 
-// An OnEventHandler can be registered with SetGlobalEventHandler to
+// An EventHandler can be registered with SetGlobalEventHandler to
 type EventHandler func(Event)
 
 // emitEvent is a thread-safe function for emiting tracer events.
@@ -42,7 +42,7 @@ func SetGlobalEventHandler(handler EventHandler) {
 	SetGlobalEventHandler Handlers
 */
 
-// NewOnEventLogger logs events using the standard go logger.
+// NewEventLogger logs events using the standard go logger.
 func NewEventLogger() EventHandler {
 	return logOnEvent
 }
@@ -56,7 +56,7 @@ func logOnEvent(event Event) {
 	}
 }
 
-// NewOnEventLogOneError logs the first error event that occurs.
+// NewEventLogOneError logs the first error event that occurs.
 func NewEventLogOneError() EventHandler {
 	logger := logOneError{}
 	return logger.OnEvent
@@ -75,7 +75,7 @@ func (l *logOneError) OnEvent(event Event) {
 	}
 }
 
-// NewChannelOnEvent returns an SetGlobalEventHandler callback handler, and a channel that
+// NewEventChannel returns an SetGlobalEventHandler callback handler, and a channel that
 // produces the errors. When the channel buffer is full, subsequent errors will
 // be dropped. A buffer size of less than one is incorrect, and will be adjusted
 // to a buffer size of one.

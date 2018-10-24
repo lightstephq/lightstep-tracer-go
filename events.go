@@ -9,7 +9,7 @@ import (
 	opentracing "github.com/opentracing/opentracing-go"
 )
 
-// Events are emitted by the LightStep tracer as a reporting mechanism. They are
+// An Event is emitted by the LightStep tracer as a reporting mechanism. They are
 // handled by registering an EventHandler callback via SetGlobalEventHandler. The
 // emitted events may be cast to specific event types in order access additional
 // information.
@@ -63,6 +63,7 @@ func (e *eventStartError) Err() error {
 // EventFlushErrorState lists the possible causes for a flush to fail.
 type EventFlushErrorState string
 
+// Constant strings corresponding to flush errors
 const (
 	FlushErrorTracerClosed   EventFlushErrorState = "flush failed, the tracer is closed."
 	FlushErrorTracerDisabled EventFlushErrorState = "flush failed, the tracer is disabled."
@@ -72,8 +73,7 @@ const (
 )
 
 var (
-	flushErrorTracerClosed   = errors.New(string(FlushErrorTracerClosed))
-	flushErrorTracerDisabled = errors.New(string(FlushErrorTracerDisabled))
+	errFlushFailedTracerClosed = errors.New(string(FlushErrorTracerClosed))
 )
 
 // EventFlushError occurs when a flush fails to send. Call the `State` method to

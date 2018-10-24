@@ -37,19 +37,19 @@ type collectorClient interface {
 	ShouldReconnect() bool
 }
 
-func newCollectorClient(opts Options, reporterId uint64, attributes map[string]string) (collectorClient, error) {
+func newCollectorClient(opts Options, reporterID uint64, attributes map[string]string) (collectorClient, error) {
 	if opts.UseThrift {
-		return newThriftCollectorClient(opts, reporterId, attributes), nil
+		return newThriftCollectorClient(opts, reporterID, attributes), nil
 	}
 
 	if opts.UseHttp {
-		return newHttpCollectorClient(opts, reporterId, attributes)
+		return newHTTPCollectorClient(opts, reporterID, attributes)
 	}
 
 	if opts.UseGRPC {
-		return newGrpcCollectorClient(opts, reporterId, attributes), nil
+		return newGrpcCollectorClient(opts, reporterID, attributes), nil
 	}
 
 	// No transport specified, defaulting to GRPC
-	return newGrpcCollectorClient(opts, reporterId, attributes), nil
+	return newGrpcCollectorClient(opts, reporterID, attributes), nil
 }

@@ -20,9 +20,7 @@ type thriftCollectorClient struct {
 	startTime  time.Time
 	reporterID uint64
 
-	lastReportAttempt  time.Time
 	maxReportingPeriod time.Duration
-	reportInFlight     bool
 	// Remote service that will receive reports
 	thriftClient lightstep_thrift.ReportingService
 
@@ -75,14 +73,14 @@ func (client *thriftCollectorClient) ConnectClient() (Connection, error) {
 	var conn Connection
 
 	if client.thriftConnectorFactory != nil {
-		unchecked_client, transport, err := client.thriftConnectorFactory()
+		uncheckedClient, transport, err := client.thriftConnectorFactory()
 		if err != nil {
 			return nil, err
 		}
 
-		thriftClient, ok := unchecked_client.(lightstep_thrift.ReportingService)
+		thriftClient, ok := uncheckedClient.(lightstep_thrift.ReportingService)
 		if !ok {
-			return nil, fmt.Errorf("Thrift connector factory did not provide valid client!")
+			return nil, fmt.Errorf("thrift connector factory did not provide valid client")
 		}
 
 		conn = transport
@@ -130,9 +128,9 @@ func (client *thriftCollectorClient) Translate(_ context.Context, buffer *report
 			// Note: the gRPC tracer uses Sprintf("%#v") for non-scalar non-string
 			// values, differs from the treatment here:
 			if strings.HasPrefix(key, "join:") {
-				joinIds = append(joinIds, &lightstep_thrift.TraceJoinId{key, fmt.Sprint(value)})
+				joinIds = append(joinIds, &lightstep_thrift.TraceJoinId{TraceKey: key, Value: fmt.Sprint(value)})
 			} else {
-				attributes = append(attributes, &lightstep_thrift.KeyValue{key, fmt.Sprint(value)})
+				attributes = append(attributes, &lightstep_thrift.KeyValue{Key: key, Value: fmt.Sprint(value)})
 			}
 		}
 		logs := make([]*lightstep_thrift.LogRecord, len(raw.Logs))
@@ -151,8 +149,8 @@ func (client *thriftCollectorClient) Translate(_ context.Context, buffer *report
 
 		// TODO implement baggage
 		if raw.ParentSpanID != 0 {
-			attributes = append(attributes, &lightstep_thrift.KeyValue{ParentSpanGUIDKey,
-				strconv.FormatUint(raw.ParentSpanID, 16)})
+			attributes = append(attributes, &lightstep_thrift.KeyValue{Key: ParentSpanGUIDKey,
+				Value: strconv.FormatUint(raw.ParentSpanID, 16)})
 		}
 
 		recs[i] = &lightstep_thrift.SpanRecord{
@@ -189,14 +187,14 @@ func (client *thriftCollectorClient) Translate(_ context.Context, buffer *report
 }
 
 // caller must hold r.lock
-func (r *thriftCollectorClient) thriftRuntime() *lightstep_thrift.Runtime {
-	guid := strconv.FormatUint(r.reporterID, 10)
+func (client *thriftCollectorClient) thriftRuntime() *lightstep_thrift.Runtime {
+	guid := strconv.FormatUint(client.reporterID, 10)
 	runtimeAttrs := []*lightstep_thrift.KeyValue{}
-	for k, v := range r.attributes {
-		runtimeAttrs = append(runtimeAttrs, &lightstep_thrift.KeyValue{k, v})
+	for k, v := range client.attributes {
+		runtimeAttrs = append(runtimeAttrs, &lightstep_thrift.KeyValue{Key: k, Value: v})
 	}
 	return &lightstep_thrift.Runtime{
-		StartMicros: thrift.Int64Ptr(r.startTime.UnixNano() / 1000),
+		StartMicros: thrift.Int64Ptr(client.startTime.UnixNano() / 1000),
 		Attrs:       runtimeAttrs,
 		Guid:        &guid,
 	}

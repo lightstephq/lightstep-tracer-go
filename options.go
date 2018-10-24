@@ -57,8 +57,8 @@ const (
 
 // Validation Errors
 var (
-	validationErrorNoAccessToken = fmt.Errorf("Options invalid: AccessToken must not be empty")
-	validationErrorGUIDKey       = fmt.Errorf("Options invalid: setting the %v tag is no longer supported", GUIDKey)
+	errNoAccessToken  = fmt.Errorf("Options invalid: AccessToken must not be empty")
+	errInvalidGUIDKey = fmt.Errorf("Options invalid: setting the %v tag is no longer supported", GUIDKey)
 )
 
 // A SpanRecorder handles all of the `RawSpan` data generated via an
@@ -76,7 +76,8 @@ type Endpoint struct {
 	Plaintext bool   `yaml:"plaintext" json:"plaintext" usage:"whether or not to encrypt data send to the endpoint"`
 }
 
-// Deprecated: HostPort use SocketAddress instead.
+// HostPort use SocketAddress instead.
+// DEPRECATED
 func (e Endpoint) HostPort() string {
 	return e.SocketAddress()
 }
@@ -265,11 +266,11 @@ func (opts *Options) Initialize() error {
 // configured.
 func (opts *Options) Validate() error {
 	if len(opts.AccessToken) == 0 {
-		return validationErrorNoAccessToken
+		return errNoAccessToken
 	}
 
 	if _, found := opts.Tags[GUIDKey]; found {
-		return validationErrorGUIDKey
+		return errInvalidGUIDKey
 	}
 
 	return nil

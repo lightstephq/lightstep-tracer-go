@@ -18,7 +18,7 @@ func Flush(ctx context.Context, tracer opentracing.Tracer) {
 	}
 }
 
-// CloseTracer synchronously flushes the tracer, then terminates it.
+// Close synchronously flushes the tracer, then terminates it.
 func Close(ctx context.Context, tracer opentracing.Tracer) {
 	switch lsTracer := tracer.(type) {
 	case Tracer:
@@ -42,6 +42,7 @@ func GetLightStepAccessToken(tracer opentracing.Tracer) (string, error) {
 	}
 }
 
+// FlushLightStepTracer flushes the tracer
 // DEPRECATED: use Flush instead.
 func FlushLightStepTracer(tracer opentracing.Tracer) error {
 	switch lsTracer := tracer.(type) {
@@ -55,6 +56,7 @@ func FlushLightStepTracer(tracer opentracing.Tracer) error {
 	}
 }
 
+// CloseTracer closes the tracer
 // DEPRECATED: use Close instead.
 func CloseTracer(tracer opentracing.Tracer) error {
 	switch lsTracer := tracer.(type) {

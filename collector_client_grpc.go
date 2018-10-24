@@ -88,7 +88,7 @@ func (client *grpcCollectorClient) ConnectClient() (Connection, error) {
 
 		grpcClient, ok := uncheckedClient.(cpb.CollectorServiceClient)
 		if !ok {
-			return nil, fmt.Errorf("Grpc connector factory did not provide valid client!")
+			return nil, fmt.Errorf("gRPC connector factory did not provide valid client")
 		}
 
 		conn = transport
@@ -107,7 +107,7 @@ func (client *grpcCollectorClient) ConnectClient() (Connection, error) {
 }
 
 func (client *grpcCollectorClient) ShouldReconnect() bool {
-	return time.Now().Sub(client.connTimestamp) > client.reconnectPeriod
+	return time.Since(client.connTimestamp) > client.reconnectPeriod
 }
 
 func (client *grpcCollectorClient) Report(ctx context.Context, req reportRequest) (collectorResponse, error) {

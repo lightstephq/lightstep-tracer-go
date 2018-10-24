@@ -6,7 +6,8 @@ import (
 	opentracing "github.com/opentracing/opentracing-go"
 )
 
-// DEPRECATED: Tracerv0_14 matches the Tracer interface from v0.14.0
+// Tracerv0_14 matches the Tracer interface from v0.14.0
+// DEPRECATED
 type Tracerv0_14 interface {
 	opentracing.Tracer
 
@@ -24,8 +25,9 @@ type tracerv0_14 struct {
 	Tracer
 }
 
-// DEPRECATED: For backwards compatibility, NewTracerv0_14 returns a tracer which
-// conforms to the Tracer interface from v0.14.0.
+// NewTracerv0_14 returns a tracer which conforms to the Tracer interface from v0.14.0,
+// for backwards compatibility.
+// DEPRECATED
 func NewTracerv0_14(opts Options) Tracerv0_14 {
 	return &tracerv0_14{
 		Tracer: NewTracer(opts),

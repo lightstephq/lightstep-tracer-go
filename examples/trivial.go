@@ -20,7 +20,7 @@ import (
 var accessToken = flag.String("access_token", "", "your LightStep access token")
 
 func subRoutine(ctx context.Context) {
-	trivialSpan, ctx := opentracing.StartSpanFromContext(ctx, "test span")
+	trivialSpan, _ := opentracing.StartSpanFromContext(ctx, "test span")
 	defer trivialSpan.Finish()
 	trivialSpan.LogEvent("logged something")
 	trivialSpan.LogFields(log.String("string_key", "some string value"), log.Object("trivialSpan", trivialSpan))

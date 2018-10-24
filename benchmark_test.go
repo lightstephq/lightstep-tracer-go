@@ -11,7 +11,6 @@ func BenchmarkStringsRepeatBaseline(b *B) {
 	for n := 0; n < b.N; n++ {
 		strings.Repeat("LongMessage", 4096)
 	}
-	return
 }
 
 func BenchmarkShortMessage(b *B) {
@@ -22,7 +21,6 @@ func BenchmarkShortMessage(b *B) {
 		span.LogEvent("ShortMessage")
 		span.Finish()
 	}
-	return
 }
 
 func BenchmarkLongMessage(b *B) {
@@ -33,5 +31,4 @@ func BenchmarkLongMessage(b *B) {
 		span.LogEvent(strings.Repeat("LongMessage", 4096))
 		span.Finish()
 	}
-	return
 }

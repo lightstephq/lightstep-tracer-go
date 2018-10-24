@@ -51,29 +51,29 @@ func (b *reportBuffer) addSpan(span RawSpan) {
 // mergeFrom combines the spans and metadata in `from` with `into`,
 // returning with `from` empty and `into` having a subset of the
 // combined data.
-func (into *reportBuffer) mergeFrom(from *reportBuffer) {
-	into.droppedSpanCount += from.droppedSpanCount
-	into.logEncoderErrorCount += from.logEncoderErrorCount
-	if from.reportStart.Before(into.reportStart) {
-		into.reportStart = from.reportStart
+func (b *reportBuffer) mergeFrom(from *reportBuffer) {
+	b.droppedSpanCount += from.droppedSpanCount
+	b.logEncoderErrorCount += from.logEncoderErrorCount
+	if from.reportStart.Before(b.reportStart) {
+		b.reportStart = from.reportStart
 	}
-	if from.reportEnd.After(into.reportEnd) {
-		into.reportEnd = from.reportEnd
+	if from.reportEnd.After(b.reportEnd) {
+		b.reportEnd = from.reportEnd
 	}
 
 	// Note: Somewhat arbitrarily dropping the spans that won't
 	// fit; could be more principled here to avoid bias.
-	have := len(into.rawSpans)
-	space := cap(into.rawSpans) - have
+	have := len(b.rawSpans)
+	space := cap(b.rawSpans) - have
 	unreported := len(from.rawSpans)
 
 	if space > unreported {
 		space = unreported
 	}
 
-	into.rawSpans = append(into.rawSpans, from.rawSpans[0:space]...)
+	b.rawSpans = append(b.rawSpans, from.rawSpans[0:space]...)
 
-	into.droppedSpanCount += int64(unreported - space)
+	b.droppedSpanCount += int64(unreported - space)
 
 	from.clear()
 }

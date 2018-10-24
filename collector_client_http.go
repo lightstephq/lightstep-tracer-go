@@ -3,7 +3,6 @@ package lightstep
 import (
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"net"
@@ -21,8 +20,8 @@ var (
 )
 
 const (
-	collectorHttpMethod = "POST"
-	collectorHttpPath   = "/api/v2/reports"
+	collectorHTTPMethod = "POST"
+	collectorHTTPPath   = "/api/v2/reports"
 	protoContentType    = "application/octet-stream"
 )
 
@@ -54,7 +53,7 @@ func (closer transportCloser) Close() error {
 	return nil
 }
 
-func newHttpCollectorClient(
+func newHTTPCollectorClient(
 	opts Options,
 	reporterID uint64,
 	attributes map[string]string,
@@ -64,7 +63,7 @@ func newHttpCollectorClient(
 		fmt.Println("collector config does not produce valid url", err)
 		return nil, err
 	}
-	url.Path = collectorHttpPath
+	url.Path = collectorHTTPPath
 
 	return &httpCollectorClient{
 		reporterID:      reporterID,
@@ -159,7 +158,7 @@ func (client *httpCollectorClient) toRequest(
 
 	requestBody := bytes.NewReader(buf)
 
-	request, err := http.NewRequest(collectorHttpMethod, client.url.String(), requestBody)
+	request, err := http.NewRequest(collectorHTTPMethod, client.url.String(), requestBody)
 	if err != nil {
 		return nil, err
 	}
@@ -172,7 +171,7 @@ func (client *httpCollectorClient) toRequest(
 
 func (client *httpCollectorClient) toResponse(response *http.Response) (collectorResponse, error) {
 	if response.StatusCode != http.StatusOK {
-		return nil, errors.New(fmt.Sprintf("status code (%d) is not ok", response.StatusCode))
+		return nil, fmt.Errorf("status code (%d) is not ok", response.StatusCode)
 	}
 
 	body, err := ioutil.ReadAll(response.Body)

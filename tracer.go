@@ -1,4 +1,4 @@
-// package lightstep implements the LightStep OpenTracing client for Go.
+// Package lightstep implements the LightStep OpenTracing client for Go.
 package lightstep
 
 import (
@@ -260,11 +260,11 @@ func (tracer *tracerImpl) preFlush() *eventFlushError {
 	defer tracer.lock.Unlock()
 
 	if tracer.disabled {
-		return newEventFlushError(flushErrorTracerClosed, FlushErrorTracerDisabled)
+		return newEventFlushError(errFlushFailedTracerClosed, FlushErrorTracerDisabled)
 	}
 
 	if tracer.connection == nil {
-		return newEventFlushError(flushErrorTracerClosed, FlushErrorTracerClosed)
+		return newEventFlushError(errFlushFailedTracerClosed, FlushErrorTracerClosed)
 	}
 
 	now := time.Now()
