@@ -45,10 +45,6 @@ type httpCollectorClient struct {
 	converter *protoConverter
 }
 
-type HttpRequest struct {
-	http.Request
-}
-
 type transportCloser struct {
 	*http.Transport
 }
