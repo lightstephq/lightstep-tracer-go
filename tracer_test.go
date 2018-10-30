@@ -95,6 +95,27 @@ var _ = Describe("Tracer", func() {
 			_, request, _ := fakeClient.ReportArgsForCall(0)
 			Expect(request.Spans).To(HaveLen(1))
 		})
+
+		It("can start a span with references to internal spans", func() {
+			otherSpan := tracer.StartSpan("other")
+
+			Expect(func() {
+				tracer.StartSpan("test", opentracing.SpanReference{
+					ReferencedContext: otherSpan.Context(),
+				})
+			}).To(Not(Panic()))
+		})
+
+		It("can start a spn withreferences to external spans", func() {
+			otherTracer := opentracing.NoopTracer{}
+			otherSpan := otherTracer.StartSpan("other")
+
+			Expect(func() {
+				tracer.StartSpan("test", opentracing.SpanReference{
+					ReferencedContext: otherSpan.Context(),
+				})
+			}).To(Not(Panic()))
+		})
 	})
 
 	Describe("Access Token", func() {
