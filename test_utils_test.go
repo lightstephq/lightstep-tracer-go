@@ -107,19 +107,19 @@ func KeyValue(key string, value interface{}, storeAsJson ...bool) *cpb.KeyValue 
 	tag := &cpb.KeyValue{Key: key}
 	switch typedValue := value.(type) {
 	case int:
-		tag.Value = &cpb.KeyValue_IntValue{int64(typedValue)}
+		tag.Value = &cpb.KeyValue_IntValue{IntValue: int64(typedValue)}
 	case string:
 		if len(storeAsJson) > 0 && storeAsJson[0] {
-			tag.Value = &cpb.KeyValue_JsonValue{typedValue}
+			tag.Value = &cpb.KeyValue_JsonValue{JsonValue: typedValue}
 		} else {
-			tag.Value = &cpb.KeyValue_StringValue{typedValue}
+			tag.Value = &cpb.KeyValue_StringValue{StringValue: typedValue}
 		}
 	case bool:
-		tag.Value = &cpb.KeyValue_BoolValue{typedValue}
+		tag.Value = &cpb.KeyValue_BoolValue{BoolValue: typedValue}
 	case float32:
-		tag.Value = &cpb.KeyValue_DoubleValue{float64(typedValue)}
+		tag.Value = &cpb.KeyValue_DoubleValue{DoubleValue: float64(typedValue)}
 	case float64:
-		tag.Value = &cpb.KeyValue_DoubleValue{typedValue}
+		tag.Value = &cpb.KeyValue_DoubleValue{DoubleValue: typedValue}
 	}
 	return tag
 }

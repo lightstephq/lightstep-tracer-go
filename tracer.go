@@ -1,11 +1,10 @@
-// package lightstep implements the LightStep OpenTracing client for Go.
+// Package lightstep implements the LightStep OpenTracing client for Go.
 package lightstep
 
 import (
+	"context"
 	"fmt"
 	"time"
-
-	"golang.org/x/net/context"
 
 	"runtime"
 	"sync"
@@ -219,35 +218,38 @@ func (tracer *tracerImpl) RecordSpan(raw RawSpan) {
 func (tracer *tracerImpl) Flush(ctx context.Context) {
 	tracer.flushingLock.Lock()
 	defer tracer.flushingLock.Unlock()
-	var flushErrorEvent *eventFlushError
 
-	flushErrorEvent = tracer.preFlush()
-	if flushErrorEvent != nil {
-		emitEvent(flushErrorEvent)
+	if errorEvent := tracer.preFlush(); errorEvent != nil {
+		emitEvent(errorEvent)
 		return
 	}
 
 	ctx, cancel := context.WithTimeout(ctx, tracer.opts.ReportTimeout)
 	defer cancel()
 
-	req, flushErr := tracer.client.Translate(ctx, &tracer.flushing)
-	resp, flushErr := tracer.client.Report(ctx, req)
+	req, err := tracer.client.Translate(ctx, &tracer.flushing)
+	if err != nil {
+		errorEvent := newEventFlushError(err, FlushErrorTranslate)
+		emitEvent(errorEvent)
+		// call postflush to prevent the tracer from going into an invalid state.
+		emitEvent(tracer.postFlush(errorEvent))
+		return
+	}
 
-	if flushErr != nil {
-		flushErrorEvent = newEventFlushError(flushErr, FlushErrorTransport)
+	var reportErrorEvent *eventFlushError
+	resp, err := tracer.client.Report(ctx, req)
+	if err != nil {
+		reportErrorEvent = newEventFlushError(err, FlushErrorTransport)
 	} else if len(resp.GetErrors()) > 0 {
-		flushErrorEvent = newEventFlushError(fmt.Errorf(resp.GetErrors()[0]), FlushErrorReport)
+		reportErrorEvent = newEventFlushError(fmt.Errorf(resp.GetErrors()[0]), FlushErrorReport)
 	}
 
-	statusReportEvent := tracer.postFlush(flushErrorEvent)
-
-	if flushErrorEvent != nil {
-		emitEvent(flushErrorEvent)
+	if reportErrorEvent != nil {
+		emitEvent(reportErrorEvent)
 	}
+	emitEvent(tracer.postFlush(reportErrorEvent))
 
-	emitEvent(statusReportEvent)
-
-	if flushErr == nil && resp.Disable() {
+	if err == nil && resp.Disable() {
 		tracer.Disable()
 	}
 }
@@ -258,11 +260,11 @@ func (tracer *tracerImpl) preFlush() *eventFlushError {
 	defer tracer.lock.Unlock()
 
 	if tracer.disabled {
-		return newEventFlushError(flushErrorTracerClosed, FlushErrorTracerDisabled)
+		return newEventFlushError(errFlushFailedTracerClosed, FlushErrorTracerDisabled)
 	}
 
 	if tracer.connection == nil {
-		return newEventFlushError(flushErrorTracerClosed, FlushErrorTracerClosed)
+		return newEventFlushError(errFlushFailedTracerClosed, FlushErrorTracerClosed)
 	}
 
 	now := time.Now()
@@ -289,13 +291,21 @@ func (tracer *tracerImpl) postFlush(flushEventError *eventFlushError) *eventStat
 		int(tracer.flushing.logEncoderErrorCount+tracer.buffer.logEncoderErrorCount),
 	)
 
-	if flushEventError != nil {
+	if flushEventError == nil {
+		tracer.flushing.clear()
+		return statusReportEvent
+	}
+
+	switch flushEventError.State() {
+	case FlushErrorTranslate:
+		// When there's a translation error, we do not want to retry.
+		tracer.flushing.clear()
+	default:
 		// Restore the records that did not get sent correctly
 		tracer.buffer.mergeFrom(&tracer.flushing)
-		statusReportEvent.SetSentSpans(0)
-	} else {
-		tracer.flushing.clear()
 	}
+
+	statusReportEvent.SetSentSpans(0)
 
 	return statusReportEvent
 }

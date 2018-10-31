@@ -1,12 +1,10 @@
 package lightstep
 
 import (
+	"context"
 	"fmt"
-	"math/rand"
 	"reflect"
 	"time"
-
-	"golang.org/x/net/context"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -38,7 +36,7 @@ type grpcCollectorClient struct {
 	reportingTimeout   time.Duration // set by GrpcOptions.ReportTimeout
 
 	// Remote service that will receive reports.
-	hostPort      string
+	address       string
 	grpcClient    cpb.CollectorServiceClient
 	connTimestamp time.Time
 	dialOptions   []grpc.DialOption
@@ -52,15 +50,21 @@ type grpcCollectorClient struct {
 
 func newGrpcCollectorClient(opts Options, reporterID uint64, attributes map[string]string) *grpcCollectorClient {
 	rec := &grpcCollectorClient{
-		accessToken:          opts.AccessToken,
 		attributes:           attributes,
-		maxReportingPeriod:   opts.ReportingPeriod,
-		reportingTimeout:     opts.ReportTimeout,
 		reporterID:           reporterID,
-		hostPort:             opts.Collector.HostPort(),
-		reconnectPeriod:      time.Duration(float64(opts.ReconnectPeriod) * (1 + 0.2*rand.Float64())),
+		accessToken:          opts.AccessToken,
+		maxReportingPeriod:   opts.ReportingPeriod,
+		reconnectPeriod:      opts.ReconnectPeriod,
+		reportingTimeout:     opts.ReportTimeout,
+		dialOptions:          opts.DialOptions,
 		converter:            newProtoConverter(opts),
 		grpcConnectorFactory: opts.ConnFactory,
+	}
+
+	if len(opts.Collector.Scheme) > 0 {
+		rec.address = opts.Collector.urlWithoutPath()
+	} else {
+		rec.address = opts.Collector.SocketAddress()
 	}
 
 	rec.dialOptions = append(rec.dialOptions, grpc.WithDefaultCallOptions(grpc.MaxCallSendMsgSize(opts.GRPCMaxCallSendMsgSizeBytes)))
@@ -84,13 +88,13 @@ func (client *grpcCollectorClient) ConnectClient() (Connection, error) {
 
 		grpcClient, ok := uncheckedClient.(cpb.CollectorServiceClient)
 		if !ok {
-			return nil, fmt.Errorf("Grpc connector factory did not provide valid client!")
+			return nil, fmt.Errorf("gRPC connector factory did not provide valid client")
 		}
 
 		conn = transport
 		client.grpcClient = grpcClient
 	} else {
-		transport, err := grpc.Dial(client.hostPort, client.dialOptions...)
+		transport, err := grpc.Dial(client.address, client.dialOptions...)
 		if err != nil {
 			return nil, err
 		}
@@ -103,7 +107,7 @@ func (client *grpcCollectorClient) ConnectClient() (Connection, error) {
 }
 
 func (client *grpcCollectorClient) ShouldReconnect() bool {
-	return time.Now().Sub(client.connTimestamp) > client.reconnectPeriod
+	return time.Since(client.connTimestamp) > client.reconnectPeriod
 }
 
 func (client *grpcCollectorClient) Report(ctx context.Context, req reportRequest) (collectorResponse, error) {

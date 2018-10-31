@@ -8,11 +8,6 @@ import (
 	"github.com/opentracing/opentracing-go/log"
 )
 
-const (
-	deprecatedFieldKeyEvent   = "event"
-	deprecatedFieldKeyPayload = "payload"
-)
-
 // thrift_rpc.thriftLogFieldEncoder is an implementation of the log.Encoder interface
 // that handles only the deprecated OpenTracing
 // Span.LogEvent/LogEventWithPayload calls. (Since the thrift client is being
