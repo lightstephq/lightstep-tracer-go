@@ -25,13 +25,13 @@ func newProtoConverter(options Options) *protoConverter {
 }
 
 func (converter *protoConverter) toReportRequest(
-	reporterId uint64,
+	reporterID uint64,
 	attributes map[string]string,
 	accessToken string,
 	buffer *reportBuffer,
 ) *cpb.ReportRequest {
 	return &cpb.ReportRequest{
-		Reporter:        converter.toReporter(reporterId, attributes),
+		Reporter:        converter.toReporter(reporterID, attributes),
 		Auth:            converter.toAuth(accessToken),
 		Spans:           converter.toSpans(buffer),
 		InternalMetrics: converter.toInternalMetrics(buffer),
@@ -39,9 +39,9 @@ func (converter *protoConverter) toReportRequest(
 
 }
 
-func (converter *protoConverter) toReporter(reporterId uint64, attributes map[string]string) *cpb.Reporter {
+func (converter *protoConverter) toReporter(reporterID uint64, attributes map[string]string) *cpb.Reporter {
 	return &cpb.Reporter{
-		ReporterId: reporterId,
+		ReporterId: reporterID,
 		Tags:       converter.toFields(attributes),
 	}
 }
@@ -161,15 +161,15 @@ func (converter *protoConverter) toSpanContext(sc *SpanContext) *cpb.SpanContext
 	}
 }
 
-func (converter *protoConverter) toReference(parentSpanId uint64) []*cpb.Reference {
-	if parentSpanId == 0 {
+func (converter *protoConverter) toReference(parentSpanID uint64) []*cpb.Reference {
+	if parentSpanID == 0 {
 		return nil
 	}
 	return []*cpb.Reference{
 		{
 			Relationship: cpb.Reference_CHILD_OF,
 			SpanContext: &cpb.SpanContext{
-				SpanId: parentSpanId,
+				SpanId: parentSpanID,
 			},
 		},
 	}

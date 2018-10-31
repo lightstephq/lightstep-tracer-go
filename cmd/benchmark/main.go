@@ -16,15 +16,13 @@ import (
 )
 
 const (
-	clientName = "golang"
-
-	ControlPath           = "/control"
-	ResultPath            = "/result"
-	ControllerPort        = 8000
-	GrpcPort              = 8001
-	ControllerHost        = "localhost"
-	ControllerAccessToken = "ignored"
-	LogsSizeMax           = 1 << 20
+	controlPath           = "/control"
+	resultPath            = "/result"
+	controllerPort        = 8000
+	grpcPort              = 8001
+	controllerHost        = "localhost"
+	controllerAccessToken = "ignored"
+	logsSizeMax           = 1 << 20
 )
 
 var (
@@ -36,14 +34,14 @@ func fatal(x ...interface{}) {
 }
 
 func init() {
-	lps := make([]byte, LogsSizeMax)
+	lps := make([]byte, logsSizeMax)
 	for i := 0; i < len(lps); i++ {
 		lps[i] = 'A' + byte(i%26)
 	}
 	logPayloadStr = string(lps)
 }
 
-type Control struct {
+type control struct {
 	Concurrent int // How many routines, threads, etc.
 
 	// How much work to perform under one span
@@ -101,19 +99,19 @@ func (t *testClient) getURL(path string) []byte {
 
 func (t *testClient) loop() {
 	for {
-		body := t.getURL(ControlPath)
+		body := t.getURL(controlPath)
 
-		control := Control{}
-		if err := json.Unmarshal(body, &control); err != nil {
+		ctrl := control{}
+		if err := json.Unmarshal(body, &ctrl); err != nil {
 			fatal("Bench control parse error: ", err)
 		}
-		if control.Exit {
+		if ctrl.Exit {
 			return
 		}
-		timing, flusht, sleeps, answer := t.run(&control)
+		timing, flusht, sleeps, answer := t.run(&ctrl)
 		t.getURL(fmt.Sprintf(
 			"%s?timing=%.9f&flush=%.9f&s=%.9f&a=%d",
-			ResultPath,
+			resultPath,
 			timing.Seconds(),
 			flusht.Seconds(),
 			sleeps.Seconds(),
@@ -121,8 +119,8 @@ func (t *testClient) loop() {
 	}
 }
 
-func testBody(control *Control) (time.Duration, int64) {
-	var sleep_debt time.Duration
+func testBody(control *control) (time.Duration, int64) {
+	var sleepDebt time.Duration
 	var answer int64
 	var totalSleep time.Duration
 	for i := int64(0); i < control.Repeat; i++ {
@@ -133,20 +131,20 @@ func testBody(control *Control) (time.Duration, int64) {
 				logPayloadStr[0:control.BytesPerLog])
 		}
 		span.Finish()
-		sleep_debt += control.Sleep
-		if sleep_debt <= control.SleepInterval {
+		sleepDebt += control.Sleep
+		if sleepDebt <= control.SleepInterval {
 			continue
 		}
 		begin := time.Now()
-		time.Sleep(sleep_debt)
-		elapsed := time.Now().Sub(begin)
-		sleep_debt -= elapsed
+		time.Sleep(sleepDebt)
+		elapsed := time.Since(begin)
+		sleepDebt -= elapsed
 		totalSleep += elapsed
 	}
 	return totalSleep, answer
 }
 
-func (t *testClient) run(control *Control) (time.Duration, time.Duration, time.Duration, int64) {
+func (t *testClient) run(control *control) (time.Duration, time.Duration, time.Duration, int64) {
 	if control.Trace {
 		ot.InitGlobalTracer(t.tracer)
 	} else {
@@ -190,7 +188,7 @@ func (t *testClient) run(control *Control) (time.Duration, time.Duration, time.D
 			panic("Tracer does not have a lightstep recorder")
 		}
 		recorder.Flush(context.Background())
-		flushDur = time.Now().Sub(endTime)
+		flushDur = time.Since(endTime)
 	}
 	return endTime.Sub(beginTest), flushDur, sleeps, answer
 }
@@ -199,13 +197,13 @@ func main() {
 	flag.Parse()
 	tc := &testClient{
 		baseURL: fmt.Sprint("http://",
-			ControllerHost, ":",
-			ControllerPort),
+			controllerHost, ":",
+			controllerPort),
 		tracer: ls.NewTracer(ls.Options{
-			AccessToken: ControllerAccessToken,
+			AccessToken: controllerAccessToken,
 			Collector: ls.Endpoint{
-				Host:      ControllerHost,
-				Port:      GrpcPort,
+				Host:      controllerHost,
+				Port:      grpcPort,
 				Plaintext: true,
 			},
 		}),

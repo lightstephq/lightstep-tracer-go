@@ -12,6 +12,7 @@ import (
 	// N.B.(jmacd): Do not use google.golang.org/glog in this package.
 
 	ot "github.com/opentracing/opentracing-go"
+	"google.golang.org/grpc"
 )
 
 // Default Option values.
@@ -50,14 +51,14 @@ const (
 )
 
 const (
-	secureProtocol    = "https"
-	plaintextProtocol = "http"
+	secureScheme    = "https"
+	plaintextScheme = "http"
 )
 
 // Validation Errors
 var (
-	validationErrorNoAccessToken = fmt.Errorf("Options invalid: AccessToken must not be empty")
-	validationErrorGUIDKey       = fmt.Errorf("Options invalid: setting the %v tag is no longer supported", GUIDKey)
+	errNoAccessToken  = fmt.Errorf("Options invalid: AccessToken must not be empty")
+	errInvalidGUIDKey = fmt.Errorf("Options invalid: setting the %v tag is no longer supported", GUIDKey)
 )
 
 // A SpanRecorder handles all of the `RawSpan` data generated via an
@@ -69,22 +70,43 @@ type SpanRecorder interface {
 // Endpoint describes a collector or web API host/port and whether or
 // not to use plaintext communication.
 type Endpoint struct {
-	Host      string `yaml:"host" usage:"host on which the endpoint is running"`
-	Port      int    `yaml:"port" usage:"port on which the endpoint is listening"`
-	Plaintext bool   `yaml:"plaintext" usage:"whether or not to encrypt data send to the endpoint"`
+	Scheme    string `yaml:"scheme" json:"scheme" usage:"scheme to use for the endpoint, defaults to appropriate one if no custom one is required"`
+	Host      string `yaml:"host" json:"host" usage:"host on which the endpoint is running"`
+	Port      int    `yaml:"port" json:"port" usage:"port on which the endpoint is listening"`
+	Plaintext bool   `yaml:"plaintext" json:"plaintext" usage:"whether or not to encrypt data send to the endpoint"`
 }
 
-// HostPort returns an address suitable for dialing grpc connections
+// HostPort use SocketAddress instead.
+// DEPRECATED
 func (e Endpoint) HostPort() string {
+	return e.SocketAddress()
+}
+
+// SocketAddress returns an address suitable for dialing grpc connections
+func (e Endpoint) SocketAddress() string {
 	return fmt.Sprintf("%s:%d", e.Host, e.Port)
 }
 
 // URL returns an address suitable for dialing thrift connections
 func (e Endpoint) URL() string {
-	if e.Plaintext {
-		return fmt.Sprintf("%s://%s:%d%s", plaintextProtocol, e.Host, e.Port, DefaultCollectorPath)
+	return fmt.Sprintf("%s%s", e.urlWithoutPath(), DefaultCollectorPath)
+}
+
+// urlWithoutPath returns an address suitable for grpc connections if a custom scheme is provided
+func (e Endpoint) urlWithoutPath() string {
+	return fmt.Sprintf("%s://%s", e.scheme(), e.SocketAddress())
+}
+
+func (e Endpoint) scheme() string {
+	if len(e.Scheme) > 0 {
+		return e.Scheme
 	}
-	return fmt.Sprintf("%s://%s:%d%s", secureProtocol, e.Host, e.Port, DefaultCollectorPath)
+
+	if e.Plaintext {
+		return plaintextScheme
+	}
+
+	return secureScheme
 }
 
 // Options control how the LightStep Tracer behaves.
@@ -153,6 +175,12 @@ type Options struct {
 	UseGRPC   bool `yaml:"usegrpc"`
 
 	ReconnectPeriod time.Duration `yaml:"reconnect_period"`
+
+	// DialOptions allows customizing the grpc dial options passed to the grpc.Dial(...) call.
+	// This is an advanced feature added to allow for a custom balancer or middleware.
+	// It can be safely ignored if you have no custom dialing requirements.
+	// If UseGRPC is not set, these dial options are ignored.
+	DialOptions []grpc.DialOption `yaml:"-" json:"-"`
 
 	// A hook for receiving finished span events
 	Recorder SpanRecorder `yaml:"-" json:"-"`
@@ -238,11 +266,11 @@ func (opts *Options) Initialize() error {
 // configured.
 func (opts *Options) Validate() error {
 	if len(opts.AccessToken) == 0 {
-		return validationErrorNoAccessToken
+		return errNoAccessToken
 	}
 
 	if _, found := opts.Tags[GUIDKey]; found {
-		return validationErrorGUIDKey
+		return errInvalidGUIDKey
 	}
 
 	return nil

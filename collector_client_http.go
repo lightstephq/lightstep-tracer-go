@@ -2,16 +2,16 @@ package lightstep
 
 import (
 	"bytes"
+	"context"
 	"fmt"
-	"github.com/golang/protobuf/proto"
-	"github.com/lightstep/lightstep-tracer-go/collectorpb"
-	"golang.org/x/net/context"
-	"golang.org/x/net/http2"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"net/url"
 	"time"
-	"errors"
+
+	"github.com/golang/protobuf/proto"
+	"github.com/lightstep/lightstep-tracer-go/collectorpb"
 )
 
 var (
@@ -20,8 +20,8 @@ var (
 )
 
 const (
-	collectorHttpMethod = "POST"
-	collectorHttpPath   = "/api/v2/reports"
+	collectorHTTPMethod = "POST"
+	collectorHTTPPath   = "/api/v2/reports"
 	protoContentType    = "application/octet-stream"
 )
 
@@ -33,7 +33,8 @@ type httpCollectorClient struct {
 	accessToken string // accessToken is the access token used for explicit trace collection requests.
 	attributes  map[string]string
 
-	reportTimeout time.Duration
+	reportTimeout   time.Duration
+	reportingPeriod time.Duration
 
 	// Remote service that will receive reports.
 	url    *url.URL
@@ -43,21 +44,16 @@ type httpCollectorClient struct {
 	converter *protoConverter
 }
 
-type HttpRequest struct {
-	http.Request
-}
-
 type transportCloser struct {
-	transport http2.Transport
+	*http.Transport
 }
 
-func (closer *transportCloser) Close() error {
-	closer.transport.CloseIdleConnections()
-
+func (closer transportCloser) Close() error {
+	closer.CloseIdleConnections()
 	return nil
 }
 
-func newHttpCollectorClient(
+func newHTTPCollectorClient(
 	opts Options,
 	reporterID uint64,
 	attributes map[string]string,
@@ -67,28 +63,38 @@ func newHttpCollectorClient(
 		fmt.Println("collector config does not produce valid url", err)
 		return nil, err
 	}
-	url.Path = collectorHttpPath
+	url.Path = collectorHTTPPath
 
 	return &httpCollectorClient{
-		reporterID:    reporterID,
-		accessToken:   opts.AccessToken,
-		attributes:    attributes,
-		reportTimeout: opts.ReportTimeout,
-		url:           url,
-		converter:     newProtoConverter(opts),
+		reporterID:      reporterID,
+		accessToken:     opts.AccessToken,
+		attributes:      attributes,
+		reportTimeout:   opts.ReportTimeout,
+		reportingPeriod: opts.ReportingPeriod,
+		url:             url,
+		converter:       newProtoConverter(opts),
 	}, nil
 }
 
 func (client *httpCollectorClient) ConnectClient() (Connection, error) {
-	// The golang http2 client implementation doesn't support plaintext http2 (a.k.a h2c) out of the box.
-	// According to https://github.com/golang/go/issues/14141, they don't have plans to.
-	// For now, we are falling back to http1 for plaintext.
-	// In the future, we might want to add out own h2c implementation (see https://github.com/hkwi/h2c).
-	var transport http.RoundTripper
-	if client.url.Scheme == "https" {
-		transport = &http2.Transport{}
-	} else {
-		transport = &http.Transport{}
+	// Use a transport independent from http.DefaultTransport to provide sane
+	// defaults that make sense in the context of the lightstep client. The
+	// differences are mostly on setting timeouts based on the report timeout
+	// and period.
+	transport := &http.Transport{
+		Proxy: http.ProxyFromEnvironment,
+		DialContext: (&net.Dialer{
+			Timeout:   client.reportTimeout / 2,
+			DualStack: true,
+		}).DialContext,
+		// The collector responses are very small, there is no point asking for
+		// a compressed payload, explicitly disabling it.
+		DisableCompression:     true,
+		IdleConnTimeout:        2 * client.reportingPeriod,
+		TLSHandshakeTimeout:    client.reportTimeout / 2,
+		ResponseHeaderTimeout:  client.reportTimeout,
+		ExpectContinueTimeout:  client.reportTimeout,
+		MaxResponseHeaderBytes: 64 * 1024, // 64 KB, just a safeguard
 	}
 
 	client.client = &http.Client{
@@ -96,17 +102,20 @@ func (client *httpCollectorClient) ConnectClient() (Connection, error) {
 		Timeout:   client.reportTimeout,
 	}
 
-	return &transportCloser{}, nil
+	return transportCloser{transport}, nil
 }
 
 func (client *httpCollectorClient) ShouldReconnect() bool {
-	// http2 will handle connection reuse under the hood
+	// http.Transport will handle connection reuse under the hood
 	return false
 }
 
 func (client *httpCollectorClient) Report(context context.Context, req reportRequest) (collectorResponse, error) {
+	if req.httpRequest == nil {
+		return nil, fmt.Errorf("httpRequest cannot be null")
+	}
 
-	httpResponse, err := client.client.Do(req.httpRequest)
+	httpResponse, err := client.client.Do(req.httpRequest.WithContext(context))
 	if err != nil {
 		return nil, err
 	}
@@ -149,7 +158,7 @@ func (client *httpCollectorClient) toRequest(
 
 	requestBody := bytes.NewReader(buf)
 
-	request, err := http.NewRequest(collectorHttpMethod, client.url.String(), requestBody)
+	request, err := http.NewRequest(collectorHTTPMethod, client.url.String(), requestBody)
 	if err != nil {
 		return nil, err
 	}
@@ -162,7 +171,7 @@ func (client *httpCollectorClient) toRequest(
 
 func (client *httpCollectorClient) toResponse(response *http.Response) (collectorResponse, error) {
 	if response.StatusCode != http.StatusOK {
-		return nil, errors.New(fmt.Sprintf("status code (%d) is not ok", response.StatusCode))
+		return nil, fmt.Errorf("status code (%d) is not ok", response.StatusCode)
 	}
 
 	body, err := ioutil.ReadAll(response.Body)
