@@ -106,7 +106,7 @@ var _ = Describe("Tracer", func() {
 			}).To(Not(Panic()))
 		})
 
-		It("can start a spn withreferences to external spans", func() {
+		It("can start a span with references to external spans", func() {
 			otherTracer := opentracing.NoopTracer{}
 			otherSpan := otherTracer.StartSpan("other")
 
