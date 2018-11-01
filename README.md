@@ -91,7 +91,7 @@ logAndMetricsHandler := func(event lightstep.Event){
 
 func main() {
   // setup event handler first to catch startup errors
-  lightstep.OnEvent(logAndMetricsHandler)
+  lightstep.SetGlobalEventHandler(logAndMetricsHandler)
   
   lightstepTracer := lightstep.NewTracer(lightstep.Options{
     AccessToken: "YourAccessToken",

@@ -9,6 +9,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	logger "log"
 	"os"
 	"time"
 
@@ -35,6 +36,14 @@ func subRoutine(ctx context.Context) {
 	defer subSpan.Finish()
 }
 
+type LoggingRecorder struct {
+	r lightstep.SpanRecorder
+}
+
+func (r *LoggingRecorder) RecordSpan(span lightstep.RawSpan) {
+	logger.Printf("span traceID: %v spanID: %v parentID: %v Operation: %v \n", span.Context.TraceID, span.Context.SpanID, span.ParentSpanID, span.Operation)
+}
+
 func main() {
 	flag.Parse()
 	if len(*accessToken) == 0 {
@@ -42,11 +51,14 @@ func main() {
 		os.Exit(1)
 	}
 
+	loggableRecorder := &LoggingRecorder{}
+
 	// Use LightStep as the global OpenTracing Tracer.
 	opentracing.InitGlobalTracer(lightstep.NewTracer(lightstep.Options{
 		AccessToken: *accessToken,
 		Collector:   lightstep.Endpoint{Host: "localhost", Port: 9997, Plaintext: true},
 		UseGRPC:     true,
+		Recorder:    loggableRecorder,
 	}))
 
 	// Do something that's traced.
