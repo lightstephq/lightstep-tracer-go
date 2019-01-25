@@ -4,10 +4,9 @@ package lightstep
 import (
 	"context"
 	"fmt"
-	"time"
-
 	"runtime"
 	"sync"
+	"time"
 
 	ot "github.com/opentracing/opentracing-go"
 )
@@ -117,7 +116,13 @@ func NewTracer(opts Options) Tracer {
 		return nil
 	}
 	impl.connection = conn
-
+	/* TODO: move this to first report
+	if opts.MetaEventLogging{
+		ot.StartSpan("lightstep.tracer_create",
+			ot.Tag{"lightstep.meta_event", true},
+			ot.Tag{"lightstep.tracer_guid", impl.reporterID}).
+			Finish()
+	}*/
 	go impl.reportLoop()
 
 	return impl
@@ -135,6 +140,12 @@ func (tracer *tracerImpl) StartSpan(
 }
 
 func (tracer *tracerImpl) Inject(sc ot.SpanContext, format interface{}, carrier interface{}) error {
+	if tracer.opts.MetaEventLogging {
+		ot.StartSpan("lightstep.inject_span",
+			ot.Tag{"lightstep.meta_event", true},
+			ot.Tag{"lightstep.propagation_format", format}).
+			Finish()
+	}
 	switch format {
 	case ot.TextMap, ot.HTTPHeaders:
 		return theTextMapPropagator.Inject(sc, carrier)
@@ -145,6 +156,12 @@ func (tracer *tracerImpl) Inject(sc ot.SpanContext, format interface{}, carrier 
 }
 
 func (tracer *tracerImpl) Extract(format interface{}, carrier interface{}) (ot.SpanContext, error) {
+	if tracer.opts.MetaEventLogging {
+		ot.StartSpan("lightstep.extract_span",
+			ot.Tag{"lightstep.meta_event", true},
+			ot.Tag{"lightstep.propagation_format", format}).
+			Finish()
+	}
 	switch format {
 	case ot.TextMap, ot.HTTPHeaders:
 		return theTextMapPropagator.Extract(carrier)

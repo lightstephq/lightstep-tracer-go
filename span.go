@@ -77,6 +77,14 @@ ReferencesLoop:
 	sp.raw.Start = startTime
 	sp.raw.Duration = -1
 	sp.raw.Tags = opts.Options.Tags
+
+	if tracer.opts.MetaEventLogging && IsMetaSpan(sp) {
+		ot.StartSpan("lightstep.span_start",
+			ot.Tag{"lightstep.meta_event", true},
+			ot.Tag{"lightstep.span_id", sp.raw.Context.SpanID},
+			ot.Tag{"lightstep.trace_id", sp.raw.Context.TraceID}).
+			Finish()
+	}
 	return sp
 }
 
@@ -233,6 +241,13 @@ func (s *spanImpl) FinishWithOptions(opts ot.FinishOptions) {
 	s.raw.Duration = duration
 
 	s.tracer.RecordSpan(s.raw)
+	if s.tracer.opts.MetaEventLogging && IsMetaSpan(s) {
+		ot.StartSpan("lightstep.span_finish",
+			ot.Tag{"lightstep.meta_event", true},
+			ot.Tag{"lightstep.span_id", s.raw.Context.SpanID},
+			ot.Tag{"lightstep.trace_id", s.raw.Context.TraceID}).
+			Finish()
+	}
 }
 
 func (s *spanImpl) Tracer() ot.Tracer {

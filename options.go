@@ -7,9 +7,7 @@ import (
 	"os"
 	"path"
 	"strings"
-	"time"
-
-	// N.B.(jmacd): Do not use google.golang.org/glog in this package.
+	"time" // N.B.(jmacd): Do not use google.golang.org/glog in this package.
 
 	ot "github.com/opentracing/opentracing-go"
 	"google.golang.org/grpc"
@@ -187,6 +185,9 @@ type Options struct {
 
 	// For testing purposes only
 	ConnFactory ConnectorFactory `yaml:"-" json:"-"`
+
+	// Enable LightStep Meta Event Logging
+	MetaEventLogging bool `yaml:"meta_event_logging" json:"meta_event_logging"`
 }
 
 // Initialize validates options, and sets default values for unset options.
