@@ -66,6 +66,9 @@ type tracerImpl struct {
 	reportInFlight    bool
 	lastReportAttempt time.Time
 
+	// Set to true on first report
+	firstReportHasRun bool
+
 	// We allow our remote peer to disable this instrumentation at any
 	// time, turning all potentially costly runtime operations into
 	// no-ops.
@@ -116,13 +119,8 @@ func NewTracer(opts Options) Tracer {
 		return nil
 	}
 	impl.connection = conn
-	/* TODO: move this to first report
-	if opts.MetaEventLogging{
-		ot.StartSpan("lightstep.tracer_create",
-			ot.Tag{"lightstep.meta_event", true},
-			ot.Tag{"lightstep.tracer_guid", impl.reporterID}).
-			Finish()
-	}*/
+	impl.firstReportHasRun = false
+
 	go impl.reportLoop()
 
 	return impl
@@ -241,6 +239,14 @@ func (tracer *tracerImpl) Flush(ctx context.Context) {
 	if errorEvent := tracer.preFlush(); errorEvent != nil {
 		emitEvent(errorEvent)
 		return
+	}
+
+	if tracer.opts.MetaEventLogging && !tracer.firstReportHasRun {
+		ot.StartSpan("lightstep.tracer_create",
+			ot.Tag{"lightstep.meta_event", true},
+			ot.Tag{"lightstep.tracer_guid", tracer.reporterID}).
+			Finish()
+		tracer.firstReportHasRun = true
 	}
 
 	ctx, cancel := context.WithTimeout(ctx, tracer.opts.ReportTimeout)
