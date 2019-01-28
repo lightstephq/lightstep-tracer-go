@@ -143,6 +143,8 @@ func (tracer *tracerImpl) Inject(sc ot.SpanContext, format interface{}, carrier 
 	if tracer.opts.MetaEventLogging {
 		ot.StartSpan("lightstep.inject_span",
 			ot.Tag{"lightstep.meta_event", true},
+			ot.Tag{"lightstep.trace_id", sc.(SpanContext).TraceID},
+			ot.Tag{"lightstep.span_id", sc.(SpanContext).SpanID},
 			ot.Tag{"lightstep.propagation_format", format}).
 			Finish()
 	}
