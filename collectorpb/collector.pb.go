@@ -694,6 +694,7 @@ type ReportResponse struct {
 	Infos             []string                   `protobuf:"bytes,6,rep,name=infos" json:"infos,omitempty"`
 }
 
+
 func (m *ReportResponse) Reset()                    { *m = ReportResponse{} }
 func (m *ReportResponse) String() string            { return proto.CompactTextString(m) }
 func (*ReportResponse) ProtoMessage()               {}

@@ -4,10 +4,9 @@ package lightstep
 import (
 	"context"
 	"fmt"
-	"time"
-
 	"runtime"
 	"sync"
+	"time"
 
 	ot "github.com/opentracing/opentracing-go"
 )

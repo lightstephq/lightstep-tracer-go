@@ -6,16 +6,11 @@ import (
 	"reflect"
 
 	. "github.com/lightstep/lightstep-tracer-go"
-	ot "github.com/opentracing/opentracing-go"
-
 	cpb "github.com/lightstep/lightstep-tracer-go/collectorpb"
 	cpbfakes "github.com/lightstep/lightstep-tracer-go/collectorpb/collectorpbfakes"
-
-	"github.com/lightstep/lightstep-tracer-go/lightstep_thrift"
-	thriftfakes "github.com/lightstep/lightstep-tracer-go/lightstep_thrift/lightstep_thriftfakes"
-
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/types"
+	ot "github.com/opentracing/opentracing-go"
 )
 
 func closeTestTracer(tracer ot.Tracer) {
@@ -45,10 +40,6 @@ func (matcher haveKeyValuesMatcher) Match(actual interface{}) (bool, error) {
 		return matcher.MatchProtos(v)
 	case *cpb.Log:
 		return matcher.MatchProtos(v.GetFields())
-	case []*lightstep_thrift.KeyValue:
-		return matcher.MatchThrift(v)
-	case *lightstep_thrift.LogRecord:
-		return matcher.MatchThrift(v.GetFields())
 	default:
 		return false, fmt.Errorf("HaveKeyValues matcher expects either a []*KeyValue or a *Log/*LogRecord")
 	}
@@ -62,32 +53,6 @@ func (matcher haveKeyValuesMatcher) MatchProtos(actualKeyValues []*cpb.KeyValue)
 
 	for i := range actualKeyValues {
 		if !reflect.DeepEqual(actualKeyValues[i], expectedKeyValues[i]) {
-			return false, nil
-		}
-	}
-
-	return true, nil
-}
-
-func (matcher haveKeyValuesMatcher) MatchThrift(actualKeyValues []*lightstep_thrift.KeyValue) (bool, error) {
-	expectedKeyValues := []*cpb.KeyValue(matcher)
-	if len(expectedKeyValues) != len(actualKeyValues) {
-		return false, nil
-	}
-
-	for i := range actualKeyValues {
-		if !reflect.DeepEqual(actualKeyValues[i].Key, expectedKeyValues[i].Key) {
-			fmt.Println("KEY NOT EQUAL")
-			return false, nil
-		}
-
-		if len(expectedKeyValues[i].GetStringValue()) == 0 {
-			fmt.Println("NO STRING VALUE")
-			return false, nil
-		}
-
-		if !reflect.DeepEqual(actualKeyValues[i].Value, expectedKeyValues[i].GetStringValue()) {
-			fmt.Println("VALUE NOT EQUAL")
 			return false, nil
 		}
 	}
@@ -143,26 +108,6 @@ type dummyConnection struct{}
 func (*dummyConnection) Close() error { return nil }
 
 func fakeGrpcConnection(fakeClient *cpbfakes.FakeCollectorServiceClient) ConnectorFactory {
-	return func() (interface{}, Connection, error) {
-		return fakeClient, new(dummyConnection), nil
-	}
-}
-
-////////////////////
-// THRIFT HELPERS //
-////////////////////
-
-func getReportedThriftSpans(fakeClient *thriftfakes.FakeReportingService) []*lightstep_thrift.SpanRecord {
-	callCount := fakeClient.ReportCallCount()
-	spans := make([]*lightstep_thrift.SpanRecord, 0)
-	for i := 0; i < callCount; i++ {
-		_, report := fakeClient.ReportArgsForCall(i)
-		spans = append(spans, report.GetSpanRecords()...)
-	}
-	return spans
-}
-
-func fakeThriftConnectionFactory(fakeClient lightstep_thrift.ReportingService) ConnectorFactory {
 	return func() (interface{}, Connection, error) {
 		return fakeClient, new(dummyConnection), nil
 	}

@@ -6,7 +6,6 @@ import (
 	"net/http"
 
 	cpb "github.com/lightstep/lightstep-tracer-go/collectorpb"
-	"github.com/lightstep/lightstep-tracer-go/lightstep_thrift"
 )
 
 // Connection describes a closable connection. Exposed for testing.
@@ -17,19 +16,18 @@ type Connection interface {
 // ConnectorFactory is for testing purposes.
 type ConnectorFactory func() (interface{}, Connection, error)
 
-// collectorResponse encapsulates internal thrift/grpc responses.
+// collectorResponse encapsulates internal grpc/http responses.
 type collectorResponse interface {
 	GetErrors() []string
 	Disable() bool
 }
 
 type reportRequest struct {
-	thriftRequest *lightstep_thrift.ReportRequest
-	protoRequest  *cpb.ReportRequest
-	httpRequest   *http.Request
+	protoRequest *cpb.ReportRequest
+	httpRequest  *http.Request
 }
 
-// collectorClient encapsulates internal thrift/grpc transports.
+// collectorClient encapsulates internal grpc/http transports.
 type collectorClient interface {
 	Report(context.Context, reportRequest) (collectorResponse, error)
 	Translate(context.Context, *reportBuffer) (reportRequest, error)
@@ -38,10 +36,6 @@ type collectorClient interface {
 }
 
 func newCollectorClient(opts Options, reporterID uint64, attributes map[string]string) (collectorClient, error) {
-	if opts.UseThrift {
-		return newThriftCollectorClient(opts, reporterID, attributes), nil
-	}
-
 	if opts.UseHttp {
 		return newHTTPCollectorClient(opts, reporterID, attributes)
 	}

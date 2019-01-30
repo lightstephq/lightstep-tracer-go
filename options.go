@@ -7,9 +7,7 @@ import (
 	"os"
 	"path"
 	"strings"
-	"time"
-
-	// N.B.(jmacd): Do not use google.golang.org/glog in this package.
+	"time" // N.B.(jmacd): Do not use google.golang.org/glog in this package.
 
 	ot "github.com/opentracing/opentracing-go"
 	"google.golang.org/grpc"
@@ -17,11 +15,10 @@ import (
 
 // Default Option values.
 const (
-	DefaultCollectorPath       = "/_rpc/v1/reports/binary"
-	DefaultPlainPort           = 80
-	DefaultSecurePort          = 443
-	DefaultThriftCollectorHost = "collector.lightstep.com"
-	DefaultGRPCCollectorHost   = "collector-grpc.lightstep.com"
+	DefaultCollectorPath     = "/_rpc/v1/reports/binary"
+	DefaultPlainPort         = 80
+	DefaultSecurePort        = 443
+	DefaultGRPCCollectorHost = "collector-grpc.lightstep.com"
 
 	DefaultMaxReportingPeriod = 2500 * time.Millisecond
 	DefaultMinReportingPeriod = 500 * time.Millisecond
@@ -168,11 +165,10 @@ type Options struct {
 	Verbose bool `yaml:"verbose"`
 
 	// Force the use of a specific transport protocol. If multiple are set to true,
-	// the following order is used to select for the first option: thrift, http, grpc.
+	// the following order is used to select for the first option: http, grpc.
 	// If none are set to true, GRPC is defaulted to.
-	UseThrift bool `yaml:"use_thrift"`
-	UseHttp   bool `yaml:"use_http"`
-	UseGRPC   bool `yaml:"usegrpc"`
+	UseHttp bool `yaml:"use_http"`
+	UseGRPC bool `yaml:"usegrpc"`
 
 	ReconnectPeriod time.Duration `yaml:"reconnect_period"`
 
@@ -244,11 +240,7 @@ func (opts *Options) Initialize() error {
 	opts.ReconnectPeriod = time.Duration(float64(opts.ReconnectPeriod) * (1 + 0.2*rand.Float64()))
 
 	if opts.Collector.Host == "" {
-		if opts.UseThrift {
-			opts.Collector.Host = DefaultThriftCollectorHost
-		} else {
-			opts.Collector.Host = DefaultGRPCCollectorHost
-		}
+		opts.Collector.Host = DefaultGRPCCollectorHost
 	}
 
 	if opts.Collector.Port <= 0 {

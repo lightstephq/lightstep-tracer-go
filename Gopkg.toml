@@ -17,7 +17,3 @@
 [[constraint]]
   name = "google.golang.org/grpc"
   version = "1.4.3"
-
-[[constraint]]
-  name = "github.com/lightstep/thrift"
-  branch = "master"
