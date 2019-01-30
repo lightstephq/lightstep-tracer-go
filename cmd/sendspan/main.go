@@ -14,7 +14,7 @@ var (
 	flagHost        = flag.String("collector_host", "", "Hostname of the collector to which reports should be sent")
 	flagPort        = flag.Int("collector_port", 0, "Port of the collector to which reports should be sent")
 	flagSecure      = flag.Bool("secure", true, "Whether or not to use TLS")
-	flagTransport   = flag.String("transport", "grpc", "The transport mechanism to use. Valid values are: thrift, http, grpc")
+	flagTransport   = flag.String("transport", "http", "The transport mechanism to use. Valid values are: http, grpc")
 	flagOperation   = flag.String("operation_name", "test-operation", "The operation to use for the test span")
 )
 
@@ -27,19 +27,16 @@ func init() {
 func main() {
 	flag.Parse()
 
-	var useThrift bool
 	var useHTTP bool
 	var useGRPC bool
 
 	switch *flagTransport {
-	case "thrift":
-		useThrift = true
 	case "http":
 		useHTTP = true
 	case "grpc":
 		useGRPC = true
 	default:
-		useGRPC = true
+		useHTTP = true
 	}
 
 	t := lightstep.NewTracer(
@@ -50,9 +47,8 @@ func main() {
 				Port:      *flagPort,
 				Plaintext: !*flagSecure,
 			},
-			UseThrift: useThrift,
-			UseHttp:   useHTTP,
-			UseGRPC:   useGRPC,
+			UseHttp: useHTTP,
+			UseGRPC: useGRPC,
 		},
 	)
 

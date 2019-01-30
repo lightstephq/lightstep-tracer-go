@@ -4,10 +4,9 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
+	"strconv"
 	"strings"
 	"time"
-
-	"strconv"
 
 	. "github.com/lightstep/lightstep-tracer-go"
 	"github.com/lightstep/lightstep-tracer-go/collectorpb"
@@ -530,14 +529,5 @@ var _ = Describe("Tracer Transports", func() {
 			thatSupportsReference(),
 			thatSupportsTypedValues(),
 		)
-	})
-
-	Context("with thrift enabled", func() {
-		BeforeEach(func() {
-			options.UseThrift = true
-			fakeClient = newThriftFakeClient()
-		})
-
-		ItShouldBehaveLikeATracer()
 	})
 })

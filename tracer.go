@@ -274,9 +274,11 @@ func (tracer *tracerImpl) Flush(ctx context.Context) {
 	}
 	emitEvent(tracer.postFlush(reportErrorEvent))
 
-	if err == nil && resp.DevMode() {
+	/*
+	if err == nil && resp. {
 		tracer.opts.MetaEventLogging = true
 	}
+	*/
 
 	if err == nil && resp.Disable() {
 		tracer.Disable()
