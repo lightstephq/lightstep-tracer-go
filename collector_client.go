@@ -21,6 +21,7 @@ type ConnectorFactory func() (interface{}, Connection, error)
 type collectorResponse interface {
 	GetErrors() []string
 	Disable() bool
+	DevMode() bool
 }
 
 type reportRequest struct {
