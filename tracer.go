@@ -139,11 +139,11 @@ func (tracer *tracerImpl) StartSpan(
 
 func (tracer *tracerImpl) Inject(sc ot.SpanContext, format interface{}, carrier interface{}) error {
 	if tracer.opts.MetaEventLogging {
-		ot.StartSpan("lightstep.inject_span",
-			ot.Tag{"lightstep.meta_event", true},
-			ot.Tag{"lightstep.trace_id", sc.(SpanContext).TraceID},
-			ot.Tag{"lightstep.span_id", sc.(SpanContext).SpanID},
-			ot.Tag{"lightstep.propagation_format", format}).
+		ot.StartSpan(LSMetaEvent_InjectOperation,
+			ot.Tag{Key: LSMetaEvent_MetaEventKey, Value: true},
+			ot.Tag{Key: LSMetaEvent_TraceIdKey, Value: sc.(SpanContext).TraceID},
+			ot.Tag{Key: LSMetaEvent_SpanIdKey, Value: sc.(SpanContext).SpanID},
+			ot.Tag{Key: LSMetaEvent_PropagationFormatKey, Value: format}).
 			Finish()
 	}
 	switch format {
@@ -157,9 +157,9 @@ func (tracer *tracerImpl) Inject(sc ot.SpanContext, format interface{}, carrier 
 
 func (tracer *tracerImpl) Extract(format interface{}, carrier interface{}) (ot.SpanContext, error) {
 	if tracer.opts.MetaEventLogging {
-		ot.StartSpan("lightstep.extract_span",
-			ot.Tag{"lightstep.meta_event", true},
-			ot.Tag{"lightstep.propagation_format", format}).
+		ot.StartSpan(LSMetaEvent_ExtractOperation,
+			ot.Tag{Key: LSMetaEvent_MetaEventKey, Value: true},
+			ot.Tag{Key: LSMetaEvent_PropagationFormatKey, Value: format}).
 			Finish()
 	}
 	switch format {
@@ -242,9 +242,9 @@ func (tracer *tracerImpl) Flush(ctx context.Context) {
 	}
 
 	if tracer.opts.MetaEventLogging && !tracer.firstReportHasRun {
-		ot.StartSpan("lightstep.tracer_create",
-			ot.Tag{"lightstep.meta_event", true},
-			ot.Tag{"lightstep.tracer_guid", tracer.reporterID}).
+		ot.StartSpan(LSMetaEvent_TracerCreateOperation,
+			ot.Tag{Key: LSMetaEvent_MetaEventKey, Value: true},
+			ot.Tag{Key: LSMetaEvent_TracerGuidKey, Value: tracer.reporterID}).
 			Finish()
 		tracer.firstReportHasRun = true
 	}

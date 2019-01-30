@@ -79,10 +79,10 @@ ReferencesLoop:
 	sp.raw.Tags = opts.Options.Tags
 
 	if tracer.opts.MetaEventLogging && IsMetaSpan(sp) {
-		ot.StartSpan("lightstep.span_start",
-			ot.Tag{"lightstep.meta_event", true},
-			ot.Tag{"lightstep.span_id", sp.raw.Context.SpanID},
-			ot.Tag{"lightstep.trace_id", sp.raw.Context.TraceID}).
+		ot.StartSpan(LSMetaEvent_SpanStartOperation,
+			ot.Tag{Key: LSMetaEvent_MetaEventKey, Value: true},
+			ot.Tag{Key: LSMetaEvent_SpanIdKey, Value: sp.raw.Context.SpanID},
+			ot.Tag{Key: LSMetaEvent_TraceIdKey, Value: sp.raw.Context.TraceID}).
 			Finish()
 	}
 	return sp
@@ -242,10 +242,10 @@ func (s *spanImpl) FinishWithOptions(opts ot.FinishOptions) {
 
 	s.tracer.RecordSpan(s.raw)
 	if s.tracer.opts.MetaEventLogging && IsMetaSpan(s) {
-		ot.StartSpan("lightstep.span_finish",
-			ot.Tag{"lightstep.meta_event", true},
-			ot.Tag{"lightstep.span_id", s.raw.Context.SpanID},
-			ot.Tag{"lightstep.trace_id", s.raw.Context.TraceID}).
+		ot.StartSpan(LSMetaEvent_SpanFinishOperation,
+			ot.Tag{Key: LSMetaEvent_MetaEventKey, Value: true},
+			ot.Tag{Key: LSMetaEvent_SpanIdKey, Value: s.raw.Context.SpanID},
+			ot.Tag{Key: LSMetaEvent_TraceIdKey, Value: s.raw.Context.TraceID}).
 			Finish()
 	}
 }
