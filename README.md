@@ -110,7 +110,6 @@ By default, the tracer will send information to LightStep using GRPC and Protoco
 There are three total options for transport protocols:
 
 - [Protocol Buffers](https://developers.google.com/protocol-buffers/) over [GRPC](https://grpc.io/) - The recommended, default, and most performant solution.
-- [Thrift](https://thrift.apache.org/) over HTTP - A legacy implementation not recommended for new deployments.
 - \[ EXPERIMENTAL \] [Protocol Buffers](https://developers.google.com/protocol-buffers/) over HTTP - New transport protocol supported for use cases where GRPC isn't an option. In order to enable HTTP you will need to configure the LightStep collectors receiving the data to accept HTTP traffic. Reach out to LightStep for support in this.
 
-You can configure which transport protocol the tracer uses using the `UseGRPC`, `UseThrift`, and `UseHttp` flags in the options.
+You can configure which transport protocol the tracer uses using the `UseGRPC`, and `UseHttp` flags in the options.

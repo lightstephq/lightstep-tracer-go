@@ -17,14 +17,6 @@
   revision = "1e59b77b52bf8e4b449a57e6f79f21226d571845"
 
 [[projects]]
-  branch = "master"
-  digest = "1:b486888585e9070ef97f0c9b2df560e007dc2eafb8ace96b13a2cb85ccec3df1"
-  name = "github.com/lightstep/thrift"
-  packages = ["lib/go/thrift"]
-  pruneopts = ""
-  revision = "de6c3c01b88c1fc8ae76cec4a30f0441ef55a4a4"
-
-[[projects]]
   digest = "1:32b27072cd55bd2fb7244de0425943d125da6a552ae2b6517cdd965a662baf18"
   name = "github.com/onsi/ginkgo"
   packages = [
@@ -201,14 +193,12 @@
   input-imports = [
     "github.com/golang/protobuf/proto",
     "github.com/golang/protobuf/ptypes/timestamp",
-    "github.com/lightstep/thrift/lib/go/thrift",
     "github.com/onsi/ginkgo",
     "github.com/onsi/gomega",
     "github.com/onsi/gomega/types",
     "github.com/opentracing/opentracing-go",
     "github.com/opentracing/opentracing-go/log",
     "golang.org/x/net/context",
-    "golang.org/x/net/http2",
     "google.golang.org/genproto/googleapis/api/annotations",
     "google.golang.org/grpc",
     "google.golang.org/grpc/credentials",
