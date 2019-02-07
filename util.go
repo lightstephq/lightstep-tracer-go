@@ -32,8 +32,5 @@ func genSeededGUID2() (uint64, uint64) {
 }
 
 func IsMetaSpan(s *spanImpl) bool {
-	if _, ok := s.raw.Tags["lightstep.meta_event"]; ok {
-		return true
-	}
-	return false
+	return s.raw.Tags["lightstep.meta_event"] != nil
 }
