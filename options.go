@@ -54,7 +54,6 @@ const (
 
 // Validation Errors
 var (
-	errNoAccessToken  = fmt.Errorf("Options invalid: AccessToken must not be empty")
 	errInvalidGUIDKey = fmt.Errorf("Options invalid: setting the %v tag is no longer supported", GUIDKey)
 )
 
@@ -257,10 +256,6 @@ func (opts *Options) Initialize() error {
 // Validate checks that all required fields are set, and no options are incorrectly
 // configured.
 func (opts *Options) Validate() error {
-	if len(opts.AccessToken) == 0 {
-		return errNoAccessToken
-	}
-
 	if _, found := opts.Tags[GUIDKey]; found {
 		return errInvalidGUIDKey
 	}
