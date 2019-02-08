@@ -66,6 +66,8 @@ type tracerImpl struct {
 	reportInFlight    bool
 	lastReportAttempt time.Time
 
+	// Meta Event Reporting can be enabled at tracer creation or on-demand by satellite
+	metaEventReportingEnabled bool
 	// Set to true on first report
 	firstReportHasRun bool
 
@@ -119,6 +121,9 @@ func NewTracer(opts Options) Tracer {
 		return nil
 	}
 	impl.connection = conn
+
+	// set meta reporting to defined option
+	impl.metaEventReportingEnabled = opts.MetaEventReportingEnabled
 	impl.firstReportHasRun = false
 
 	go impl.reportLoop()
@@ -138,7 +143,7 @@ func (tracer *tracerImpl) StartSpan(
 }
 
 func (tracer *tracerImpl) Inject(sc ot.SpanContext, format interface{}, carrier interface{}) error {
-	if tracer.opts.MetaEventLogging {
+	if tracer.opts.MetaEventReportingEnabled {
 		ot.StartSpan(LSMetaEvent_InjectOperation,
 			ot.Tag{Key: LSMetaEvent_MetaEventKey, Value: true},
 			ot.Tag{Key: LSMetaEvent_TraceIdKey, Value: sc.(SpanContext).TraceID},
@@ -156,7 +161,7 @@ func (tracer *tracerImpl) Inject(sc ot.SpanContext, format interface{}, carrier 
 }
 
 func (tracer *tracerImpl) Extract(format interface{}, carrier interface{}) (ot.SpanContext, error) {
-	if tracer.opts.MetaEventLogging {
+	if tracer.opts.MetaEventReportingEnabled {
 		ot.StartSpan(LSMetaEvent_ExtractOperation,
 			ot.Tag{Key: LSMetaEvent_MetaEventKey, Value: true},
 			ot.Tag{Key: LSMetaEvent_PropagationFormatKey, Value: format}).
@@ -241,7 +246,7 @@ func (tracer *tracerImpl) Flush(ctx context.Context) {
 		return
 	}
 
-	if tracer.opts.MetaEventLogging && !tracer.firstReportHasRun {
+	if tracer.opts.MetaEventReportingEnabled && !tracer.firstReportHasRun {
 		ot.StartSpan(LSMetaEvent_TracerCreateOperation,
 			ot.Tag{Key: LSMetaEvent_MetaEventKey, Value: true},
 			ot.Tag{Key: LSMetaEvent_TracerGuidKey, Value: tracer.reporterID}).
@@ -276,9 +281,12 @@ func (tracer *tracerImpl) Flush(ctx context.Context) {
 
 
 	if err == nil && resp.DevMode() {
-		tracer.opts.MetaEventLogging = true
+		tracer.metaEventReportingEnabled = true
 	}
 
+	if err == nil && !resp.DevMode() {
+		tracer.metaEventReportingEnabled = false
+	}
 
 	if err == nil && resp.Disable() {
 		tracer.Disable()
