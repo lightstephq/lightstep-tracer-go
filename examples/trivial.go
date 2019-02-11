@@ -10,11 +10,10 @@ import (
 	"flag"
 	"fmt"
 	logger "log"
-	"os"
 	"time"
 
-	lightstep "github.com/lightstep/lightstep-tracer-go"
-	opentracing "github.com/opentracing/opentracing-go"
+	"github.com/lightstep/lightstep-tracer-go"
+	"github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/log"
 )
 
@@ -45,18 +44,12 @@ func (r *LoggingRecorder) RecordSpan(span lightstep.RawSpan) {
 }
 
 func main() {
-	flag.Parse()
-	if len(*accessToken) == 0 {
-		fmt.Println("You must specify --access_token")
-		os.Exit(1)
-	}
-
 	loggableRecorder := &LoggingRecorder{}
 
 	// Use LightStep as the global OpenTracing Tracer.
 	opentracing.InitGlobalTracer(lightstep.NewTracer(lightstep.Options{
 		AccessToken: *accessToken,
-		Collector:   lightstep.Endpoint{Host: "localhost", Port: 9997, Plaintext: true},
+		Collector:   lightstep.Endpoint{Host: "localhost", Port: 8360, Plaintext: true},
 		UseGRPC:     true,
 		Recorder:    loggableRecorder,
 	}))
@@ -65,8 +58,5 @@ func main() {
 	subRoutine(context.Background())
 
 	// Force a flush before exit.
-	err := lightstep.FlushLightStepTracer(opentracing.GlobalTracer())
-	if err != nil {
-		panic(err)
-	}
+	lightstep.Flush(context.Background(), opentracing.GlobalTracer())
 }
