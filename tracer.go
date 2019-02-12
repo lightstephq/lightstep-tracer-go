@@ -66,6 +66,11 @@ type tracerImpl struct {
 	reportInFlight    bool
 	lastReportAttempt time.Time
 
+	// Meta Event Reporting can be enabled at tracer creation or on-demand by satellite
+	metaEventReportingEnabled bool
+	// Set to true on first report
+	firstReportHasRun bool
+
 	// We allow our remote peer to disable this instrumentation at any
 	// time, turning all potentially costly runtime operations into
 	// no-ops.
@@ -117,6 +122,10 @@ func NewTracer(opts Options) Tracer {
 	}
 	impl.connection = conn
 
+	// set meta reporting to defined option
+	impl.metaEventReportingEnabled = opts.MetaEventReportingEnabled
+	impl.firstReportHasRun = false
+
 	go impl.reportLoop()
 
 	return impl
@@ -134,6 +143,14 @@ func (tracer *tracerImpl) StartSpan(
 }
 
 func (tracer *tracerImpl) Inject(sc ot.SpanContext, format interface{}, carrier interface{}) error {
+	if tracer.opts.MetaEventReportingEnabled {
+		ot.StartSpan(LSMetaEvent_InjectOperation,
+			ot.Tag{Key: LSMetaEvent_MetaEventKey, Value: true},
+			ot.Tag{Key: LSMetaEvent_TraceIdKey, Value: sc.(SpanContext).TraceID},
+			ot.Tag{Key: LSMetaEvent_SpanIdKey, Value: sc.(SpanContext).SpanID},
+			ot.Tag{Key: LSMetaEvent_PropagationFormatKey, Value: format}).
+			Finish()
+	}
 	switch format {
 	case ot.TextMap, ot.HTTPHeaders:
 		return theTextMapPropagator.Inject(sc, carrier)
@@ -144,6 +161,12 @@ func (tracer *tracerImpl) Inject(sc ot.SpanContext, format interface{}, carrier 
 }
 
 func (tracer *tracerImpl) Extract(format interface{}, carrier interface{}) (ot.SpanContext, error) {
+	if tracer.opts.MetaEventReportingEnabled {
+		ot.StartSpan(LSMetaEvent_ExtractOperation,
+			ot.Tag{Key: LSMetaEvent_MetaEventKey, Value: true},
+			ot.Tag{Key: LSMetaEvent_PropagationFormatKey, Value: format}).
+			Finish()
+	}
 	switch format {
 	case ot.TextMap, ot.HTTPHeaders:
 		return theTextMapPropagator.Extract(carrier)
@@ -223,6 +246,14 @@ func (tracer *tracerImpl) Flush(ctx context.Context) {
 		return
 	}
 
+	if tracer.opts.MetaEventReportingEnabled && !tracer.firstReportHasRun {
+		ot.StartSpan(LSMetaEvent_TracerCreateOperation,
+			ot.Tag{Key: LSMetaEvent_MetaEventKey, Value: true},
+			ot.Tag{Key: LSMetaEvent_TracerGuidKey, Value: tracer.reporterID}).
+			Finish()
+		tracer.firstReportHasRun = true
+	}
+
 	ctx, cancel := context.WithTimeout(ctx, tracer.opts.ReportTimeout)
 	defer cancel()
 
@@ -247,6 +278,15 @@ func (tracer *tracerImpl) Flush(ctx context.Context) {
 		emitEvent(reportErrorEvent)
 	}
 	emitEvent(tracer.postFlush(reportErrorEvent))
+
+
+	if err == nil && resp.DevMode() {
+		tracer.metaEventReportingEnabled = true
+	}
+
+	if err == nil && !resp.DevMode() {
+		tracer.metaEventReportingEnabled = false
+	}
 
 	if err == nil && resp.Disable() {
 		tracer.Disable()

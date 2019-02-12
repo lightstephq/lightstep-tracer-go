@@ -8,3 +8,12 @@ func (res *ReportResponse) Disable() bool {
 	}
 	return false
 }
+
+func (res *ReportResponse) DevMode() bool {
+	for _, command := range res.GetCommands() {
+		if command.DevMode {
+			return true
+		}
+	}
+	return false
+}

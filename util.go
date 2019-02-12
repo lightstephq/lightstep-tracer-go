@@ -30,3 +30,7 @@ func genSeededGUID2() (uint64, uint64) {
 	n1, n2 := randompool.Pick().TwoInt63()
 	return uint64(n1), uint64(n2)
 }
+
+func IsMetaSpan(s *spanImpl) bool {
+	return s.raw.Tags["lightstep.meta_event"] != nil
+}

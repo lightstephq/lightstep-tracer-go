@@ -182,6 +182,9 @@ type Options struct {
 
 	// For testing purposes only
 	ConnFactory ConnectorFactory `yaml:"-" json:"-"`
+
+	// Enable LightStep Meta Event Logging
+	MetaEventReportingEnabled bool `yaml:"meta_event_reporting_enabled" json:"meta_event_reporting_enabled"`
 }
 
 // Initialize validates options, and sets default values for unset options.
