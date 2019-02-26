@@ -4,7 +4,7 @@ import (
 	"sync"
 	"time"
 
-	ot "github.com/opentracing/opentracing-go"
+	"github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/log"
 )
 
@@ -18,7 +18,7 @@ type spanImpl struct {
 	numDroppedLogs int
 }
 
-func newSpan(operationName string, tracer *tracerImpl, sso []ot.StartSpanOption) *spanImpl {
+func newSpan(operationName string, tracer *tracerImpl, sso []opentracing.StartSpanOption) *spanImpl {
 	opts := newStartSpanOptions(sso)
 
 	// Start time.
@@ -46,7 +46,7 @@ func newSpan(operationName string, tracer *tracerImpl, sso []ot.StartSpanOption)
 ReferencesLoop:
 	for _, ref := range opts.Options.References {
 		switch ref.Type {
-		case ot.ChildOfRef, ot.FollowsFromRef:
+		case opentracing.ChildOfRef, opentracing.FollowsFromRef:
 			refCtx, ok := ref.ReferencedContext.(SpanContext)
 			if !ok {
 				break ReferencesLoop
@@ -79,28 +79,28 @@ ReferencesLoop:
 	sp.raw.Tags = opts.Options.Tags
 
 	if tracer.opts.MetaEventReportingEnabled && IsMetaSpan(sp) {
-		ot.StartSpan(LSMetaEvent_SpanStartOperation,
-			ot.Tag{Key: LSMetaEvent_MetaEventKey, Value: true},
-			ot.Tag{Key: LSMetaEvent_SpanIdKey, Value: sp.raw.Context.SpanID},
-			ot.Tag{Key: LSMetaEvent_TraceIdKey, Value: sp.raw.Context.TraceID}).
+		opentracing.StartSpan(LSMetaEvent_SpanStartOperation,
+			opentracing.Tag{Key: LSMetaEvent_MetaEventKey, Value: true},
+			opentracing.Tag{Key: LSMetaEvent_SpanIdKey, Value: sp.raw.Context.SpanID},
+			opentracing.Tag{Key: LSMetaEvent_TraceIdKey, Value: sp.raw.Context.TraceID}).
 			Finish()
 	}
 	return sp
 }
 
-func (s *spanImpl) SetOperationName(operationName string) ot.Span {
+func (s *spanImpl) SetOperationName(operationName string) opentracing.Span {
 	s.Lock()
 	defer s.Unlock()
 	s.raw.Operation = operationName
 	return s
 }
 
-func (s *spanImpl) SetTag(key string, value interface{}) ot.Span {
+func (s *spanImpl) SetTag(key string, value interface{}) opentracing.Span {
 	s.Lock()
 	defer s.Unlock()
 
 	if s.raw.Tags == nil {
-		s.raw.Tags = ot.Tags{}
+		s.raw.Tags = opentracing.Tags{}
 	}
 	s.raw.Tags[key] = value
 	return s
@@ -115,7 +115,7 @@ func (s *spanImpl) LogKV(keyValues ...interface{}) {
 	s.LogFields(fields...)
 }
 
-func (s *spanImpl) appendLog(lr ot.LogRecord) {
+func (s *spanImpl) appendLog(lr opentracing.LogRecord) {
 	maxLogs := s.tracer.opts.MaxLogsPerSpan
 	if maxLogs == 0 || len(s.raw.Logs) < maxLogs {
 		s.raw.Logs = append(s.raw.Logs, lr)
@@ -131,7 +131,7 @@ func (s *spanImpl) appendLog(lr ot.LogRecord) {
 }
 
 func (s *spanImpl) LogFields(fields ...log.Field) {
-	lr := ot.LogRecord{
+	lr := opentracing.LogRecord{
 		Fields: fields,
 	}
 	s.Lock()
@@ -146,19 +146,19 @@ func (s *spanImpl) LogFields(fields ...log.Field) {
 }
 
 func (s *spanImpl) LogEvent(event string) {
-	s.Log(ot.LogData{
+	s.Log(opentracing.LogData{
 		Event: event,
 	})
 }
 
 func (s *spanImpl) LogEventWithPayload(event string, payload interface{}) {
-	s.Log(ot.LogData{
+	s.Log(opentracing.LogData{
 		Event:   event,
 		Payload: payload,
 	})
 }
 
-func (s *spanImpl) Log(ld ot.LogData) {
+func (s *spanImpl) Log(ld opentracing.LogData) {
 	s.Lock()
 	defer s.Unlock()
 	if s.tracer.opts.DropSpanLogs {
@@ -173,12 +173,12 @@ func (s *spanImpl) Log(ld ot.LogData) {
 }
 
 func (s *spanImpl) Finish() {
-	s.FinishWithOptions(ot.FinishOptions{})
+	s.FinishWithOptions(opentracing.FinishOptions{})
 }
 
 // rotateLogBuffer rotates the records in the buffer: records 0 to pos-1 move at
 // the end (i.e. pos circular left shifts).
-func rotateLogBuffer(buf []ot.LogRecord, pos int) {
+func rotateLogBuffer(buf []opentracing.LogRecord, pos int) {
 	// This algorithm is described in:
 	//    http://www.cplusplus.com/reference/algorithm/rotate
 	for first, middle, next := 0, pos, pos; first != middle; {
@@ -193,7 +193,7 @@ func rotateLogBuffer(buf []ot.LogRecord, pos int) {
 	}
 }
 
-func (s *spanImpl) FinishWithOptions(opts ot.FinishOptions) {
+func (s *spanImpl) FinishWithOptions(opts opentracing.FinishOptions) {
 	finishTime := opts.FinishTime
 	if finishTime.IsZero() {
 		finishTime = time.Now()
@@ -227,7 +227,7 @@ func (s *spanImpl) FinishWithOptions(opts ot.FinishOptions) {
 		// about the dropped logs. This means that we are effectively dropping one
 		// more "new" log.
 		numDropped := s.numDroppedLogs + 1
-		s.raw.Logs[numOld] = ot.LogRecord{
+		s.raw.Logs[numOld] = opentracing.LogRecord{
 			// Keep the timestamp of the last dropped event.
 			Timestamp: s.raw.Logs[numOld].Timestamp,
 			Fields: []log.Field{
@@ -242,23 +242,23 @@ func (s *spanImpl) FinishWithOptions(opts ot.FinishOptions) {
 
 	s.tracer.RecordSpan(s.raw)
 	if s.tracer.opts.MetaEventReportingEnabled && IsMetaSpan(s) {
-		ot.StartSpan(LSMetaEvent_SpanFinishOperation,
-			ot.Tag{Key: LSMetaEvent_MetaEventKey, Value: true},
-			ot.Tag{Key: LSMetaEvent_SpanIdKey, Value: s.raw.Context.SpanID},
-			ot.Tag{Key: LSMetaEvent_TraceIdKey, Value: s.raw.Context.TraceID}).
+		opentracing.StartSpan(LSMetaEvent_SpanFinishOperation,
+			opentracing.Tag{Key: LSMetaEvent_MetaEventKey, Value: true},
+			opentracing.Tag{Key: LSMetaEvent_SpanIdKey, Value: s.raw.Context.SpanID},
+			opentracing.Tag{Key: LSMetaEvent_TraceIdKey, Value: s.raw.Context.TraceID}).
 			Finish()
 	}
 }
 
-func (s *spanImpl) Tracer() ot.Tracer {
+func (s *spanImpl) Tracer() opentracing.Tracer {
 	return s.tracer
 }
 
-func (s *spanImpl) Context() ot.SpanContext {
+func (s *spanImpl) Context() opentracing.SpanContext {
 	return s.raw.Context
 }
 
-func (s *spanImpl) SetBaggageItem(key, val string) ot.Span {
+func (s *spanImpl) SetBaggageItem(key, val string) opentracing.Span {
 
 	s.Lock()
 	defer s.Unlock()

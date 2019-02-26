@@ -7,8 +7,8 @@ import (
 	"testing"
 
 	. "github.com/lightstep/lightstep-tracer-go"
-	cpbfakes "github.com/lightstep/lightstep-tracer-go/collectorpb/collectorpbfakes"
-	ot "github.com/opentracing/opentracing-go"
+	"github.com/lightstep/lightstep-tracer-go/collectorpb/collectorpbfakes"
+	"github.com/opentracing/opentracing-go"
 )
 
 type CountingRecorder int32
@@ -17,10 +17,10 @@ func (c *CountingRecorder) RecordSpan(r RawSpan) {
 	atomic.AddInt32((*int32)(c), 1)
 }
 
-func newTestTracer(recorder SpanRecorder) ot.Tracer {
+func newTestTracer(recorder SpanRecorder) opentracing.Tracer {
 	opts := Options{
 		AccessToken: "token",
-		ConnFactory: fakeGrpcConnection(new(cpbfakes.FakeCollectorServiceClient)),
+		ConnFactory: fakeGrpcConnection(new(collectorpbfakes.FakeCollectorServiceClient)),
 		Recorder:    recorder,
 	}
 	return NewTracer(opts)
@@ -35,7 +35,7 @@ func init() {
 	}
 }
 
-func executeOps(sp ot.Span, numEvent, numTag, numItems int) {
+func executeOps(sp opentracing.Span, numEvent, numTag, numItems int) {
 	for j := 0; j < numEvent; j++ {
 		sp.LogEvent("event")
 	}
@@ -50,7 +50,7 @@ func executeOps(sp ot.Span, numEvent, numTag, numItems int) {
 func benchmarkWithOps(b *testing.B, numEvent, numTag, numItems int) {
 	var r CountingRecorder
 	t := newTestTracer(&r)
-	benchmarkWithOpsAndCB(b, func() ot.Span {
+	benchmarkWithOpsAndCB(b, func() opentracing.Span {
 		return t.StartSpan("test")
 	}, numEvent, numTag, numItems)
 	if int(r) != b.N {
@@ -58,7 +58,7 @@ func benchmarkWithOps(b *testing.B, numEvent, numTag, numItems int) {
 	}
 }
 
-func benchmarkWithOpsAndCB(b *testing.B, create func() ot.Span,
+func benchmarkWithOpsAndCB(b *testing.B, create func() opentracing.Span,
 	numEvent, numTag, numItems int) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -97,7 +97,7 @@ func BenchmarkSpan_100Events_100Tags_100BaggageItems(b *testing.B) {
 	var r CountingRecorder
 	t := newTestTracer(&r)
 
-	benchmarkWithOpsAndCB(b, func() ot.Span {
+	benchmarkWithOpsAndCB(b, func() opentracing.Span {
 		sp := t.StartSpan("test")
 		return sp
 	}, 100, 100, 100)
@@ -106,16 +106,16 @@ func BenchmarkSpan_100Events_100Tags_100BaggageItems(b *testing.B) {
 	}
 }
 
-func benchmarkInject(b *testing.B, format ot.BuiltinFormat, numItems int) {
+func benchmarkInject(b *testing.B, format opentracing.BuiltinFormat, numItems int) {
 	var r CountingRecorder
 	tracer := newTestTracer(&r)
 	sp := tracer.StartSpan("testing")
 	executeOps(sp, 0, 0, numItems)
 	var carrier interface{}
 	switch format {
-	case ot.TextMap:
-		carrier = ot.HTTPHeadersCarrier(http.Header{})
-	case ot.Binary:
+	case opentracing.TextMap:
+		carrier = opentracing.HTTPHeadersCarrier(http.Header{})
+	case opentracing.Binary:
 		carrier = &bytes.Buffer{}
 	default:
 		b.Fatalf("unhandled format %d", format)
@@ -129,16 +129,16 @@ func benchmarkInject(b *testing.B, format ot.BuiltinFormat, numItems int) {
 	}
 }
 
-func benchmarkExtract(b *testing.B, format ot.BuiltinFormat, numItems int) {
+func benchmarkExtract(b *testing.B, format opentracing.BuiltinFormat, numItems int) {
 	var r CountingRecorder
 	tracer := newTestTracer(&r)
 	sp := tracer.StartSpan("testing")
 	executeOps(sp, 0, 0, numItems)
 	var carrier interface{}
 	switch format {
-	case ot.TextMap:
-		carrier = ot.HTTPHeadersCarrier(http.Header{})
-	case ot.Binary:
+	case opentracing.TextMap:
+		carrier = opentracing.HTTPHeadersCarrier(http.Header{})
+	case opentracing.Binary:
 		carrier = &bytes.Buffer{}
 	default:
 		b.Fatalf("unhandled format %d", format)
@@ -150,12 +150,12 @@ func benchmarkExtract(b *testing.B, format ot.BuiltinFormat, numItems int) {
 	// We create a new bytes.Buffer every time for tracer.Extract() to keep
 	// this benchmark realistic.
 	var rawBinaryBytes []byte
-	if format == ot.Binary {
+	if format == opentracing.Binary {
 		rawBinaryBytes = carrier.(*bytes.Buffer).Bytes()
 	}
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		if format == ot.Binary {
+		if format == opentracing.Binary {
 			carrier = bytes.NewBuffer(rawBinaryBytes)
 		}
 		_, err := tracer.Extract(format, carrier)
@@ -166,17 +166,17 @@ func benchmarkExtract(b *testing.B, format ot.BuiltinFormat, numItems int) {
 }
 
 func BenchmarkInject_TextMap_Empty(b *testing.B) {
-	benchmarkInject(b, ot.TextMap, 0)
+	benchmarkInject(b, opentracing.TextMap, 0)
 }
 
 func BenchmarkInject_TextMap_100BaggageItems(b *testing.B) {
-	benchmarkInject(b, ot.TextMap, 100)
+	benchmarkInject(b, opentracing.TextMap, 100)
 }
 
 func BenchmarkJoin_TextMap_Empty(b *testing.B) {
-	benchmarkExtract(b, ot.TextMap, 0)
+	benchmarkExtract(b, opentracing.TextMap, 0)
 }
 
 func BenchmarkJoin_TextMap_100BaggageItems(b *testing.B) {
-	benchmarkExtract(b, ot.TextMap, 100)
+	benchmarkExtract(b, opentracing.TextMap, 100)
 }

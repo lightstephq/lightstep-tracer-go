@@ -5,8 +5,8 @@ import (
 	"errors"
 	"fmt"
 
-	cpb "github.com/lightstep/lightstep-tracer-go/collectorpb"
-	cpbfakes "github.com/lightstep/lightstep-tracer-go/collectorpb/collectorpbfakes"
+	"github.com/lightstep/lightstep-tracer-go/collectorpb"
+	"github.com/lightstep/lightstep-tracer-go/collectorpb/collectorpbfakes"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
@@ -17,7 +17,7 @@ var _ = Describe("TracerImpl", func() {
 
 	const accessToken = "ACCESS_TOKEN"
 
-	var fakeClient *cpbfakes.FakeCollectorServiceClient
+	var fakeClient *collectorpbfakes.FakeCollectorServiceClient
 	var fakeConn ConnectorFactory
 
 	var eventHandler func(Event)
@@ -25,8 +25,8 @@ var _ = Describe("TracerImpl", func() {
 	const eventBufferSize = 10
 
 	BeforeEach(func() {
-		fakeClient = new(cpbfakes.FakeCollectorServiceClient)
-		fakeClient.ReportReturns(&cpb.ReportResponse{}, nil)
+		fakeClient = new(collectorpbfakes.FakeCollectorServiceClient)
+		fakeClient.ReportReturns(&collectorpb.ReportResponse{}, nil)
 		fakeConn = fakeGrpcConnection(fakeClient)
 
 		eventHandler, eventChan = NewEventChannel(eventBufferSize)
@@ -80,7 +80,7 @@ type dummyConnection struct{}
 
 func (*dummyConnection) Close() error { return nil }
 
-func fakeGrpcConnection(fakeClient *cpbfakes.FakeCollectorServiceClient) ConnectorFactory {
+func fakeGrpcConnection(fakeClient *collectorpbfakes.FakeCollectorServiceClient) ConnectorFactory {
 	return func() (interface{}, Connection, error) {
 		return fakeClient, new(dummyConnection), nil
 	}

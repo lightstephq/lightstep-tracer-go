@@ -6,7 +6,7 @@ import (
 	"reflect"
 	"time"
 
-	opentracing "github.com/opentracing/opentracing-go"
+	"github.com/opentracing/opentracing-go"
 )
 
 // An Event is emitted by the LightStep tracer as a reporting mechanism. They are

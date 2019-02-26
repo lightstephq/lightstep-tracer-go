@@ -2,15 +2,15 @@ package lightstep_test
 
 import (
 	. "github.com/lightstep/lightstep-tracer-go"
-	cpb "github.com/lightstep/lightstep-tracer-go/collectorpb"
+	"github.com/lightstep/lightstep-tracer-go/collectorpb"
 )
 
 type cpbSpan struct {
-	cpb.Span
+	collectorpb.Span
 }
 
 type cpbReference struct {
-	cpb.Reference
+	collectorpb.Reference
 }
 
 func (fakeClient *cpbfakesFakeClient) GetSpan(i int) Span {
@@ -49,7 +49,7 @@ func (span *cpbSpan) GetLogs() []interface{} {
 	return logs
 }
 
-func toProtoSpanContext(spanContext *cpb.SpanContext) SpanContext {
+func toProtoSpanContext(spanContext *collectorpb.SpanContext) SpanContext {
 	return SpanContext{
 		TraceID: spanContext.TraceId,
 		SpanID:  spanContext.SpanId,

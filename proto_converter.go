@@ -5,9 +5,9 @@ import (
 	"reflect"
 	"time"
 
-	google_protobuf "github.com/golang/protobuf/ptypes/timestamp"
-	cpb "github.com/lightstep/lightstep-tracer-go/collectorpb"
-	ot "github.com/opentracing/opentracing-go"
+	"github.com/golang/protobuf/ptypes/timestamp"
+	"github.com/lightstep/lightstep-tracer-go/collectorpb"
+	"github.com/opentracing/opentracing-go"
 )
 
 type protoConverter struct {
@@ -29,8 +29,8 @@ func (converter *protoConverter) toReportRequest(
 	attributes map[string]string,
 	accessToken string,
 	buffer *reportBuffer,
-) *cpb.ReportRequest {
-	return &cpb.ReportRequest{
+) *collectorpb.ReportRequest {
+	return &collectorpb.ReportRequest{
 		Reporter:        converter.toReporter(reporterID, attributes),
 		Auth:            converter.toAuth(accessToken),
 		Spans:           converter.toSpans(buffer),
@@ -39,29 +39,29 @@ func (converter *protoConverter) toReportRequest(
 
 }
 
-func (converter *protoConverter) toReporter(reporterID uint64, attributes map[string]string) *cpb.Reporter {
-	return &cpb.Reporter{
+func (converter *protoConverter) toReporter(reporterID uint64, attributes map[string]string) *collectorpb.Reporter {
+	return &collectorpb.Reporter{
 		ReporterId: reporterID,
 		Tags:       converter.toFields(attributes),
 	}
 }
 
-func (converter *protoConverter) toAuth(accessToken string) *cpb.Auth {
-	return &cpb.Auth{
+func (converter *protoConverter) toAuth(accessToken string) *collectorpb.Auth {
+	return &collectorpb.Auth{
 		AccessToken: accessToken,
 	}
 }
 
-func (converter *protoConverter) toSpans(buffer *reportBuffer) []*cpb.Span {
-	spans := make([]*cpb.Span, len(buffer.rawSpans))
+func (converter *protoConverter) toSpans(buffer *reportBuffer) []*collectorpb.Span {
+	spans := make([]*collectorpb.Span, len(buffer.rawSpans))
 	for i, span := range buffer.rawSpans {
 		spans[i] = converter.toSpan(span, buffer)
 	}
 	return spans
 }
 
-func (converter *protoConverter) toSpan(span RawSpan, buffer *reportBuffer) *cpb.Span {
-	return &cpb.Span{
+func (converter *protoConverter) toSpan(span RawSpan, buffer *reportBuffer) *collectorpb.Span {
+	return &collectorpb.Span{
 		SpanContext:    converter.toSpanContext(&span.Context),
 		OperationName:  span.Operation,
 		References:     converter.toReference(span.ParentSpanID),
@@ -72,47 +72,47 @@ func (converter *protoConverter) toSpan(span RawSpan, buffer *reportBuffer) *cpb
 	}
 }
 
-func (converter *protoConverter) toInternalMetrics(buffer *reportBuffer) *cpb.InternalMetrics {
-	return &cpb.InternalMetrics{
+func (converter *protoConverter) toInternalMetrics(buffer *reportBuffer) *collectorpb.InternalMetrics {
+	return &collectorpb.InternalMetrics{
 		StartTimestamp: converter.toTimestamp(buffer.reportStart),
 		DurationMicros: converter.fromTimeRange(buffer.reportStart, buffer.reportEnd),
 		Counts:         converter.toMetricsSample(buffer),
 	}
 }
 
-func (converter *protoConverter) toMetricsSample(buffer *reportBuffer) []*cpb.MetricsSample {
-	return []*cpb.MetricsSample{
+func (converter *protoConverter) toMetricsSample(buffer *reportBuffer) []*collectorpb.MetricsSample {
+	return []*collectorpb.MetricsSample{
 		{
 			Name:  spansDropped,
-			Value: &cpb.MetricsSample_IntValue{IntValue: buffer.droppedSpanCount},
+			Value: &collectorpb.MetricsSample_IntValue{IntValue: buffer.droppedSpanCount},
 		},
 		{
 			Name:  logEncoderErrors,
-			Value: &cpb.MetricsSample_IntValue{IntValue: buffer.logEncoderErrorCount},
+			Value: &collectorpb.MetricsSample_IntValue{IntValue: buffer.logEncoderErrorCount},
 		},
 	}
 }
 
-func (converter *protoConverter) fromTags(tags ot.Tags) []*cpb.KeyValue {
-	fields := make([]*cpb.KeyValue, 0, len(tags))
+func (converter *protoConverter) fromTags(tags opentracing.Tags) []*collectorpb.KeyValue {
+	fields := make([]*collectorpb.KeyValue, 0, len(tags))
 	for key, tag := range tags {
 		fields = append(fields, converter.toField(key, tag))
 	}
 	return fields
 }
 
-func (converter *protoConverter) toField(key string, value interface{}) *cpb.KeyValue {
-	field := cpb.KeyValue{Key: key}
+func (converter *protoConverter) toField(key string, value interface{}) *collectorpb.KeyValue {
+	field := collectorpb.KeyValue{Key: key}
 	reflectedValue := reflect.ValueOf(value)
 	switch reflectedValue.Kind() {
 	case reflect.String:
-		field.Value = &cpb.KeyValue_StringValue{StringValue: reflectedValue.String()}
+		field.Value = &collectorpb.KeyValue_StringValue{StringValue: reflectedValue.String()}
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64, reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		field.Value = &cpb.KeyValue_IntValue{IntValue: reflectedValue.Convert(intType).Int()}
+		field.Value = &collectorpb.KeyValue_IntValue{IntValue: reflectedValue.Convert(intType).Int()}
 	case reflect.Float32, reflect.Float64:
-		field.Value = &cpb.KeyValue_DoubleValue{DoubleValue: reflectedValue.Float()}
+		field.Value = &collectorpb.KeyValue_DoubleValue{DoubleValue: reflectedValue.Float()}
 	case reflect.Bool:
-		field.Value = &cpb.KeyValue_BoolValue{BoolValue: reflectedValue.Bool()}
+		field.Value = &collectorpb.KeyValue_BoolValue{BoolValue: reflectedValue.Bool()}
 	default:
 		var s string
 		switch value := value.(type) {
@@ -124,59 +124,59 @@ func (converter *protoConverter) toField(key string, value interface{}) *cpb.Key
 			s = fmt.Sprintf("%#v", value)
 			emitEvent(newEventUnsupportedValue(key, value, nil))
 		}
-		field.Value = &cpb.KeyValue_StringValue{StringValue: s}
+		field.Value = &collectorpb.KeyValue_StringValue{StringValue: s}
 	}
 	return &field
 }
 
-func (converter *protoConverter) toLogs(records []ot.LogRecord, buffer *reportBuffer) []*cpb.Log {
-	logs := make([]*cpb.Log, len(records))
+func (converter *protoConverter) toLogs(records []opentracing.LogRecord, buffer *reportBuffer) []*collectorpb.Log {
+	logs := make([]*collectorpb.Log, len(records))
 	for i, record := range records {
 		logs[i] = converter.toLog(record, buffer)
 	}
 	return logs
 }
 
-func (converter *protoConverter) toLog(record ot.LogRecord, buffer *reportBuffer) *cpb.Log {
-	log := &cpb.Log{
+func (converter *protoConverter) toLog(record opentracing.LogRecord, buffer *reportBuffer) *collectorpb.Log {
+	log := &collectorpb.Log{
 		Timestamp: converter.toTimestamp(record.Timestamp),
 	}
 	marshalFields(converter, log, record.Fields, buffer)
 	return log
 }
 
-func (converter *protoConverter) toFields(attributes map[string]string) []*cpb.KeyValue {
-	tags := make([]*cpb.KeyValue, 0, len(attributes))
+func (converter *protoConverter) toFields(attributes map[string]string) []*collectorpb.KeyValue {
+	tags := make([]*collectorpb.KeyValue, 0, len(attributes))
 	for key, value := range attributes {
 		tags = append(tags, converter.toField(key, value))
 	}
 	return tags
 }
 
-func (converter *protoConverter) toSpanContext(sc *SpanContext) *cpb.SpanContext {
-	return &cpb.SpanContext{
+func (converter *protoConverter) toSpanContext(sc *SpanContext) *collectorpb.SpanContext {
+	return &collectorpb.SpanContext{
 		TraceId: sc.TraceID,
 		SpanId:  sc.SpanID,
 		Baggage: sc.Baggage,
 	}
 }
 
-func (converter *protoConverter) toReference(parentSpanID uint64) []*cpb.Reference {
+func (converter *protoConverter) toReference(parentSpanID uint64) []*collectorpb.Reference {
 	if parentSpanID == 0 {
 		return nil
 	}
-	return []*cpb.Reference{
+	return []*collectorpb.Reference{
 		{
-			Relationship: cpb.Reference_CHILD_OF,
-			SpanContext: &cpb.SpanContext{
+			Relationship: collectorpb.Reference_CHILD_OF,
+			SpanContext: &collectorpb.SpanContext{
 				SpanId: parentSpanID,
 			},
 		},
 	}
 }
 
-func (converter *protoConverter) toTimestamp(t time.Time) *google_protobuf.Timestamp {
-	return &google_protobuf.Timestamp{
+func (converter *protoConverter) toTimestamp(t time.Time) *timestamp.Timestamp {
+	return &timestamp.Timestamp{
 		Seconds: t.Unix(),
 		Nanos:   int32(t.Nanosecond()),
 	}

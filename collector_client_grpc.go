@@ -10,7 +10,7 @@ import (
 	"google.golang.org/grpc/credentials"
 
 	// N.B.(jmacd): Do not use google.golang.org/glog in this package.
-	cpb "github.com/lightstep/lightstep-tracer-go/collectorpb"
+	collectorpb "github.com/lightstep/lightstep-tracer-go/collectorpb"
 )
 
 const (
@@ -37,7 +37,7 @@ type grpcCollectorClient struct {
 
 	// Remote service that will receive reports.
 	address       string
-	grpcClient    cpb.CollectorServiceClient
+	grpcClient    collectorpb.CollectorServiceClient
 	connTimestamp time.Time
 	dialOptions   []grpc.DialOption
 
@@ -86,7 +86,7 @@ func (client *grpcCollectorClient) ConnectClient() (Connection, error) {
 			return nil, err
 		}
 
-		grpcClient, ok := uncheckedClient.(cpb.CollectorServiceClient)
+		grpcClient, ok := uncheckedClient.(collectorpb.CollectorServiceClient)
 		if !ok {
 			return nil, fmt.Errorf("gRPC connector factory did not provide valid client")
 		}
@@ -100,7 +100,7 @@ func (client *grpcCollectorClient) ConnectClient() (Connection, error) {
 		}
 
 		conn = transport
-		client.grpcClient = cpb.NewCollectorServiceClient(transport)
+		client.grpcClient = collectorpb.NewCollectorServiceClient(transport)
 	}
 	client.connTimestamp = now
 	return conn, nil

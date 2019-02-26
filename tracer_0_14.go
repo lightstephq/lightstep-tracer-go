@@ -3,7 +3,7 @@ package lightstep
 import (
 	"context"
 
-	opentracing "github.com/opentracing/opentracing-go"
+	"github.com/opentracing/opentracing-go"
 )
 
 // Tracerv0_14 matches the Tracer interface from v0.14.0

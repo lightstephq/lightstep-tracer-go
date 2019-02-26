@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	ot "github.com/opentracing/opentracing-go"
+	"github.com/opentracing/opentracing-go"
 )
 
 // Tracer extends the `opentracing.Tracer` interface with methods for manual
@@ -16,7 +16,7 @@ import (
 // tracer and typecast it to a `lightstep.Tracer`. As a convenience, the
 // lightstep package provides static functions which perform the typecasting.
 type Tracer interface {
-	ot.Tracer
+	opentracing.Tracer
 
 	// Close flushes and then terminates the LightStep collector
 	Close(context.Context)
@@ -137,43 +137,43 @@ func (tracer *tracerImpl) Options() Options {
 
 func (tracer *tracerImpl) StartSpan(
 	operationName string,
-	sso ...ot.StartSpanOption,
-) ot.Span {
+	sso ...opentracing.StartSpanOption,
+) opentracing.Span {
 	return newSpan(operationName, tracer, sso)
 }
 
-func (tracer *tracerImpl) Inject(sc ot.SpanContext, format interface{}, carrier interface{}) error {
+func (tracer *tracerImpl) Inject(sc opentracing.SpanContext, format interface{}, carrier interface{}) error {
 	if tracer.opts.MetaEventReportingEnabled {
-		ot.StartSpan(LSMetaEvent_InjectOperation,
-			ot.Tag{Key: LSMetaEvent_MetaEventKey, Value: true},
-			ot.Tag{Key: LSMetaEvent_TraceIdKey, Value: sc.(SpanContext).TraceID},
-			ot.Tag{Key: LSMetaEvent_SpanIdKey, Value: sc.(SpanContext).SpanID},
-			ot.Tag{Key: LSMetaEvent_PropagationFormatKey, Value: format}).
+		opentracing.StartSpan(LSMetaEvent_InjectOperation,
+			opentracing.Tag{Key: LSMetaEvent_MetaEventKey, Value: true},
+			opentracing.Tag{Key: LSMetaEvent_TraceIdKey, Value: sc.(SpanContext).TraceID},
+			opentracing.Tag{Key: LSMetaEvent_SpanIdKey, Value: sc.(SpanContext).SpanID},
+			opentracing.Tag{Key: LSMetaEvent_PropagationFormatKey, Value: format}).
 			Finish()
 	}
 	switch format {
-	case ot.TextMap, ot.HTTPHeaders:
+	case opentracing.TextMap, opentracing.HTTPHeaders:
 		return theTextMapPropagator.Inject(sc, carrier)
-	case ot.Binary:
+	case opentracing.Binary:
 		return theBinaryPropagator.Inject(sc, carrier)
 	}
-	return ot.ErrUnsupportedFormat
+	return opentracing.ErrUnsupportedFormat
 }
 
-func (tracer *tracerImpl) Extract(format interface{}, carrier interface{}) (ot.SpanContext, error) {
+func (tracer *tracerImpl) Extract(format interface{}, carrier interface{}) (opentracing.SpanContext, error) {
 	if tracer.opts.MetaEventReportingEnabled {
-		ot.StartSpan(LSMetaEvent_ExtractOperation,
-			ot.Tag{Key: LSMetaEvent_MetaEventKey, Value: true},
-			ot.Tag{Key: LSMetaEvent_PropagationFormatKey, Value: format}).
+		opentracing.StartSpan(LSMetaEvent_ExtractOperation,
+			opentracing.Tag{Key: LSMetaEvent_MetaEventKey, Value: true},
+			opentracing.Tag{Key: LSMetaEvent_PropagationFormatKey, Value: format}).
 			Finish()
 	}
 	switch format {
-	case ot.TextMap, ot.HTTPHeaders:
+	case opentracing.TextMap, opentracing.HTTPHeaders:
 		return theTextMapPropagator.Extract(carrier)
-	case ot.Binary:
+	case opentracing.Binary:
 		return theBinaryPropagator.Extract(carrier)
 	}
-	return nil, ot.ErrUnsupportedFormat
+	return nil, opentracing.ErrUnsupportedFormat
 }
 
 func (tracer *tracerImpl) reconnectClient(now time.Time) {
@@ -247,9 +247,9 @@ func (tracer *tracerImpl) Flush(ctx context.Context) {
 	}
 
 	if tracer.opts.MetaEventReportingEnabled && !tracer.firstReportHasRun {
-		ot.StartSpan(LSMetaEvent_TracerCreateOperation,
-			ot.Tag{Key: LSMetaEvent_MetaEventKey, Value: true},
-			ot.Tag{Key: LSMetaEvent_TracerGuidKey, Value: tracer.reporterID}).
+		opentracing.StartSpan(LSMetaEvent_TracerCreateOperation,
+			opentracing.Tag{Key: LSMetaEvent_MetaEventKey, Value: true},
+			opentracing.Tag{Key: LSMetaEvent_TracerGuidKey, Value: tracer.reporterID}).
 			Finish()
 		tracer.firstReportHasRun = true
 	}
@@ -278,7 +278,6 @@ func (tracer *tracerImpl) Flush(ctx context.Context) {
 		emitEvent(reportErrorEvent)
 	}
 	emitEvent(tracer.postFlush(reportErrorEvent))
-
 
 	if err == nil && resp.DevMode() {
 		tracer.metaEventReportingEnabled = true

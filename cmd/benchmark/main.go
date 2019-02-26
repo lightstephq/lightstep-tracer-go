@@ -11,8 +11,8 @@ import (
 	"sync"
 	"time"
 
-	ls "github.com/lightstep/lightstep-tracer-go"
-	ot "github.com/opentracing/opentracing-go"
+	"github.com/lightstep/lightstep-tracer-go"
+	"github.com/opentracing/opentracing-go"
 )
 
 const (
@@ -67,7 +67,7 @@ type control struct {
 
 type testClient struct {
 	baseURL string
-	tracer  ot.Tracer
+	tracer  opentracing.Tracer
 }
 
 func work(n int64) int64 {
@@ -124,7 +124,7 @@ func testBody(control *control) (time.Duration, int64) {
 	var answer int64
 	var totalSleep time.Duration
 	for i := int64(0); i < control.Repeat; i++ {
-		span := ot.StartSpan("span/test")
+		span := opentracing.StartSpan("span/test")
 		answer = work(control.Work)
 		for i := int64(0); i < control.NumLogs; i++ {
 			span.LogEventWithPayload("testlog",
@@ -146,9 +146,9 @@ func testBody(control *control) (time.Duration, int64) {
 
 func (t *testClient) run(control *control) (time.Duration, time.Duration, time.Duration, int64) {
 	if control.Trace {
-		ot.InitGlobalTracer(t.tracer)
+		opentracing.InitGlobalTracer(t.tracer)
 	} else {
-		ot.InitGlobalTracer(ot.NoopTracer{})
+		opentracing.InitGlobalTracer(opentracing.NoopTracer{})
 	}
 	conc := control.Concurrent
 	runtime.GOMAXPROCS(conc)
@@ -183,7 +183,7 @@ func (t *testClient) run(control *control) (time.Duration, time.Duration, time.D
 	endTime := time.Now()
 	flushDur := time.Duration(0)
 	if control.Trace {
-		recorder, ok := t.tracer.(ls.Tracer)
+		recorder, ok := t.tracer.(lightstep.Tracer)
 		if !ok {
 			panic("Tracer does not have a lightstep recorder")
 		}
@@ -199,9 +199,9 @@ func main() {
 		baseURL: fmt.Sprint("http://",
 			controllerHost, ":",
 			controllerPort),
-		tracer: ls.NewTracer(ls.Options{
+		tracer: lightstep.NewTracer(lightstep.Options{
 			AccessToken: controllerAccessToken,
-			Collector: ls.Endpoint{
+			Collector: lightstep.Endpoint{
 				Host:      controllerHost,
 				Port:      grpcPort,
 				Plaintext: true,

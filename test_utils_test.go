@@ -6,14 +6,14 @@ import (
 	"reflect"
 
 	. "github.com/lightstep/lightstep-tracer-go"
-	cpb "github.com/lightstep/lightstep-tracer-go/collectorpb"
+	"github.com/lightstep/lightstep-tracer-go/collectorpb"
 	cpbfakes "github.com/lightstep/lightstep-tracer-go/collectorpb/collectorpbfakes"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/types"
-	ot "github.com/opentracing/opentracing-go"
+	opentracing "github.com/opentracing/opentracing-go"
 )
 
-func closeTestTracer(tracer ot.Tracer) {
+func closeTestTracer(tracer opentracing.Tracer) {
 	complete := make(chan struct{})
 	go func() {
 		Close(context.Background(), tracer)
@@ -22,31 +22,31 @@ func closeTestTracer(tracer ot.Tracer) {
 	Eventually(complete).Should(BeClosed())
 }
 
-func startNSpans(n int, tracer ot.Tracer) {
+func startNSpans(n int, tracer opentracing.Tracer) {
 	for i := 0; i < n; i++ {
 		tracer.StartSpan(string(i)).Finish()
 	}
 }
 
-type haveKeyValuesMatcher []*cpb.KeyValue
+type haveKeyValuesMatcher []*collectorpb.KeyValue
 
-func HaveKeyValues(keyValues ...*cpb.KeyValue) types.GomegaMatcher {
+func HaveKeyValues(keyValues ...*collectorpb.KeyValue) types.GomegaMatcher {
 	return haveKeyValuesMatcher(keyValues)
 }
 
 func (matcher haveKeyValuesMatcher) Match(actual interface{}) (bool, error) {
 	switch v := actual.(type) {
-	case []*cpb.KeyValue:
+	case []*collectorpb.KeyValue:
 		return matcher.MatchProtos(v)
-	case *cpb.Log:
+	case *collectorpb.Log:
 		return matcher.MatchProtos(v.GetFields())
 	default:
 		return false, fmt.Errorf("HaveKeyValues matcher expects either a []*KeyValue or a *Log/*LogRecord")
 	}
 }
 
-func (matcher haveKeyValuesMatcher) MatchProtos(actualKeyValues []*cpb.KeyValue) (bool, error) {
-	expectedKeyValues := []*cpb.KeyValue(matcher)
+func (matcher haveKeyValuesMatcher) MatchProtos(actualKeyValues []*collectorpb.KeyValue) (bool, error) {
+	expectedKeyValues := []*collectorpb.KeyValue(matcher)
 	if len(expectedKeyValues) != len(actualKeyValues) {
 		return false, nil
 	}
@@ -68,23 +68,23 @@ func (matcher haveKeyValuesMatcher) NegatedFailureMessage(actual interface{}) st
 	return fmt.Sprintf("Expected '%v' to not have key values '%v'", actual, matcher)
 }
 
-func KeyValue(key string, value interface{}, storeAsJson ...bool) *cpb.KeyValue {
-	tag := &cpb.KeyValue{Key: key}
+func KeyValue(key string, value interface{}, storeAsJson ...bool) *collectorpb.KeyValue {
+	tag := &collectorpb.KeyValue{Key: key}
 	switch typedValue := value.(type) {
 	case int:
-		tag.Value = &cpb.KeyValue_IntValue{IntValue: int64(typedValue)}
+		tag.Value = &collectorpb.KeyValue_IntValue{IntValue: int64(typedValue)}
 	case string:
 		if len(storeAsJson) > 0 && storeAsJson[0] {
-			tag.Value = &cpb.KeyValue_JsonValue{JsonValue: typedValue}
+			tag.Value = &collectorpb.KeyValue_JsonValue{JsonValue: typedValue}
 		} else {
-			tag.Value = &cpb.KeyValue_StringValue{StringValue: typedValue}
+			tag.Value = &collectorpb.KeyValue_StringValue{StringValue: typedValue}
 		}
 	case bool:
-		tag.Value = &cpb.KeyValue_BoolValue{BoolValue: typedValue}
+		tag.Value = &collectorpb.KeyValue_BoolValue{BoolValue: typedValue}
 	case float32:
-		tag.Value = &cpb.KeyValue_DoubleValue{DoubleValue: float64(typedValue)}
+		tag.Value = &collectorpb.KeyValue_DoubleValue{DoubleValue: float64(typedValue)}
 	case float64:
-		tag.Value = &cpb.KeyValue_DoubleValue{DoubleValue: typedValue}
+		tag.Value = &collectorpb.KeyValue_DoubleValue{DoubleValue: typedValue}
 	}
 	return tag
 }
@@ -93,9 +93,9 @@ func KeyValue(key string, value interface{}, storeAsJson ...bool) *cpb.KeyValue 
 // GRPC HELPERS //
 //////////////////
 
-func getReportedGRPCSpans(fakeClient *cpbfakes.FakeCollectorServiceClient) []*cpb.Span {
+func getReportedGRPCSpans(fakeClient *cpbfakes.FakeCollectorServiceClient) []*collectorpb.Span {
 	callCount := fakeClient.ReportCallCount()
-	spans := make([]*cpb.Span, 0)
+	spans := make([]*collectorpb.Span, 0)
 	for i := 0; i < callCount; i++ {
 		_, report, _ := fakeClient.ReportArgsForCall(i)
 		spans = append(spans, report.GetSpans()...)
