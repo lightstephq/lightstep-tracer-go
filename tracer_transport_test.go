@@ -12,7 +12,7 @@ import (
 	"github.com/lightstep/lightstep-tracer-go/collectorpb"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	ot "github.com/opentracing/opentracing-go"
+	"github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/log"
 )
 
@@ -50,7 +50,7 @@ type fakeCollectorClient interface {
 
 var _ = Describe("Tracer Transports", func() {
 	var options *Options
-	var tracer ot.Tracer
+	var tracer opentracing.Tracer
 	var fakeClient fakeCollectorClient
 	const port = 9090
 
@@ -245,10 +245,10 @@ var _ = Describe("Tracer Transports", func() {
 
 					It("Should support injecting into strings ", func() {
 						for _, origContext := range []SpanContext{knownContext1, knownContext2, testContext1, testContext2} {
-							err := tracer.Inject(origContext, ot.Binary, &carrierString)
+							err := tracer.Inject(origContext, opentracing.Binary, &carrierString)
 							Expect(err).ToNot(HaveOccurred())
 
-							context, err := tracer.Extract(ot.Binary, carrierString)
+							context, err := tracer.Extract(opentracing.Binary, carrierString)
 							Expect(err).ToNot(HaveOccurred())
 							Expect(context).To(BeEquivalentTo(origContext))
 						}
@@ -256,10 +256,10 @@ var _ = Describe("Tracer Transports", func() {
 
 					It("Should support injecting into byte arrays", func() {
 						for _, origContext := range []SpanContext{knownContext1, knownContext2, testContext1, testContext2} {
-							err := tracer.Inject(origContext, ot.Binary, &carrierBytes)
+							err := tracer.Inject(origContext, opentracing.Binary, &carrierBytes)
 							Expect(err).ToNot(HaveOccurred())
 
-							context, err := tracer.Extract(ot.Binary, carrierBytes)
+							context, err := tracer.Extract(opentracing.Binary, carrierBytes)
 							Expect(err).ToNot(HaveOccurred())
 							Expect(context).To(BeEquivalentTo(origContext))
 						}
@@ -268,59 +268,59 @@ var _ = Describe("Tracer Transports", func() {
 					It("Should support injecting into io.Writer", func() {
 						for _, origContext := range []SpanContext{knownContext1, knownContext2, testContext1, testContext2} {
 							buf := bytes.NewBuffer(nil)
-							err := tracer.Inject(origContext, ot.Binary, io.Writer(buf))
+							err := tracer.Inject(origContext, opentracing.Binary, io.Writer(buf))
 							Expect(err).ToNot(HaveOccurred())
 
-							context, err := tracer.Extract(ot.Binary, io.Reader(buf))
+							context, err := tracer.Extract(opentracing.Binary, io.Reader(buf))
 							Expect(err).ToNot(HaveOccurred())
 							Expect(context).To(BeEquivalentTo(origContext))
 						}
 					})
 					It("Should return nil for nil contexts", func() {
-						err := tracer.Inject(nil, ot.Binary, carrierString)
+						err := tracer.Inject(nil, opentracing.Binary, carrierString)
 						Expect(err).To(HaveOccurred())
 
-						err = tracer.Inject(nil, ot.Binary, carrierBytes)
+						err = tracer.Inject(nil, opentracing.Binary, carrierBytes)
 						Expect(err).To(HaveOccurred())
 					})
 				})
 
 				Context("tracer extract", func() {
 					It("Should extract SpanContext from carrier as string", func() {
-						context, err := tracer.Extract(ot.Binary, knownCarrier1)
+						context, err := tracer.Extract(opentracing.Binary, knownCarrier1)
 						Expect(context).To(BeEquivalentTo(knownContext1))
 						Expect(err).To(BeNil())
 
-						context, err = tracer.Extract(ot.Binary, knownCarrier2)
+						context, err = tracer.Extract(opentracing.Binary, knownCarrier2)
 						Expect(context).To(BeEquivalentTo(knownContext2))
 						Expect(err).To(BeNil())
 					})
 
 					It("Should extract SpanContext from carrier as []byte", func() {
-						context, err := tracer.Extract(ot.Binary, []byte(knownCarrier1))
+						context, err := tracer.Extract(opentracing.Binary, []byte(knownCarrier1))
 						Expect(context).To(BeEquivalentTo(knownContext1))
 						Expect(err).To(BeNil())
 
-						context, err = tracer.Extract(ot.Binary, []byte(knownCarrier2))
+						context, err = tracer.Extract(opentracing.Binary, []byte(knownCarrier2))
 						Expect(context).To(BeEquivalentTo(knownContext2))
 						Expect(err).To(BeNil())
 					})
 
 					It("Should extract SpanContext from carrier as io.Reader", func() {
 						buf := bytes.NewBuffer([]byte(knownCarrier1))
-						context, err := tracer.Extract(ot.Binary, io.Reader(buf))
+						context, err := tracer.Extract(opentracing.Binary, io.Reader(buf))
 						Expect(context).To(BeEquivalentTo(knownContext1))
 						Expect(err).To(BeNil())
 
 						buf = bytes.NewBuffer([]byte(knownCarrier2))
-						context, err = tracer.Extract(ot.Binary, io.Reader(buf))
+						context, err = tracer.Extract(opentracing.Binary, io.Reader(buf))
 						Expect(context).To(BeEquivalentTo(knownContext2))
 						Expect(err).To(BeNil())
 					})
 
 					It("Should return nil for bad carriers", func() {
 						for _, carrier := range []interface{}{badCarrier1, []byte(badCarrier1), "", []byte(nil)} {
-							context, err := tracer.Extract(ot.Binary, carrier)
+							context, err := tracer.Extract(opentracing.Binary, carrier)
 							Expect(context).To(BeNil())
 							Expect(err).To(HaveOccurred())
 						}

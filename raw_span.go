@@ -3,7 +3,7 @@ package lightstep
 import (
 	"time"
 
-	opentracing "github.com/opentracing/opentracing-go"
+	"github.com/opentracing/opentracing-go"
 )
 
 // RawSpan encapsulates all state associated with a (finished) LightStep Span.

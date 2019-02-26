@@ -3,12 +3,12 @@ package lightstep_test
 import (
 	"context"
 
-	lightstep "github.com/lightstep/lightstep-tracer-go"
-	cpb "github.com/lightstep/lightstep-tracer-go/collectorpb"
-	cpbfakes "github.com/lightstep/lightstep-tracer-go/collectorpb/collectorpbfakes"
+	"github.com/lightstep/lightstep-tracer-go"
+	"github.com/lightstep/lightstep-tracer-go/collectorpb"
+	"github.com/lightstep/lightstep-tracer-go/collectorpb/collectorpbfakes"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	opentracing "github.com/opentracing/opentracing-go"
+	"github.com/opentracing/opentracing-go"
 )
 
 var _ = Describe("Tracerv0_14", func() {
@@ -17,15 +17,15 @@ var _ = Describe("Tracerv0_14", func() {
 
 	const accessToken = "ACCESS_TOKEN"
 
-	var fakeClient *cpbfakes.FakeCollectorServiceClient
+	var fakeClient *collectorpbfakes.FakeCollectorServiceClient
 	var fakeConn lightstep.ConnectorFactory
 
 	var eventHandler lightstep.EventHandler
 	const eventBufferSize = 10
 
 	BeforeEach(func() {
-		fakeClient = new(cpbfakes.FakeCollectorServiceClient)
-		fakeClient.ReportReturns(&cpb.ReportResponse{}, nil)
+		fakeClient = new(collectorpbfakes.FakeCollectorServiceClient)
+		fakeClient.ReportReturns(&collectorpb.ReportResponse{}, nil)
 		fakeConn = fakeGrpcConnection(fakeClient)
 
 		eventHandler, _ = lightstep.NewEventChannel(eventBufferSize)

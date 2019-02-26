@@ -10,12 +10,12 @@ import (
 	"google.golang.org/grpc"
 
 	. "github.com/lightstep/lightstep-tracer-go"
-	cpb "github.com/lightstep/lightstep-tracer-go/collectorpb"
-	cpbfakes "github.com/lightstep/lightstep-tracer-go/collectorpb/collectorpbfakes"
+	"github.com/lightstep/lightstep-tracer-go/collectorpb"
+	"github.com/lightstep/lightstep-tracer-go/collectorpb/collectorpbfakes"
 	"github.com/lightstep/lightstep-tracer-go/lightstepfakes"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	opentracing "github.com/opentracing/opentracing-go"
+	"github.com/opentracing/opentracing-go"
 )
 
 var _ = Describe("Tracer", func() {
@@ -24,7 +24,7 @@ var _ = Describe("Tracer", func() {
 
 	const accessToken = "ACCESS_TOKEN"
 
-	var fakeClient *cpbfakes.FakeCollectorServiceClient
+	var fakeClient *collectorpbfakes.FakeCollectorServiceClient
 	var fakeConn ConnectorFactory
 
 	var fakeRecorder *lightstepfakes.FakeSpanRecorder
@@ -36,8 +36,8 @@ var _ = Describe("Tracer", func() {
 	BeforeEach(func() {
 		opts = Options{}
 
-		fakeClient = new(cpbfakes.FakeCollectorServiceClient)
-		fakeClient.ReportReturns(&cpb.ReportResponse{}, nil)
+		fakeClient = new(collectorpbfakes.FakeCollectorServiceClient)
+		fakeClient.ReportReturns(&collectorpb.ReportResponse{}, nil)
 		fakeConn = fakeGrpcConnection(fakeClient)
 		fakeRecorder = new(lightstepfakes.FakeSpanRecorder)
 
@@ -244,7 +244,7 @@ var _ = Describe("Tracer", func() {
 			BeforeEach(func() {
 				// set client to fail on the first call, then return normally
 				fakeClient.ReportReturnsOnCall(0, nil, errors.New("fail"))
-				fakeClient.ReportReturns(new(cpb.ReportResponse), nil)
+				fakeClient.ReportReturns(new(collectorpb.ReportResponse), nil)
 			})
 
 			It("should restore the spans that failed to be sent", func() {
@@ -265,10 +265,10 @@ var _ = Describe("Tracer", func() {
 				finishReportch = make(chan struct{})
 				startReportch = make(chan struct{})
 				startReportonce = sync.Once{}
-				fakeClient.ReportStub = func(ctx context.Context, req *cpb.ReportRequest, options ...grpc.CallOption) (*cpb.ReportResponse, error) {
+				fakeClient.ReportStub = func(ctx context.Context, req *collectorpb.ReportRequest, options ...grpc.CallOption) (*collectorpb.ReportResponse, error) {
 					startReportonce.Do(func() { close(startReportch) })
 					<-finishReportch
-					return new(cpb.ReportResponse), nil
+					return new(collectorpb.ReportResponse), nil
 				}
 			})
 

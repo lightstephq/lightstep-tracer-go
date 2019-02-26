@@ -5,7 +5,7 @@ import (
 	"io"
 	"net/http"
 
-	cpb "github.com/lightstep/lightstep-tracer-go/collectorpb"
+	"github.com/lightstep/lightstep-tracer-go/collectorpb"
 )
 
 // Connection describes a closable connection. Exposed for testing.
@@ -24,7 +24,7 @@ type collectorResponse interface {
 }
 
 type reportRequest struct {
-	protoRequest *cpb.ReportRequest
+	protoRequest *collectorpb.ReportRequest
 	httpRequest  *http.Request
 }
 
