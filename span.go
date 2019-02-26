@@ -78,11 +78,11 @@ ReferencesLoop:
 	sp.raw.Duration = -1
 	sp.raw.Tags = opts.Options.Tags
 
-	if tracer.opts.MetaEventReportingEnabled && sp.IsMeta() {
-		ot.StartSpan(LSMetaEvent_SpanStartOperation,
-			ot.Tag{Key: LSMetaEvent_MetaEventKey, Value: true},
-			ot.Tag{Key: LSMetaEvent_SpanIdKey, Value: sp.raw.Context.SpanID},
-			ot.Tag{Key: LSMetaEvent_TraceIdKey, Value: sp.raw.Context.TraceID}).
+	if tracer.opts.MetaEventReportingEnabled && !sp.IsMeta() {
+		opentracing.StartSpan(LSMetaEvent_SpanStartOperation,
+			opentracing.Tag{Key: LSMetaEvent_MetaEventKey, Value: true},
+			opentracing.Tag{Key: LSMetaEvent_SpanIdKey, Value: sp.raw.Context.SpanID},
+			opentracing.Tag{Key: LSMetaEvent_TraceIdKey, Value: sp.raw.Context.TraceID}).
 			Finish()
 	}
 	return sp
@@ -241,11 +241,11 @@ func (s *spanImpl) FinishWithOptions(opts opentracing.FinishOptions) {
 	s.raw.Duration = duration
 
 	s.tracer.RecordSpan(s.raw)
-	if s.tracer.opts.MetaEventReportingEnabled && s.IsMeta() {
-		ot.StartSpan(LSMetaEvent_SpanFinishOperation,
-			ot.Tag{Key: LSMetaEvent_MetaEventKey, Value: true},
-			ot.Tag{Key: LSMetaEvent_SpanIdKey, Value: s.raw.Context.SpanID},
-			ot.Tag{Key: LSMetaEvent_TraceIdKey, Value: s.raw.Context.TraceID}).
+	if s.tracer.opts.MetaEventReportingEnabled && !s.IsMeta() {
+		opentracing.StartSpan(LSMetaEvent_SpanFinishOperation,
+			opentracing.Tag{Key: LSMetaEvent_MetaEventKey, Value: true},
+			opentracing.Tag{Key: LSMetaEvent_SpanIdKey, Value: s.raw.Context.SpanID},
+			opentracing.Tag{Key: LSMetaEvent_TraceIdKey, Value: s.raw.Context.TraceID}).
 			Finish()
 	}
 }
