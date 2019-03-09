@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"reflect"
 
+	"github.com/lightstep/lightstep-tracer-common/golang/protobuf/collectorpb"
+	cpbfakes "github.com/lightstep/lightstep-tracer-common/golang/protobuf/collectorpb/collectorpbfakes"
 	. "github.com/lightstep/lightstep-tracer-go"
-	"github.com/lightstep/lightstep-tracer-go/collectorpb"
-	cpbfakes "github.com/lightstep/lightstep-tracer-go/collectorpb/collectorpbfakes"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/types"
 	opentracing "github.com/opentracing/opentracing-go"

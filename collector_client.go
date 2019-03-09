@@ -5,7 +5,7 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/lightstep/lightstep-tracer-go/collectorpb"
+	"github.com/lightstep/lightstep-tracer-common/golang/protobuf/collectorpb"
 )
 
 // Connection describes a closable connection. Exposed for testing.

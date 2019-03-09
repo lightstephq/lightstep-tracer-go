@@ -1,9 +1,9 @@
 package lightstep_test
 
 import (
+	"github.com/lightstep/lightstep-tracer-common/golang/protobuf/collectorpb"
+	"github.com/lightstep/lightstep-tracer-common/golang/protobuf/collectorpb/collectorpbfakes"
 	. "github.com/lightstep/lightstep-tracer-go"
-	"github.com/lightstep/lightstep-tracer-go/collectorpb"
-	"github.com/lightstep/lightstep-tracer-go/collectorpb/collectorpbfakes"
 )
 
 type cpbfakesFakeClient struct {

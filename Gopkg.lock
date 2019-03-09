@@ -17,6 +17,18 @@
   revision = "1e59b77b52bf8e4b449a57e6f79f21226d571845"
 
 [[projects]]
+  digest = "1:03f8cf233c3a1ceccf7f09b2022e9433714c92e8a830dc81da7ce2ccb972d9b1"
+  name = "github.com/lightstep/lightstep-tracer-common"
+  packages = [
+    "golang/protobuf/collectorpb",
+    "golang/protobuf/collectorpb/collectorpbfakes",
+    "golang/protobuf/lightsteppb",
+  ]
+  pruneopts = ""
+  revision = "5fe3bf885bcece14c3c65df06c86c826ba45ad69"
+  version = "v1.0.1"
+
+[[projects]]
   digest = "1:32b27072cd55bd2fb7244de0425943d125da6a552ae2b6517cdd965a662baf18"
   name = "github.com/onsi/ginkgo"
   packages = [
@@ -193,13 +205,14 @@
   input-imports = [
     "github.com/golang/protobuf/proto",
     "github.com/golang/protobuf/ptypes/timestamp",
+    "github.com/lightstep/lightstep-tracer-common/golang/protobuf/collectorpb",
+    "github.com/lightstep/lightstep-tracer-common/golang/protobuf/collectorpb/collectorpbfakes",
+    "github.com/lightstep/lightstep-tracer-common/golang/protobuf/lightsteppb",
     "github.com/onsi/ginkgo",
     "github.com/onsi/gomega",
     "github.com/onsi/gomega/types",
     "github.com/opentracing/opentracing-go",
     "github.com/opentracing/opentracing-go/log",
-    "golang.org/x/net/context",
-    "google.golang.org/genproto/googleapis/api/annotations",
     "google.golang.org/grpc",
     "google.golang.org/grpc/credentials",
   ]
