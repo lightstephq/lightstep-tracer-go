@@ -179,10 +179,10 @@ func (client *httpCollectorClient) toResponse(response *http.Response) (collecto
 		return nil, err
 	}
 
-	protoResponse := &collectorpb.ReportResponse{}
-	if err := proto.Unmarshal(body, protoResponse); err != nil {
+	resp := &collectorpb.ReportResponse{}
+	if err := proto.Unmarshal(body, resp); err != nil {
 		return nil, err
 	}
 
-	return protoResponse, nil
+	return protoResponse{ReportResponse: resp}, nil
 }

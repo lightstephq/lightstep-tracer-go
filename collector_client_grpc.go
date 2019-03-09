@@ -118,7 +118,7 @@ func (client *grpcCollectorClient) Report(ctx context.Context, req reportRequest
 	if err != nil {
 		return nil, err
 	}
-	return resp, nil
+	return protoResponse{ReportResponse: resp}, nil
 }
 
 func (client *grpcCollectorClient) Translate(ctx context.Context, buffer *reportBuffer) (reportRequest, error) {
@@ -131,4 +131,26 @@ func (client *grpcCollectorClient) Translate(ctx context.Context, buffer *report
 	return reportRequest{
 		protoRequest: req,
 	}, nil
+}
+
+type protoResponse struct {
+	*collectorpb.ReportResponse
+}
+
+func (res protoResponse) Disable() bool {
+	for _, command := range res.GetCommands() {
+		if command.Disable {
+			return true
+		}
+	}
+	return false
+}
+
+func (res protoResponse) DevMode() bool {
+	for _, command := range res.GetCommands() {
+		if command.DevMode {
+			return true
+		}
+	}
+	return false
 }
