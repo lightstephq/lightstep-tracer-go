@@ -6,10 +6,7 @@ required = [
 
 [[constraint]]
   name = "github.com/lightstep/lightstep-tracer-common"
-  revision = "e0f5cbb64acde8692705c310aebe5c8bb1d13df4"
-  # ^^^ This will become
-  #  version = "1.0.3"
-  # after that version pins protobuf version != master.
+  version = "1.0.3"
 
 [[constraint]]
   name = "github.com/golang/protobuf"
