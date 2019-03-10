@@ -183,9 +183,8 @@ type Options struct {
 	// For testing purposes only
 	ConnFactory ConnectorFactory `yaml:"-" json:"-"`
 
-	// Opt-out for LightStep Meta Event Logging. This feature is only enabled for
-	// developer-mode projects, to limit the impact of this feature in production uses.
-	MetaEventReportingDisabled bool `yaml:"meta_event_reporting_disabled" json:"meta_event_reporting_disabled"`
+	// Enable LightStep Meta Event Logging
+	MetaEventReportingEnabled bool `yaml:"meta_event_reporting_enabled" json:"meta_event_reporting_enabled"`
 }
 
 // Initialize validates options, and sets default values for unset options.

@@ -123,7 +123,8 @@ func NewTracer(opts Options) Tracer {
 	impl.connection = conn
 
 	// set meta reporting to defined option
-	impl.metaEventReportingEnabled = !opts.MetaEventReportingDisabled
+	impl.metaEventReportingEnabled = opts.MetaEventReportingEnabled
+	impl.firstReportHasRun = false
 
 	go impl.reportLoop()
 
@@ -142,7 +143,7 @@ func (tracer *tracerImpl) StartSpan(
 }
 
 func (tracer *tracerImpl) Inject(sc opentracing.SpanContext, format interface{}, carrier interface{}) error {
-	if tracer.metaEventReportingEnabled {
+	if tracer.opts.MetaEventReportingEnabled {
 		opentracing.StartSpan(LSMetaEvent_InjectOperation,
 			opentracing.Tag{Key: LSMetaEvent_MetaEventKey, Value: true},
 			opentracing.Tag{Key: LSMetaEvent_TraceIdKey, Value: sc.(SpanContext).TraceID},
@@ -160,7 +161,7 @@ func (tracer *tracerImpl) Inject(sc opentracing.SpanContext, format interface{},
 }
 
 func (tracer *tracerImpl) Extract(format interface{}, carrier interface{}) (opentracing.SpanContext, error) {
-	if tracer.metaEventReportingEnabled {
+	if tracer.opts.MetaEventReportingEnabled {
 		opentracing.StartSpan(LSMetaEvent_ExtractOperation,
 			opentracing.Tag{Key: LSMetaEvent_MetaEventKey, Value: true},
 			opentracing.Tag{Key: LSMetaEvent_PropagationFormatKey, Value: format}).
@@ -245,6 +246,14 @@ func (tracer *tracerImpl) Flush(ctx context.Context) {
 		return
 	}
 
+	if tracer.opts.MetaEventReportingEnabled && !tracer.firstReportHasRun {
+		opentracing.StartSpan(LSMetaEvent_TracerCreateOperation,
+			opentracing.Tag{Key: LSMetaEvent_MetaEventKey, Value: true},
+			opentracing.Tag{Key: LSMetaEvent_TracerGuidKey, Value: tracer.reporterID}).
+			Finish()
+		tracer.firstReportHasRun = true
+	}
+
 	ctx, cancel := context.WithTimeout(ctx, tracer.opts.ReportTimeout)
 	defer cancel()
 
@@ -268,20 +277,15 @@ func (tracer *tracerImpl) Flush(ctx context.Context) {
 	}
 	emitEvent(tracer.postFlush(reportErrorEvent))
 
-	if err != nil {
-		return
-	}
-	tracer.metaEventReportingEnabled = !tracer.opts.MetaEventReportingDisabled && resp.DevMode()
-
-	if tracer.metaEventReportingEnabled && !tracer.firstReportHasRun {
-		opentracing.StartSpan(LSMetaEvent_TracerCreateOperation,
-			opentracing.Tag{Key: LSMetaEvent_MetaEventKey, Value: true},
-			opentracing.Tag{Key: LSMetaEvent_TracerGuidKey, Value: tracer.reporterID}).
-			Finish()
-		tracer.firstReportHasRun = true
+	if err == nil && resp.DevMode() {
+		tracer.metaEventReportingEnabled = true
 	}
 
-	if resp.Disable() {
+	if err == nil && !resp.DevMode() {
+		tracer.metaEventReportingEnabled = false
+	}
+
+	if err == nil && resp.Disable() {
 		tracer.Disable()
 	}
 }

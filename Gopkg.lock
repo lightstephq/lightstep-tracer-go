@@ -25,7 +25,7 @@
   version = "v1.3.0"
 
 [[projects]]
-  digest = "1:4c9d8299dc82fc0bd656a4a7ec9406139a69fac2d60cab9c2d37d0af57030dc0"
+  digest = "1:475482b68559e05dbc4633c53edb2b6f54ff1ed31dd45319a669599a9c648257"
   name = "github.com/lightstep/lightstep-tracer-common"
   packages = [
     "golang/protobuf/collectorpb",
@@ -33,7 +33,7 @@
     "golang/protobuf/lightsteppb",
   ]
   pruneopts = ""
-  revision = "5c08c8156e1a492c2938fcf2cc6375921ad14abc"
+  revision = "e0f5cbb64acde8692705c310aebe5c8bb1d13df4"
 
 [[projects]]
   digest = "1:32b27072cd55bd2fb7244de0425943d125da6a552ae2b6517cdd965a662baf18"
