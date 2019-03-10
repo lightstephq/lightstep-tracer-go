@@ -28,7 +28,6 @@
   digest = "1:4c9d8299dc82fc0bd656a4a7ec9406139a69fac2d60cab9c2d37d0af57030dc0"
   name = "github.com/lightstep/lightstep-tracer-common"
   packages = [
-    ".",
     "golang/protobuf/collectorpb",
     "golang/protobuf/collectorpb/collectorpbfakes",
     "golang/protobuf/lightsteppb",
@@ -223,7 +222,6 @@
     "github.com/Pallinder/go-randomdata",
     "github.com/golang/protobuf/proto",
     "github.com/golang/protobuf/ptypes/timestamp",
-    "github.com/lightstep/lightstep-tracer-common",
     "github.com/lightstep/lightstep-tracer-common/golang/protobuf/collectorpb",
     "github.com/lightstep/lightstep-tracer-common/golang/protobuf/collectorpb/collectorpbfakes",
     "github.com/lightstep/lightstep-tracer-common/golang/protobuf/lightsteppb",
