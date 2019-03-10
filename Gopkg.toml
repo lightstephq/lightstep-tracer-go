@@ -16,4 +16,4 @@
 
 [[constraint]]
   name = "github.com/lightstep/lightstep-tracer-common"
-  branch = "dolan-2019-03-09-make-proto"
+  version = "1.0.2"
