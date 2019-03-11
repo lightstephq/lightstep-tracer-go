@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lightstep/lightstep-tracer-common/golang/protobuf/collectorpb"
+	"github.com/lightstep/lightstep-tracer-common/golang/gogo/collectorpb"
 	. "github.com/lightstep/lightstep-tracer-go"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"

@@ -5,8 +5,8 @@ import (
 	"io"
 	"io/ioutil"
 
-	"github.com/golang/protobuf/proto"
-	lightstep "github.com/lightstep/lightstep-tracer-common/golang/protobuf/lightsteppb"
+	"github.com/gogo/protobuf/proto"
+	lightstep "github.com/lightstep/lightstep-tracer-common/golang/gogo/lightsteppb"
 	"github.com/opentracing/opentracing-go"
 )
 

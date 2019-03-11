@@ -1,26 +1,18 @@
 # tools
 GO=go
-DOCKER_PRESENT = $(shell command -v docker 2> /dev/null)
 
-LOCAL_GOPATH = $(PWD)/../../../../
-
-.PHONY: default build test
+.PHONY: default build test install
 
 default: build
 
-test: lightstepfakes/fake_recorder.go
-ifeq ($(DOCKER_PRESENT),)
-	$(error "docker not found. Please install from https://www.docker.com/")
-endif
-	docker run --rm -v $(LOCAL_GOPATH):/usergo lightstep/gobuild:latest \
-	  ginkgo -race -p /usergo/src/github.com/lightstep/lightstep-tracer-go
-	bash -c "! git grep -q '[g]ithub.com/golang/glog'"
+build: version.go
+	go build ./...
 
-build: version.go lightstepfakes/fake_recorder.go
-ifeq ($(DOCKER_PRESENT),)
-	$(error "docker not found. Please install from https://www.docker.com/")
-endif
-	${GO} build github.com/lightstep/lightstep-tracer-go
+test: build
+	go test ./...
+
+install: test
+	go install ./...
 
 # When releasing significant changes, make sure to update the semantic
 # version number in `./VERSION`, merge changes, then run `make release_tag`.

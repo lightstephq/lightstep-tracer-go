@@ -1,7 +1,7 @@
 package lightstep_test
 
 import (
-	"github.com/lightstep/lightstep-tracer-common/golang/protobuf/collectorpb"
+	"github.com/lightstep/lightstep-tracer-common/golang/gogo/collectorpb"
 	. "github.com/lightstep/lightstep-tracer-go"
 )
 

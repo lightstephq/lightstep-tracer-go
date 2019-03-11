@@ -10,7 +10,7 @@ import (
 	"google.golang.org/grpc/credentials"
 
 	// N.B.(jmacd): Do not use google.golang.org/glog in this package.
-	"github.com/lightstep/lightstep-tracer-common/golang/protobuf/collectorpb"
+	"github.com/lightstep/lightstep-tracer-common/golang/gogo/collectorpb"
 )
 
 const (

@@ -5,8 +5,8 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/golang/protobuf/ptypes/timestamp"
-	"github.com/lightstep/lightstep-tracer-common/golang/protobuf/collectorpb"
+	"github.com/gogo/protobuf/types"
+	"github.com/lightstep/lightstep-tracer-common/golang/gogo/collectorpb"
 	"github.com/opentracing/opentracing-go"
 )
 
@@ -175,8 +175,8 @@ func (converter *protoConverter) toReference(parentSpanID uint64) []*collectorpb
 	}
 }
 
-func (converter *protoConverter) toTimestamp(t time.Time) *timestamp.Timestamp {
-	return &timestamp.Timestamp{
+func (converter *protoConverter) toTimestamp(t time.Time) *types.Timestamp {
+	return &types.Timestamp{
 		Seconds: t.Unix(),
 		Nanos:   int32(t.Nanosecond()),
 	}

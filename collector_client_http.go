@@ -10,8 +10,8 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/golang/protobuf/proto"
-	"github.com/lightstep/lightstep-tracer-common/golang/protobuf/collectorpb"
+	"github.com/gogo/protobuf/proto"
+	"github.com/lightstep/lightstep-tracer-common/golang/gogo/collectorpb"
 )
 
 var (

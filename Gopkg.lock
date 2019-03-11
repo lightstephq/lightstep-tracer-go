@@ -2,6 +2,26 @@
 
 
 [[projects]]
+  digest = "1:dc62e76fd82a4bd369b92e8adc26d69d18c46d194f183179ac06c92fa4360472"
+  name = "github.com/Pallinder/go-randomdata"
+  packages = ["."]
+  pruneopts = ""
+  revision = "97a2356fcab20708fb8ae46cbbf69a5bc9feca63"
+  version = "v1.1.0"
+
+[[projects]]
+  digest = "1:fd53b471edb4c28c7d297f617f4da0d33402755f58d6301e7ca1197ef0a90937"
+  name = "github.com/gogo/protobuf"
+  packages = [
+    "proto",
+    "sortkeys",
+    "types",
+  ]
+  pruneopts = ""
+  revision = "ba06b47c162d49f2af050fb4c75bcbc86a159d5c"
+  version = "v1.2.1"
+
+[[projects]]
   digest = "1:d3d38150b6d77b2aad42a9e105170538b6563518993d43df78a1add6e31cce62"
   name = "github.com/golang/protobuf"
   packages = [
@@ -20,9 +40,9 @@
   digest = "1:f67a28bd3667b609ad09545a66857a1024fc5051616e7e3bccecf21ae3c6c98c"
   name = "github.com/lightstep/lightstep-tracer-common"
   packages = [
-    "golang/protobuf/collectorpb",
-    "golang/protobuf/collectorpb/collectorpbfakes",
-    "golang/protobuf/lightsteppb",
+    "golang/gogo/collectorpb",
+    "golang/gogo/collectorpb/collectorpbfakes",
+    "golang/gogo/lightsteppb",
   ]
   pruneopts = ""
   revision = "082dbbf1b51a87f008f51a6203c269395ac3fe54"
@@ -203,11 +223,12 @@
   analyzer-name = "dep"
   analyzer-version = 1
   input-imports = [
-    "github.com/golang/protobuf/proto",
-    "github.com/golang/protobuf/ptypes/timestamp",
-    "github.com/lightstep/lightstep-tracer-common/golang/protobuf/collectorpb",
-    "github.com/lightstep/lightstep-tracer-common/golang/protobuf/collectorpb/collectorpbfakes",
-    "github.com/lightstep/lightstep-tracer-common/golang/protobuf/lightsteppb",
+    "github.com/Pallinder/go-randomdata",
+    "github.com/gogo/protobuf/proto",
+    "github.com/gogo/protobuf/types",
+    "github.com/lightstep/lightstep-tracer-common/golang/gogo/collectorpb",
+    "github.com/lightstep/lightstep-tracer-common/golang/gogo/collectorpb/collectorpbfakes",
+    "github.com/lightstep/lightstep-tracer-common/golang/gogo/lightsteppb",
     "github.com/onsi/ginkgo",
     "github.com/onsi/gomega",
     "github.com/onsi/gomega/types",
