@@ -1,7 +1,3 @@
-required = [
-    "github.com/gogo/protobuf/proto",
-]
-
 [[constraint]]
   name = "github.com/onsi/ginkgo"
   version = "1.4.0"

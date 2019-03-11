@@ -2,14 +2,6 @@
 
 
 [[projects]]
-  digest = "1:dc62e76fd82a4bd369b92e8adc26d69d18c46d194f183179ac06c92fa4360472"
-  name = "github.com/Pallinder/go-randomdata"
-  packages = ["."]
-  pruneopts = ""
-  revision = "97a2356fcab20708fb8ae46cbbf69a5bc9feca63"
-  version = "v1.1.0"
-
-[[projects]]
   digest = "1:fd53b471edb4c28c7d297f617f4da0d33402755f58d6301e7ca1197ef0a90937"
   name = "github.com/gogo/protobuf"
   packages = [
@@ -223,7 +215,6 @@
   analyzer-name = "dep"
   analyzer-version = 1
   input-imports = [
-    "github.com/Pallinder/go-randomdata",
     "github.com/gogo/protobuf/proto",
     "github.com/gogo/protobuf/types",
     "github.com/lightstep/lightstep-tracer-common/golang/gogo/collectorpb",
