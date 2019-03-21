@@ -49,7 +49,7 @@ type grpcCollectorClient struct {
 	grpcConnectorFactory ConnectorFactory
 }
 
-func newGrpcCollectorClient(opts Options, reporterID uint64, attributes map[string]string) *grpcCollectorClient {
+func newGrpcCollectorClient(opts Options, reporterID uint64, attributes map[string]string) (*grpcCollectorClient, error) {
 	rec := &grpcCollectorClient{
 		attributes:           attributes,
 		reporterID:           reporterID,
@@ -71,11 +71,20 @@ func newGrpcCollectorClient(opts Options, reporterID uint64, attributes map[stri
 	rec.dialOptions = append(rec.dialOptions, grpc.WithDefaultCallOptions(grpc.MaxCallSendMsgSize(opts.GRPCMaxCallSendMsgSizeBytes)))
 	if opts.Collector.Plaintext {
 		rec.dialOptions = append(rec.dialOptions, grpc.WithInsecure())
+		return rec, nil
+	}
+
+	if len(opts.Collector.CustomCertFile) > 0 {
+		creds, err := credentials.NewClientTLSFromFile(opts.Collector.CustomCertFile, "")
+		if err != nil {
+			return nil, err
+		}
+		rec.dialOptions = append(rec.dialOptions, grpc.WithTransportCredentials(creds))
 	} else {
 		rec.dialOptions = append(rec.dialOptions, grpc.WithTransportCredentials(credentials.NewClientTLSFromCert(nil, "")))
 	}
 
-	return rec
+	return rec, nil
 }
 
 func (client *grpcCollectorClient) ConnectClient() (Connection, error) {

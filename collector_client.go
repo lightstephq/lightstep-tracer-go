@@ -44,7 +44,7 @@ func newCollectorClient(opts Options, reporterID uint64, attributes map[string]s
 	}
 
 	if opts.UseGRPC {
-		return newGrpcCollectorClient(opts, reporterID, attributes), nil
+		return newGrpcCollectorClient(opts, reporterID, attributes)
 	}
 
 	// No transport specified, defaulting to HTTP

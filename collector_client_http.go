@@ -3,6 +3,8 @@ package lightstep
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"io/ioutil"
 	"net"
@@ -33,6 +35,7 @@ type httpCollectorClient struct {
 	accessToken string // accessToken is the access token used for explicit trace collection requests.
 	attributes  map[string]string
 
+	tlsClientConfig *tls.Config
 	reportTimeout   time.Duration
 	reportingPeriod time.Duration
 
@@ -65,15 +68,52 @@ func newHTTPCollectorClient(
 	}
 	url.Path = collectorHTTPPath
 
+	tlsClientConfig, err := getTLSConfig(opts.Collector.CustomCertFile)
+	if err != nil {
+		fmt.Println("failed to get TLSConfig: ", err)
+		return nil, err
+	}
+
 	return &httpCollectorClient{
 		reporterID:      reporterID,
 		accessToken:     opts.AccessToken,
 		attributes:      attributes,
+		tlsClientConfig: tlsClientConfig,
 		reportTimeout:   opts.ReportTimeout,
 		reportingPeriod: opts.ReportingPeriod,
 		url:             url,
 		converter:       newProtoConverter(opts),
 	}, nil
+}
+
+// getTLSConfig returns a *tls.Config according to whether a user has supplied a customCertFile. If they have,
+// we return a TLSConfig that adds the customCertFile to the system's default Root CAs. If we are unable to read
+// the system's default certs (like on Windows) then the configured RootCAs will only contain the customCertFile.
+func getTLSConfig(customCertFile string) (*tls.Config, error) {
+	// If no customCertFile is supplied, return nil (which http.Transport will interpret as the default)
+	if len(customCertFile) == 0 {
+		return nil, nil
+	}
+
+	// Get the SystemCertPool, continue with an empty pool on error
+	rootCAs, err := x509.SystemCertPool()
+	if err != nil {
+		fmt.Println("failed to retrieve system default certs: ", err)
+		rootCAs = x509.NewCertPool()
+	}
+
+	// Read in the cert file
+	certs, err := ioutil.ReadFile(customCertFile)
+	if err != nil {
+		return nil, err
+	}
+
+	// Append our cert to the system pool
+	if !rootCAs.AppendCertsFromPEM(certs) {
+		return nil, fmt.Errorf("credentials: failed to append certificates")
+	}
+
+	return &tls.Config{RootCAs: rootCAs}, nil
 }
 
 func (client *httpCollectorClient) ConnectClient() (Connection, error) {
@@ -95,6 +135,7 @@ func (client *httpCollectorClient) ConnectClient() (Connection, error) {
 		ResponseHeaderTimeout:  client.reportTimeout,
 		ExpectContinueTimeout:  client.reportTimeout,
 		MaxResponseHeaderBytes: 64 * 1024, // 64 KB, just a safeguard
+		TLSClientConfig: client.tlsClientConfig,
 	}
 
 	client.client = &http.Client{

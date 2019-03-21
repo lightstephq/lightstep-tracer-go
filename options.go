@@ -66,10 +66,11 @@ type SpanRecorder interface {
 // Endpoint describes a collector or web API host/port and whether or
 // not to use plaintext communication.
 type Endpoint struct {
-	Scheme    string `yaml:"scheme" json:"scheme" usage:"scheme to use for the endpoint, defaults to appropriate one if no custom one is required"`
-	Host      string `yaml:"host" json:"host" usage:"host on which the endpoint is running"`
-	Port      int    `yaml:"port" json:"port" usage:"port on which the endpoint is listening"`
-	Plaintext bool   `yaml:"plaintext" json:"plaintext" usage:"whether or not to encrypt data send to the endpoint"`
+	Scheme         string `yaml:"scheme" json:"scheme" usage:"scheme to use for the endpoint, defaults to appropriate one if no custom one is required"`
+	Host           string `yaml:"host" json:"host" usage:"host on which the endpoint is running"`
+	Port           int    `yaml:"port" json:"port" usage:"port on which the endpoint is listening"`
+	Plaintext      bool   `yaml:"plaintext" json:"plaintext" usage:"whether or not to encrypt data send to the endpoint"`
+	CustomCertFile string `yaml:"custom_cert_file" json:"custom_cert_file" usage:"path to a custom cert file, defaults to system defined certs if omitted"`
 }
 
 // HostPort use SocketAddress instead.
@@ -263,6 +264,11 @@ func (opts *Options) Validate() error {
 		return errInvalidGUIDKey
 	}
 
+	if len(opts.Collector.CustomCertFile) != 0 {
+		if _, err := os.Stat(opts.Collector.CustomCertFile); os.IsNotExist(err) {
+			return err
+		}
+	}
 	return nil
 }
 
