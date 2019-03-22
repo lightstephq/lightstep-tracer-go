@@ -68,7 +68,7 @@ func newHTTPCollectorClient(
 	}
 	url.Path = collectorHTTPPath
 
-	tlsClientConfig, err := getTLSConfig(opts.Collector.CustomCertFile)
+	tlsClientConfig, err := getTLSConfig(opts.Collector.CustomCACertFile)
 	if err != nil {
 		fmt.Println("failed to get TLSConfig: ", err)
 		return nil, err
@@ -86,12 +86,12 @@ func newHTTPCollectorClient(
 	}, nil
 }
 
-// getTLSConfig returns a *tls.Config according to whether a user has supplied a customCertFile. If they have,
-// we return a TLSConfig that adds the customCertFile to the system's default Root CAs. If we are unable to read
-// the system's default certs (like on Windows) then the configured RootCAs will only contain the customCertFile.
-func getTLSConfig(customCertFile string) (*tls.Config, error) {
-	// If no customCertFile is supplied, return nil (which http.Transport will interpret as the default)
-	if len(customCertFile) == 0 {
+// getTLSConfig returns a *tls.Config according to whether a user has supplied a customCACertFile. If they have,
+// we return a TLSConfig that adds the customCACertFile to the system's default Root CAs. If we are unable to read
+// the system's default certs (like on Windows) then the configured RootCAs will only contain the customCACertFile.
+func getTLSConfig(customCACertFile string) (*tls.Config, error) {
+	// If no customCACertFile is supplied, return nil (which http.Transport will interpret as the default)
+	if len(customCACertFile) == 0 {
 		return nil, nil
 	}
 
@@ -103,7 +103,7 @@ func getTLSConfig(customCertFile string) (*tls.Config, error) {
 	}
 
 	// Read in the cert file
-	certs, err := ioutil.ReadFile(customCertFile)
+	certs, err := ioutil.ReadFile(customCACertFile)
 	if err != nil {
 		return nil, err
 	}

@@ -16,7 +16,7 @@ var (
 	flagSecure      = flag.Bool("secure", true, "Whether or not to use TLS")
 	flagTransport   = flag.String("transport", "http", "The transport mechanism to use. Valid values are: http, grpc")
 	flagOperation   = flag.String("operation_name", "test-operation", "The operation to use for the test span")
-	flagCustomCertFile = flag.String("custom_cert_file", "", "Path to a custom cert file")
+	flagCustomCACertFile = flag.String("custom_ca_cert_file", "", "Path to a custom CA cert file")
 )
 
 func init() {
@@ -47,7 +47,7 @@ func main() {
 				Host:      *flagHost,
 				Port:      *flagPort,
 				Plaintext: !*flagSecure,
-				CustomCertFile: *flagCustomCertFile,
+				CustomCACertFile: *flagCustomCACertFile,
 			},
 			UseHttp: useHTTP,
 			UseGRPC: useGRPC,

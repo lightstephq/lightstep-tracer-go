@@ -74,8 +74,8 @@ func newGrpcCollectorClient(opts Options, reporterID uint64, attributes map[stri
 		return rec, nil
 	}
 
-	if len(opts.Collector.CustomCertFile) > 0 {
-		creds, err := credentials.NewClientTLSFromFile(opts.Collector.CustomCertFile, "")
+	if len(opts.Collector.CustomCACertFile) > 0 {
+		creds, err := credentials.NewClientTLSFromFile(opts.Collector.CustomCACertFile, "")
 		if err != nil {
 			return nil, err
 		}
