@@ -87,33 +87,24 @@ func newHTTPCollectorClient(
 }
 
 // getTLSConfig returns a *tls.Config according to whether a user has supplied a customCACertFile. If they have,
-// we return a TLSConfig that adds the customCACertFile to the system's default Root CAs. If we are unable to read
-// the system's default certs (like on Windows) then the configured RootCAs will only contain the customCACertFile.
+// we return a TLSConfig that uses the custom CA cert as the lone Root CA. If not, we return nil which http.Transport
+// will interpret as the default system defined Root CAs.
 func getTLSConfig(customCACertFile string) (*tls.Config, error) {
-	// If no customCACertFile is supplied, return nil (which http.Transport will interpret as the default)
 	if len(customCACertFile) == 0 {
 		return nil, nil
 	}
 
-	// Get the SystemCertPool, continue with an empty pool on error
-	rootCAs, err := x509.SystemCertPool()
-	if err != nil {
-		fmt.Println("failed to retrieve system default certs: ", err)
-		rootCAs = x509.NewCertPool()
-	}
-
-	// Read in the cert file
-	certs, err := ioutil.ReadFile(customCACertFile)
+	caCerts := x509.NewCertPool()
+	cert, err := ioutil.ReadFile(customCACertFile)
 	if err != nil {
 		return nil, err
 	}
 
-	// Append our cert to the system pool
-	if !rootCAs.AppendCertsFromPEM(certs) {
-		return nil, fmt.Errorf("credentials: failed to append certificates")
+	if !caCerts.AppendCertsFromPEM(cert) {
+		return nil, fmt.Errorf("credentials: failed to append certificate")
 	}
 
-	return &tls.Config{RootCAs: rootCAs}, nil
+	return &tls.Config{RootCAs: caCerts}, nil
 }
 
 func (client *httpCollectorClient) ConnectClient() (Connection, error) {
@@ -135,7 +126,7 @@ func (client *httpCollectorClient) ConnectClient() (Connection, error) {
 		ResponseHeaderTimeout:  client.reportTimeout,
 		ExpectContinueTimeout:  client.reportTimeout,
 		MaxResponseHeaderBytes: 64 * 1024, // 64 KB, just a safeguard
-		TLSClientConfig: client.tlsClientConfig,
+		TLSClientConfig:        client.tlsClientConfig,
 	}
 
 	client.client = &http.Client{
