@@ -13,13 +13,18 @@ import (
 )
 
 var (
+	// ErrFailedToCreateExporter indicates that the underlying tracer could not be created,
+	// but the root reason is not known.
 	ErrFailedToCreateExporter = errors.New("lightstepoc: failed to create exporter")
 )
 
+// Exporter may be registered with OpenCensus so that span data can be exported to LightStep
 type Exporter struct {
 	tracer lightstep.Tracer
 }
 
+// NewExporter creates a new Exporter.
+// It returns an error if the underlying tracer could not be created, e.g., due to invalid options
 func NewExporter(opts ...Option) (*Exporter, error) {
 	c := defaultConfig()
 	for _, opt := range opts {
@@ -39,6 +44,8 @@ func NewExporter(opts ...Option) (*Exporter, error) {
 	}, nil
 }
 
+// ExportSpan queues the span to be sent LightStep.
+// Spans are typically batched for performance reasons. Call `Exporter#Flush` to send all queued spans.
 func (e *Exporter) ExportSpan(sd *trace.SpanData) {
 	opts := []opentracing.StartSpanOption{
 		opentracing.StartTime(sd.StartTime),
@@ -97,10 +104,12 @@ func (e *Exporter) ExportSpan(sd *trace.SpanData) {
 	})
 }
 
+// Flush sends all buffered spans to LightStep
 func (e *Exporter) Flush(ctx context.Context) {
 	e.tracer.Flush(ctx)
 }
 
+// Close flushes all buffered spans and then kills open connections to LightStep, releasing resources
 func (e *Exporter) Close(ctx context.Context) {
 	e.tracer.Close(ctx)
 }
