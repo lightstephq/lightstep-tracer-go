@@ -28,7 +28,9 @@ func NewExporter(opts ...Option) (*Exporter, error) {
 
 	tracer := lightstep.NewTracer(c.tracerOptions)
 	if tracer == nil {
-		// Ideally we'd know *why* we couldn't create the tracer, but `NewTracer` currently doesn't return errors
+		if err := c.tracerOptions.Validate(); err != nil {
+			return nil, err
+		}
 		return nil, ErrFailedToCreateExporter
 	}
 
