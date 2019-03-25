@@ -6,6 +6,8 @@
 
 The LightStep distributed tracing library for Go.
 
+**Looking for the LightStep OpenCensus exporter? Check out the [`lightstepoc` package](./lightstepoc).**
+
 ## Installation
 
 ```
