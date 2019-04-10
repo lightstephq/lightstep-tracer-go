@@ -34,7 +34,7 @@ var _ = Describe("Tracer", func() {
 	const eventBufferSize = 10
 
 	BeforeEach(func() {
-		opts = Options{}
+		opts.UseGRPC = true
 
 		fakeClient = new(collectorpbfakes.FakeCollectorServiceClient)
 		fakeClient.ReportReturns(&collectorpb.ReportResponse{}, nil)
@@ -55,10 +55,8 @@ var _ = Describe("Tracer", func() {
 
 	Describe("Start Span", func() {
 		BeforeEach(func() {
-			opts = Options{
-				AccessToken: accessToken,
-				ConnFactory: fakeConn,
-			}
+			opts.AccessToken = accessToken
+			opts.ConnFactory = fakeConn
 		})
 
 		It("should start a span than can be finished", func() {
@@ -120,10 +118,8 @@ var _ = Describe("Tracer", func() {
 
 	Describe("Access Token", func() {
 		BeforeEach(func() {
-			opts = Options{
-				AccessToken: accessToken,
-				ConnFactory: fakeConn,
-			}
+			opts.AccessToken = accessToken
+			opts.ConnFactory = fakeConn
 		})
 
 		It("should return the access token", func() {
@@ -133,10 +129,8 @@ var _ = Describe("Tracer", func() {
 
 	Describe("Flush", func() {
 		BeforeEach(func() {
-			opts = Options{
-				AccessToken: accessToken,
-				ConnFactory: fakeConn,
-			}
+			opts.AccessToken = accessToken
+			opts.ConnFactory = fakeConn
 		})
 
 		Context("when the tracer is dropping spans", func() {
@@ -302,11 +296,9 @@ var _ = Describe("Tracer", func() {
 
 	Describe("Close", func() {
 		BeforeEach(func() {
-			opts = Options{
-				AccessToken:        accessToken,
-				ConnFactory:        fakeConn,
-				MinReportingPeriod: 100 * time.Second,
-			}
+			opts.AccessToken = accessToken
+			opts.ConnFactory = fakeConn
+			opts.MinReportingPeriod = 100 * time.Second
 		})
 
 		It("flushes the buffer before closing", func() {
@@ -321,11 +313,9 @@ var _ = Describe("Tracer", func() {
 
 	Describe("valid SpanRecorder", func() {
 		BeforeEach(func() {
-			opts = Options{
-				AccessToken: accessToken,
-				ConnFactory: fakeConn,
-				Recorder:    fakeRecorder,
-			}
+			opts.AccessToken = accessToken
+			opts.ConnFactory = fakeConn
+			opts.Recorder = fakeRecorder
 		})
 
 		It("calls RecordSpan after finishing a span", func() {
@@ -336,11 +326,9 @@ var _ = Describe("Tracer", func() {
 
 	Describe("nil SpanRecorder", func() {
 		BeforeEach(func() {
-			opts = Options{
-				AccessToken: accessToken,
-				ConnFactory: fakeConn,
-				Recorder:    nil,
-			}
+			opts.AccessToken = accessToken
+			opts.ConnFactory = fakeConn
+			opts.Recorder = nil
 		})
 
 		It("doesn't call RecordSpan after finishing a span", func() {
@@ -351,11 +339,9 @@ var _ = Describe("Tracer", func() {
 
 	Describe("provides its ReporterID", func() {
 		BeforeEach(func() {
-			opts = Options{
-				AccessToken: accessToken,
-				ConnFactory: fakeConn,
-				Recorder:    nil,
-			}
+			opts.AccessToken = accessToken
+			opts.ConnFactory = fakeConn
+			opts.Recorder = nil
 		})
 
 		It("is non-zero", func() {
