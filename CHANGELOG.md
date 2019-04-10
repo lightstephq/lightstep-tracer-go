@@ -2,6 +2,7 @@
 
 ## [Pending Release](https://github.com/lightstep/lightstep-tracer-go/compare/v0.15.6...HEAD)
 * Thrift transport is now removed.
+* If no transport is specified, UseHTTP is now the default (was UseGRPC).
 * Requires go >= 1.7
 * Imports `context` via the standard library instead of `golang.org/x/net/context`
 * Fixes [#182](https://github.com/lightstep/lightstep-tracer-go/issues/182), so that `StartSpan` can now take `SpanReference`s to non-LightStep `SpanContext`s use
