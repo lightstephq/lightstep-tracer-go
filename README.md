@@ -111,7 +111,7 @@ By following the above configuration, the tracer will send information to LightS
 
 There are two options for transport protocols:
 
-- [Protocol Buffers](https://developers.google.com/protocol-buffers/) over HTTP using [OkHttp](http://square.github.io/okhttp/) - The recommended and default solution.
+- [Protocol Buffers](https://developers.google.com/protocol-buffers/) over HTTP - The recommended and default solution.
 - [Protocol Buffers](https://developers.google.com/protocol-buffers/) over [GRPC](https://grpc.io/) - This is a more advanced solution that might be desirable if you already have gRPC networking configured.
 
 You can configure which transport protocol the tracer uses using the `UseGRPC` and `UseHttp` flags in the options.
