@@ -29,6 +29,14 @@
   version = "v1.3.0"
 
 [[projects]]
+  digest = "1:85f8f8d390a03287a563e215ea6bd0610c858042731a8b42062435a0dcbc485f"
+  name = "github.com/hashicorp/golang-lru"
+  packages = ["simplelru"]
+  pruneopts = ""
+  revision = "7087cb70de9f7a8bc0a10c375cb0d2280a8edf9c"
+  version = "v0.5.1"
+
+[[projects]]
   digest = "1:f67a28bd3667b609ad09545a66857a1024fc5051616e7e3bccecf21ae3c6c98c"
   name = "github.com/lightstep/lightstep-tracer-common"
   packages = [
@@ -93,11 +101,26 @@
   name = "github.com/opentracing/opentracing-go"
   packages = [
     ".",
+    "ext",
     "log",
   ]
   pruneopts = ""
   revision = "1949ddbfd147afd4d964a9f00b24eb291e0e7c38"
   version = "v1.0.2"
+
+[[projects]]
+  digest = "1:0eff358cc3a77a6ab721689fa717dc051bffc637346d17330341336f5b61b1e2"
+  name = "go.opencensus.io"
+  packages = [
+    ".",
+    "internal",
+    "trace",
+    "trace/internal",
+    "trace/tracestate",
+  ]
+  pruneopts = ""
+  revision = "75c0cca22312e51bfd4fafdbe9197ae399e18b38"
+  version = "v0.20.2"
 
 [[projects]]
   branch = "master"
@@ -224,7 +247,9 @@
     "github.com/onsi/gomega",
     "github.com/onsi/gomega/types",
     "github.com/opentracing/opentracing-go",
+    "github.com/opentracing/opentracing-go/ext",
     "github.com/opentracing/opentracing-go/log",
+    "go.opencensus.io/trace",
     "google.golang.org/grpc",
     "google.golang.org/grpc/credentials",
   ]
