@@ -15,6 +15,10 @@
   version = "1.0.2"
 
 [[constraint]]
+  name = "go.opencensus.io"
+  version = "0.20.2"
+
+[[constraint]]
   name = "google.golang.org/grpc"
   version = "1.4.3"
 
