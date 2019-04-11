@@ -8,6 +8,7 @@ import (
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	grpcmeta "google.golang.org/grpc/metadata"
 
 	// N.B.(jmacd): Do not use google.golang.org/glog in this package.
 	"github.com/lightstep/lightstep-tracer-common/golang/gogo/collectorpb"
