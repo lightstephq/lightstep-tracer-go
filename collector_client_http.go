@@ -115,7 +115,7 @@ func (client *httpCollectorClient) Report(context context.Context, req reportReq
 		return nil, fmt.Errorf("httpRequest cannot be null")
 	}
 
-	req.httpRequest.Header.Add(lightstep.AccessTokenHeaderKey, client.accessToken)
+	req.httpRequest.Header.Add(AccessTokenHeaderKey, client.accessToken)
 	httpResponse, err := client.client.Do(req.httpRequest.WithContext(context))
 	if err != nil {
 		return nil, err
