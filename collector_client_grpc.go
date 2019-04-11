@@ -8,7 +8,7 @@ import (
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
-	grpcmeta "google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/metadata"
 
 	// N.B.(jmacd): Do not use google.golang.org/glog in this package.
 	"github.com/lightstep/lightstep-tracer-common/golang/gogo/collectorpb"
@@ -116,12 +116,12 @@ func (client *grpcCollectorClient) Report(ctx context.Context, req reportRequest
 		return nil, fmt.Errorf("protoRequest cannot be null")
 	}
 
-	ctx = grpcmeta.NewOutgoingContext(
-	    ctx,
-	    grpcmeta.Pairs(
-		lightstep.AccessTokenHeaderKey,
-		client.accessToken
-	    ),
+	ctx = metadata.NewOutgoingContext(
+		ctx,
+		metadata.Pairs(
+			lightstep.AccessTokenHeaderKey,
+			client.accessToken,
+		),
 	)
 
 	resp, err := client.grpcClient.Report(ctx, req.protoRequest)
