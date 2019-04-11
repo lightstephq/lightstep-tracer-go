@@ -35,11 +35,12 @@ const (
 
 // Tag and Tracer Attribute keys.
 const (
-	ParentSpanGUIDKey = "parent_span_guid" // ParentSpanGUIDKey is the tag key used to record the relationship between child and parent spans.
-	ComponentNameKey  = "lightstep.component_name"
-	GUIDKey           = "lightstep.guid" // <- runtime guid, not span guid
-	HostnameKey       = "lightstep.hostname"
-	CommandLineKey    = "lightstep.command_line"
+	ParentSpanGUIDKey    = "parent_span_guid" // ParentSpanGUIDKey is the tag key used to record the relationship between child and parent spans.
+	ComponentNameKey     = "lightstep.component_name"
+	GUIDKey              = "lightstep.guid" // <- runtime guid, not span guid
+	HostnameKey          = "lightstep.hostname"
+	CommandLineKey       = "lightstep.command_line"
+	AccessTokenHeaderKey = "LightStep-Access-Token"
 
 	TracerPlatformKey        = "lightstep.tracer_platform"
 	TracerPlatformValue      = "go"
