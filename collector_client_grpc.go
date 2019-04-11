@@ -114,6 +114,8 @@ func (client *grpcCollectorClient) Report(ctx context.Context, req reportRequest
 	if req.protoRequest == nil {
 		return nil, fmt.Errorf("protoRequest cannot be null")
 	}
+
+	ctx = grpcmeta.NewOutgoingContext(ctx, grpcmeta.Pairs("LightStep-Access-Token", req.protoRequest.GetAuth()))
 	resp, err := client.grpcClient.Report(ctx, req.protoRequest)
 	if err != nil {
 		return nil, err
