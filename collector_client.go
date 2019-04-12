@@ -8,6 +8,8 @@ import (
 	"github.com/lightstep/lightstep-tracer-common/golang/gogo/collectorpb"
 )
 
+var accessTokenHeader = http.CanonicalHeaderKey("Lightstep-Access-Token")
+
 // Connection describes a closable connection. Exposed for testing.
 type Connection interface {
 	io.Closer

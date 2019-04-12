@@ -119,7 +119,7 @@ func (client *grpcCollectorClient) Report(ctx context.Context, req reportRequest
 	ctx = metadata.NewOutgoingContext(
 		ctx,
 		metadata.Pairs(
-			AccessTokenHeaderKey,
+			accessTokenHeader,
 			client.accessToken,
 		),
 	)
