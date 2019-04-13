@@ -45,6 +45,6 @@ func newCollectorClient(opts Options, reporterID uint64, attributes map[string]s
 		return newGrpcCollectorClient(opts, reporterID, attributes), nil
 	}
 
-	// No transport specified, defaulting to GRPC
-	return newGrpcCollectorClient(opts, reporterID, attributes), nil
+	// No transport specified, defaulting to HTTP
+	return newHTTPCollectorClient(opts, reporterID, attributes)
 }

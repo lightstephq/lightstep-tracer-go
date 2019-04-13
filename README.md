@@ -107,11 +107,11 @@ Event handlers will receive events from any active tracers, as well as errors in
 
 ## Advanced Configuration: Transport and Serialization Protocols
 
-By default, the tracer will send information to LightStep using GRPC and Protocol Buffers which is the recommended configuration. If there are no specific transport protocol needs you have, there is no need to change this default.
+By following the above configuration, the tracer will send information to LightStep using HTTP and Protocol Buffers which is the recommended configuration. If there are no specific transport protocol needs you have, there is no need to change this default.
 
-There are three total options for transport protocols:
+There are two options for transport protocols:
 
-- [Protocol Buffers](https://developers.google.com/protocol-buffers/) over [GRPC](https://grpc.io/) - The recommended, default, and most performant solution.
-- \[ EXPERIMENTAL \] [Protocol Buffers](https://developers.google.com/protocol-buffers/) over HTTP - New transport protocol supported for use cases where GRPC isn't an option. In order to enable HTTP you will need to configure the LightStep collectors receiving the data to accept HTTP traffic. Reach out to LightStep for support in this.
+- [Protocol Buffers](https://developers.google.com/protocol-buffers/) over HTTP - The recommended and default solution.
+- [Protocol Buffers](https://developers.google.com/protocol-buffers/) over [GRPC](https://grpc.io/) - This is a more advanced solution that might be desirable if you already have gRPC networking configured.
 
-You can configure which transport protocol the tracer uses using the `UseGRPC`, and `UseHttp` flags in the options.
+You can configure which transport protocol the tracer uses using the `UseGRPC` and `UseHttp` flags in the options.
