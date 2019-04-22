@@ -54,6 +54,11 @@ func main() {
 		},
 	)
 
+	if t == nil {
+		fmt.Println("Failed to initialize tracer...")
+		return
+	}
+
 	fmt.Println("Sending span...")
 	span := t.StartSpan(*flagOperation)
 	time.Sleep(100 * time.Millisecond)
