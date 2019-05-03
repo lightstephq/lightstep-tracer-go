@@ -160,7 +160,7 @@ type Options struct {
 
 	// DEPRECATED: The LightStep library prints the first error to stdout by default.
 	// See the documentation on the SetGlobalEventHandler function for guidance on
-	// how to integrate tracer diagnostics with your applicaiton's logging and
+	// how to integrate tracer diagnostics with your application's logging and
 	// metrics systems.
 	Verbose bool `yaml:"verbose"`
 
