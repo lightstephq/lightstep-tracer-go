@@ -19,7 +19,7 @@ $ go get 'github.com/lightstep/lightstep-tracer-go'
 Godoc: https://godoc.org/github.com/lightstep/lightstep-tracer-go
 
 ## Initialization: Starting a new tracer
-To initialize a tracer, configure it with a valid Access Token and optional tuning parameters. Register the tracer as the OpenTracing global tracer so that it will become available to your installed intstrumentations libraries.
+To initialize a tracer, configure it with a valid Access Token and optional tuning parameters. Register the tracer as the OpenTracing global tracer so that it will become available to your installed instrumentation libraries.
 
 ```go
 import (
@@ -45,7 +45,7 @@ All instrumentation should be done through the OpenTracing API, rather than usin
 
 ## Flushing and Closing: Managing the tracer lifecycle
 
-As part of managaing your application lifecycle, the lightstep tracer extends the `opentracing.Tracer` interface with methods for manual flushing and closing. To access these methods, you can take the global tracer and typecast it to a `lightstep.Tracer`. As a convenience, the lightstep package provides static methods which perform the typecasting.
+As part of managing your application lifecycle, the lightstep tracer extends the `opentracing.Tracer` interface with methods for manual flushing and closing. To access these methods, you can take the global tracer and typecast it to a `lightstep.Tracer`. As a convenience, the lightstep package provides static methods which perform the typecasting.
 
 ```go
 import (

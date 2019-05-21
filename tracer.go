@@ -28,7 +28,7 @@ type Tracer interface {
 	Disable()
 }
 
-// Implements the `Tracer` interface. Buffers spans and forwards the to a Lightstep collector.
+// Implements the `Tracer` interface. Buffers spans and forwards to a Lightstep collector.
 type tracerImpl struct {
 	//////////////////////////////////////////////////////////////
 	// IMMUTABLE IMMUTABLE IMMUTABLE IMMUTABLE IMMUTABLE IMMUTABLE

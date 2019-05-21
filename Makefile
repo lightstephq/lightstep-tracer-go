@@ -1,18 +1,21 @@
 # tools
-GO=go
+GO = GO111MODULE=on GOPROXY=https://proxy.golang.org go
 
 .PHONY: default build test install
 
 default: build
 
 build: version.go
-	go build ./...
+	${GO} build ./...
 
 test: build
-	go test ./...
+	${GO} test -v -race ./...
 
 install: test
-	go install ./...
+	${GO} install ./...
+
+clean:
+	${GO} clean ./...
 
 # When releasing significant changes, make sure to update the semantic
 # version number in `./VERSION`, merge changes, then run `make release_tag`.

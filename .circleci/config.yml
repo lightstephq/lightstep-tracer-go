@@ -2,20 +2,16 @@ version: 2
 
 jobs:
   test:
-    working_directory: ~/go/src/github.com/lightstep/lightstep-tracer-go
     docker:
-      - image: circleci/golang:1.10
+      - image: circleci/golang:1.12
+        environment:
+          GO111MODULE: 'on'
+          GOPROXY: https://proxy.golang.org
     steps:
-      - run:
-          name: "configure environment"
-          command: |
-            echo 'export GOPATH="$HOME/go"' >> $BASH_ENV
-            source $BASH_ENV
       - checkout
       - run: git submodule sync
       - run: git submodule update --init
-      - run: dep ensure -v -vendor-only
-      - run: go test
+      - run: go test -race -v ./...
 
 workflows:
   version: 2
