@@ -78,9 +78,53 @@ var _ = Describe("ProtoLogEncoderTest", func() {
 		close(done)
 	})
 
+	It("encodes lazy keys correctly", func(done Done) {
+		check(log.Lazy(func(encoder log.Encoder) {
+
+		}), withExpectedNumFields(0), withCheckEmptyKey(false))
+
+		check(log.Lazy(func(encoder log.Encoder) {
+			encoder.EmitInt("int:1", 1)
+		}), withExpectedNumFields(1), withCheckEmptyKey(false))
+
+		check(log.Lazy(func(encoder log.Encoder) {
+			encoder.EmitInt("int:1", 1)
+			encoder.EmitInt("int:2", 2)
+		}), withExpectedNumFields(2), withCheckEmptyKey(false))
+
+		close(done)
+	})
+
 })
 
-func check(f log.Field) {
+type checkOptions struct {
+	expectedNumFields int
+	checkEmptyKey     bool
+}
+
+type checkOption func(*checkOptions)
+
+func withExpectedNumFields(expectedNumFields int) checkOption {
+	return func(opts *checkOptions) {
+		opts.expectedNumFields = expectedNumFields
+	}
+}
+
+func withCheckEmptyKey(checkEmptyKey bool) checkOption {
+	return func(opts *checkOptions) {
+		opts.checkEmptyKey = checkEmptyKey
+	}
+}
+
+func check(f log.Field, checkOpts ...checkOption) {
+	opts := checkOptions{
+		expectedNumFields: 1,
+		checkEmptyKey:     true,
+	}
+	for _, opt := range checkOpts {
+		opt(&opts)
+	}
+
 	options := Options{}
 	converter := newProtoConverter(options)
 	buffer := newSpansBuffer(1)
@@ -91,35 +135,35 @@ func check(f log.Field) {
 
 	Expect(buffer.logEncoderErrorCount).To(Equal(int64(0)))
 
-	comp := out.Fields[0]
+	Expect(len(out.Fields)).To(Equal(opts.expectedNumFields))
 
-	Expect(len(out.Fields)).To(Equal(1))
+	for _, comp := range out.Fields {
+		// Make sure empty keys don't crash.
+		if len(f.Key()) == 0 && opts.checkEmptyKey {
+			Expect(comp.Key).To(Equal(""))
+			return
+		}
 
-	// Make sure empty keys don't crash.
-	if len(f.Key()) == 0 {
-		Expect(comp.Key).To(Equal(""))
-		return
+		insplit := strings.SplitN(comp.Key, ":", 2)
+		vtype := insplit[0]
+		expect := insplit[1]
+
+		var value interface{}
+
+		switch vtype {
+		case "string":
+			value = comp.Value.(*collectorpb.KeyValue_StringValue).StringValue
+		case "int":
+			value = comp.Value.(*collectorpb.KeyValue_IntValue).IntValue
+		case "bool":
+			value = comp.Value.(*collectorpb.KeyValue_BoolValue).BoolValue
+		case "json":
+			value = comp.Value.(*collectorpb.KeyValue_JsonValue).JsonValue
+		default:
+			panic("Invalid type")
+
+		}
+
+		Expect(fmt.Sprint(value)).To(Equal(expect))
 	}
-
-	insplit := strings.SplitN(f.Key(), ":", 2)
-	vtype := insplit[0]
-	expect := insplit[1]
-
-	var value interface{}
-
-	switch vtype {
-	case "string":
-		value = comp.Value.(*collectorpb.KeyValue_StringValue).StringValue
-	case "int":
-		value = comp.Value.(*collectorpb.KeyValue_IntValue).IntValue
-	case "bool":
-		value = comp.Value.(*collectorpb.KeyValue_BoolValue).BoolValue
-	case "json":
-		value = comp.Value.(*collectorpb.KeyValue_JsonValue).JsonValue
-	default:
-		panic("Invalid type")
-
-	}
-
-	Expect(fmt.Sprint(value)).To(Equal(expect))
 }
