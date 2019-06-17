@@ -11,6 +11,8 @@ import (
 
 	"github.com/opentracing/opentracing-go"
 	"google.golang.org/grpc"
+
+	"github.com/lightstep/lightstep-tracer-common/golang/gogo/collectorpb"
 )
 
 // Default Option values.
@@ -166,9 +168,13 @@ type Options struct {
 
 	// Force the use of a specific transport protocol. If multiple are set to true,
 	// the following order is used to select for the first option: http, grpc.
-	// If none are set to true, GRPC is defaulted to.
+	// If none are set to true, HTTP is defaulted to.
 	UseHttp bool `yaml:"use_http"`
 	UseGRPC bool `yaml:"usegrpc"`
+
+	// GRPCClient allows customizing the GRPC client.
+	// This is an advanced feature that avoids reconnect logic.
+	GRPCClient collectorpb.CollectorServiceClient `yaml:"-" json:"-"`
 
 	ReconnectPeriod time.Duration `yaml:"reconnect_period"`
 

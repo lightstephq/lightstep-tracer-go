@@ -3,6 +3,7 @@ package lightstep
 import (
 	"context"
 	"fmt"
+	"io/ioutil"
 	"reflect"
 	"time"
 
@@ -60,6 +61,7 @@ func newGrpcCollectorClient(opts Options, reporterID uint64, attributes map[stri
 		dialOptions:          opts.DialOptions,
 		converter:            newProtoConverter(opts),
 		grpcConnectorFactory: opts.ConnFactory,
+		grpcClient:           opts.GRPCClient,
 	}
 
 	if len(opts.Collector.Scheme) > 0 {
@@ -88,6 +90,10 @@ func newGrpcCollectorClient(opts Options, reporterID uint64, attributes map[stri
 }
 
 func (client *grpcCollectorClient) ConnectClient() (Connection, error) {
+	if client.grpcClient != nil {
+		return ioutil.NopCloser(nil), nil
+	}
+
 	now := time.Now()
 	var conn Connection
 	if client.grpcConnectorFactory != nil {
@@ -117,6 +123,9 @@ func (client *grpcCollectorClient) ConnectClient() (Connection, error) {
 }
 
 func (client *grpcCollectorClient) ShouldReconnect() bool {
+	if client.grpcClient != nil {
+		return false
+	}
 	return time.Since(client.connTimestamp) > client.reconnectPeriod
 }
 
