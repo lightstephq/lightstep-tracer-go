@@ -23,7 +23,7 @@ type Event interface {
 }
 
 // The ErrorEvent type can be used to filter events. The `Err` method
-// retuns the underlying error.
+// returns the underlying error.
 type ErrorEvent interface {
 	Event
 	error
@@ -143,7 +143,7 @@ func (e *eventConnectionError) Err() error {
 }
 
 // EventStatusReport occurs on every successful flush. It contains all metrics
-// collected since the previous succesful flush.
+// collected since the previous successful flush.
 type EventStatusReport interface {
 	Event
 	EventStatusReport()
