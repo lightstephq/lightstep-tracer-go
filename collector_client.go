@@ -30,9 +30,15 @@ type Collector interface {
 	Report(context.Context, *collectorpb.ReportRequest) (*collectorpb.ReportResponse, error)
 }
 
+type reportRequest struct {
+	protoRequest *collectorpb.ReportRequest
+	httpRequest  *http.Request
+}
+
 // collectorClient encapsulates internal grpc/http transports.
 type collectorClient interface {
-	Report(context.Context, *collectorpb.ReportRequest) (collectorResponse, error)
+	Report(context.Context, reportRequest) (collectorResponse, error)
+	Translate(*collectorpb.ReportRequest) (reportRequest, error)
 	ConnectClient() (Connection, error)
 	ShouldReconnect() bool
 }

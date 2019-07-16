@@ -110,8 +110,8 @@ func (client *grpcCollectorClient) ShouldReconnect() bool {
 	return time.Since(client.connTimestamp) > client.reconnectPeriod
 }
 
-func (client *grpcCollectorClient) Report(ctx context.Context, req *collectorpb.ReportRequest) (collectorResponse, error) {
-	if req == nil {
+func (client *grpcCollectorClient) Report(ctx context.Context, req reportRequest) (collectorResponse, error) {
+	if req.protoRequest == nil {
 		return nil, fmt.Errorf("protoRequest cannot be null")
 	}
 
@@ -123,11 +123,15 @@ func (client *grpcCollectorClient) Report(ctx context.Context, req *collectorpb.
 		),
 	)
 
-	resp, err := client.grpcClient.Report(ctx, req)
+	resp, err := client.grpcClient.Report(ctx, req.protoRequest)
 	if err != nil {
 		return nil, err
 	}
 	return protoResponse{ReportResponse: resp}, nil
+}
+
+func (client *grpcCollectorClient) Translate(protoRequest *collectorpb.ReportRequest) (reportRequest, error) {
+	return reportRequest{protoRequest: protoRequest}, nil
 }
 
 type protoResponse struct {

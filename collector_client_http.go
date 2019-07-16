@@ -130,17 +130,12 @@ func (client *httpCollectorClient) ShouldReconnect() bool {
 	return false
 }
 
-func (client *httpCollectorClient) Report(context context.Context, req *collectorpb.ReportRequest) (collectorResponse, error) {
-	if req == nil {
+func (client *httpCollectorClient) Report(context context.Context, req reportRequest) (collectorResponse, error) {
+	if req.httpRequest == nil {
 		return nil, fmt.Errorf("httpRequest cannot be null")
 	}
 
-	httpRequest, err := client.toRequest(req)
-	if err != nil {
-		return nil, err
-	}
-
-	httpResponse, err := client.client.Do(httpRequest.WithContext(context))
+	httpResponse, err := client.client.Do(req.httpRequest.WithContext(context))
 	if err != nil {
 		return nil, err
 	}
@@ -152,6 +147,16 @@ func (client *httpCollectorClient) Report(context context.Context, req *collecto
 	}
 
 	return response, nil
+}
+
+func (client *httpCollectorClient) Translate(protoRequest *collectorpb.ReportRequest) (reportRequest, error) {
+	httpRequest, err := client.toRequest(protoRequest)
+	if err != nil {
+		return reportRequest{}, err
+	}
+	return reportRequest{
+		httpRequest: httpRequest,
+	}, nil
 }
 
 func (client *httpCollectorClient) toRequest(

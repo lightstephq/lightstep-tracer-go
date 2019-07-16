@@ -264,12 +264,20 @@ func (tracer *tracerImpl) Flush(ctx context.Context) {
 	ctx, cancel := context.WithTimeout(ctx, tracer.opts.ReportTimeout)
 	defer cancel()
 
-	req := tracer.converter.toReportRequest(
+	protoReq := tracer.converter.toReportRequest(
 		tracer.reporterID,
 		tracer.attributes,
 		tracer.accessToken,
 		&tracer.flushing,
 	)
+	req, err := tracer.client.Translate(protoReq)
+	if err != nil {
+		errorEvent := newEventFlushError(err, FlushErrorTranslate)
+		emitEvent(errorEvent)
+		// call postflush to prevent the tracer from going into an invalid state.
+		emitEvent(tracer.postFlush(errorEvent))
+		return
+	}
 
 	var reportErrorEvent *eventFlushError
 	resp, err := tracer.client.Report(ctx, req)
