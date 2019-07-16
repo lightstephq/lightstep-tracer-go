@@ -25,31 +25,29 @@ type collectorResponse interface {
 	DevMode() bool
 }
 
-type reportRequest struct {
-	protoRequest *collectorpb.ReportRequest
-	httpRequest  *http.Request
+// Collector encapsulates custom transport of protobuf messages
+type Collector interface {
+	Report(context.Context, *collectorpb.ReportRequest) (*collectorpb.ReportResponse, error)
 }
 
 // collectorClient encapsulates internal grpc/http transports.
 type collectorClient interface {
-	Report(context.Context, reportRequest) (collectorResponse, error)
-	Translate(context.Context, *reportBuffer) (reportRequest, error)
+	Report(context.Context, *collectorpb.ReportRequest) (collectorResponse, error)
 	ConnectClient() (Connection, error)
 	ShouldReconnect() bool
 }
 
-func newCollectorClient(opts Options, reporterID uint64, attributes map[string]string) (collectorClient, error) {
-	if opts.UseHttp {
-		return newHTTPCollectorClient(opts, reporterID, attributes)
+func newCollectorClient(opts Options) (collectorClient, error) {
+	if opts.CustomCollector != nil {
+		return newCustomCollector(opts), nil
 	}
-
-	if opts.GRPCClient != nil {
-		return newGrpcCollectorClient(opts, reporterID, attributes)
+	if opts.UseHttp {
+		return newHTTPCollectorClient(opts)
 	}
 	if opts.UseGRPC {
-		return newGrpcCollectorClient(opts, reporterID, attributes)
+		return newGrpcCollectorClient(opts)
 	}
 
 	// No transport specified, defaulting to HTTP
-	return newHTTPCollectorClient(opts, reporterID, attributes)
+	return newHTTPCollectorClient(opts)
 }

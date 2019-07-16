@@ -3,7 +3,6 @@ package lightstep
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"reflect"
 	"time"
 
@@ -27,10 +26,6 @@ var (
 // grpcCollectorClient specifies how to send reports back to a LightStep
 // collector via grpc.
 type grpcCollectorClient struct {
-	// auth and runtime information
-	attributes map[string]string
-	reporterID uint64
-
 	// accessToken is the access token used for explicit trace collection requests.
 	accessToken        string
 	maxReportingPeriod time.Duration // set by GrpcOptions.MaxReportingPeriod
@@ -43,25 +38,18 @@ type grpcCollectorClient struct {
 	connTimestamp time.Time
 	dialOptions   []grpc.DialOption
 
-	// converters
-	converter *protoConverter
-
 	// For testing purposes only
 	grpcConnectorFactory ConnectorFactory
 }
 
-func newGrpcCollectorClient(opts Options, reporterID uint64, attributes map[string]string) (*grpcCollectorClient, error) {
+func newGrpcCollectorClient(opts Options) (*grpcCollectorClient, error) {
 	rec := &grpcCollectorClient{
-		attributes:           attributes,
-		reporterID:           reporterID,
 		accessToken:          opts.AccessToken,
 		maxReportingPeriod:   opts.ReportingPeriod,
 		reconnectPeriod:      opts.ReconnectPeriod,
 		reportingTimeout:     opts.ReportTimeout,
 		dialOptions:          opts.DialOptions,
-		converter:            newProtoConverter(opts),
 		grpcConnectorFactory: opts.ConnFactory,
-		grpcClient:           opts.GRPCClient,
 	}
 
 	if len(opts.Collector.Scheme) > 0 {
@@ -90,10 +78,6 @@ func newGrpcCollectorClient(opts Options, reporterID uint64, attributes map[stri
 }
 
 func (client *grpcCollectorClient) ConnectClient() (Connection, error) {
-	if client.grpcClient != nil {
-		return ioutil.NopCloser(nil), nil
-	}
-
 	now := time.Now()
 	var conn Connection
 	if client.grpcConnectorFactory != nil {
@@ -123,14 +107,11 @@ func (client *grpcCollectorClient) ConnectClient() (Connection, error) {
 }
 
 func (client *grpcCollectorClient) ShouldReconnect() bool {
-	if client.grpcClient != nil {
-		return false
-	}
 	return time.Since(client.connTimestamp) > client.reconnectPeriod
 }
 
-func (client *grpcCollectorClient) Report(ctx context.Context, req reportRequest) (collectorResponse, error) {
-	if req.protoRequest == nil {
+func (client *grpcCollectorClient) Report(ctx context.Context, req *collectorpb.ReportRequest) (collectorResponse, error) {
+	if req == nil {
 		return nil, fmt.Errorf("protoRequest cannot be null")
 	}
 
@@ -142,23 +123,11 @@ func (client *grpcCollectorClient) Report(ctx context.Context, req reportRequest
 		),
 	)
 
-	resp, err := client.grpcClient.Report(ctx, req.protoRequest)
+	resp, err := client.grpcClient.Report(ctx, req)
 	if err != nil {
 		return nil, err
 	}
 	return protoResponse{ReportResponse: resp}, nil
-}
-
-func (client *grpcCollectorClient) Translate(ctx context.Context, buffer *reportBuffer) (reportRequest, error) {
-	req := client.converter.toReportRequest(
-		client.reporterID,
-		client.attributes,
-		client.accessToken,
-		buffer,
-	)
-	return reportRequest{
-		protoRequest: req,
-	}, nil
 }
 
 type protoResponse struct {

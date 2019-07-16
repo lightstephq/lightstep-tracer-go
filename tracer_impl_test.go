@@ -44,15 +44,15 @@ var _ = Describe("TracerImpl", func() {
 	})
 
 	Describe("Flush", func() {
-		Context("when the client fails to translate the buffer", func() {
+		Context("when the client fails to report the buffer", func() {
 			JustBeforeEach(func() {
 				for i := 0; i < 10; i++ {
 					tracer.StartSpan(fmt.Sprint("span ", i)).Finish()
 				}
 
 				fakeClient := newFakeCollectorClient(tracer.client)
-				fakeClient.translate = func(_ context.Context, _ *reportBuffer) (reportRequest, error) {
-					return reportRequest{}, errors.New("translate failed")
+				fakeClient.report = func(_ context.Context, _ *collectorpb.ReportRequest) (collectorResponse, error) {
+					return protoResponse{}, errors.New("report failed")
 				}
 
 				tracer.client = fakeClient
@@ -64,7 +64,7 @@ var _ = Describe("TracerImpl", func() {
 				flushErr, ok := err.(EventFlushError)
 				Expect(ok).To(BeTrue())
 
-				Expect(flushErr.State()).To(Equal(FlushErrorTranslate))
+				Expect(flushErr.State()).To(Equal(FlushErrorTransport))
 				close(done)
 			})
 			It("should clear the flushing buffer", func() {
@@ -88,8 +88,7 @@ func fakeGrpcConnection(fakeClient *collectorpbfakes.FakeCollectorServiceClient)
 
 type fakeCollectorClient struct {
 	realClient      collectorClient
-	report          func(context.Context, reportRequest) (collectorResponse, error)
-	translate       func(context.Context, *reportBuffer) (reportRequest, error)
+	report          func(context.Context, *collectorpb.ReportRequest) (collectorResponse, error)
 	connectClient   func() (Connection, error)
 	shouldReconnect func() bool
 }
@@ -98,17 +97,13 @@ func newFakeCollectorClient(client collectorClient) *fakeCollectorClient {
 	return &fakeCollectorClient{
 		realClient:      client,
 		report:          client.Report,
-		translate:       client.Translate,
 		connectClient:   client.ConnectClient,
 		shouldReconnect: client.ShouldReconnect,
 	}
 }
 
-func (f *fakeCollectorClient) Report(ctx context.Context, r reportRequest) (collectorResponse, error) {
+func (f *fakeCollectorClient) Report(ctx context.Context, r *collectorpb.ReportRequest) (collectorResponse, error) {
 	return f.report(ctx, r)
-}
-func (f *fakeCollectorClient) Translate(ctx context.Context, r *reportBuffer) (reportRequest, error) {
-	return f.translate(ctx, r)
 }
 func (f *fakeCollectorClient) ConnectClient() (Connection, error) {
 	return f.connectClient()
