@@ -46,6 +46,10 @@ type tracerImpl struct {
 	closeReportLoopChannel  chan struct{}
 	reportLoopClosedChannel chan struct{}
 
+	converter   *protoConverter
+	accessToken string
+	attributes  map[string]string
+
 	//////////////////////////////////////////////////////////
 	// MUTABLE MUTABLE MUTABLE MUTABLE MUTABLE MUTABLE MUTABLE
 	//////////////////////////////////////////////////////////
@@ -105,11 +109,14 @@ func NewTracer(opts Options) Tracer {
 		flushing:                newSpansBuffer(opts.MaxBufferedSpans),
 		closeReportLoopChannel:  make(chan struct{}),
 		reportLoopClosedChannel: make(chan struct{}),
+		converter:               newProtoConverter(opts),
+		accessToken:             opts.AccessToken,
+		attributes:              attributes,
 	}
 
 	impl.buffer.setCurrent(now)
 
-	impl.client, err = newCollectorClient(opts, impl.reporterID, attributes)
+	impl.client, err = newCollectorClient(opts)
 	if err != nil {
 		fmt.Println("Failed to create to Collector client!", err)
 		return nil
@@ -257,7 +264,13 @@ func (tracer *tracerImpl) Flush(ctx context.Context) {
 	ctx, cancel := context.WithTimeout(ctx, tracer.opts.ReportTimeout)
 	defer cancel()
 
-	req, err := tracer.client.Translate(ctx, &tracer.flushing)
+	protoReq := tracer.converter.toReportRequest(
+		tracer.reporterID,
+		tracer.attributes,
+		tracer.accessToken,
+		&tracer.flushing,
+	)
+	req, err := tracer.client.Translate(protoReq)
 	if err != nil {
 		errorEvent := newEventFlushError(err, FlushErrorTranslate)
 		emitEvent(errorEvent)

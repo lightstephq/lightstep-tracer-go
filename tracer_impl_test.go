@@ -51,7 +51,7 @@ var _ = Describe("TracerImpl", func() {
 				}
 
 				fakeClient := newFakeCollectorClient(tracer.client)
-				fakeClient.translate = func(_ context.Context, _ *reportBuffer) (reportRequest, error) {
+				fakeClient.translate = func(_ *collectorpb.ReportRequest) (reportRequest, error) {
 					return reportRequest{}, errors.New("translate failed")
 				}
 
@@ -89,7 +89,7 @@ func fakeGrpcConnection(fakeClient *collectorpbfakes.FakeCollectorServiceClient)
 type fakeCollectorClient struct {
 	realClient      collectorClient
 	report          func(context.Context, reportRequest) (collectorResponse, error)
-	translate       func(context.Context, *reportBuffer) (reportRequest, error)
+	translate       func(*collectorpb.ReportRequest) (reportRequest, error)
 	connectClient   func() (Connection, error)
 	shouldReconnect func() bool
 }
@@ -107,8 +107,8 @@ func newFakeCollectorClient(client collectorClient) *fakeCollectorClient {
 func (f *fakeCollectorClient) Report(ctx context.Context, r reportRequest) (collectorResponse, error) {
 	return f.report(ctx, r)
 }
-func (f *fakeCollectorClient) Translate(ctx context.Context, r *reportBuffer) (reportRequest, error) {
-	return f.translate(ctx, r)
+func (f *fakeCollectorClient) Translate(r *collectorpb.ReportRequest) (reportRequest, error) {
+	return f.translate(r)
 }
 func (f *fakeCollectorClient) ConnectClient() (Connection, error) {
 	return f.connectClient()

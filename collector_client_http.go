@@ -31,9 +31,7 @@ const (
 // collector via grpc.
 type httpCollectorClient struct {
 	// auth and runtime information
-	reporterID  uint64
 	accessToken string // accessToken is the access token used for explicit trace collection requests.
-	attributes  map[string]string
 
 	tlsClientConfig *tls.Config
 	reportTimeout   time.Duration
@@ -42,9 +40,6 @@ type httpCollectorClient struct {
 	// Remote service that will receive reports.
 	url    *url.URL
 	client *http.Client
-
-	// converters
-	converter *protoConverter
 }
 
 type transportCloser struct {
@@ -56,11 +51,7 @@ func (closer transportCloser) Close() error {
 	return nil
 }
 
-func newHTTPCollectorClient(
-	opts Options,
-	reporterID uint64,
-	attributes map[string]string,
-) (*httpCollectorClient, error) {
+func newHTTPCollectorClient(opts Options) (*httpCollectorClient, error) {
 	url, err := url.Parse(opts.Collector.URL())
 	if err != nil {
 		fmt.Println("collector config does not produce valid url", err)
@@ -75,14 +66,11 @@ func newHTTPCollectorClient(
 	}
 
 	return &httpCollectorClient{
-		reporterID:      reporterID,
 		accessToken:     opts.AccessToken,
-		attributes:      attributes,
 		tlsClientConfig: tlsClientConfig,
 		reportTimeout:   opts.ReportTimeout,
 		reportingPeriod: opts.ReportingPeriod,
 		url:             url,
-		converter:       newProtoConverter(opts),
 	}, nil
 }
 
@@ -147,7 +135,6 @@ func (client *httpCollectorClient) Report(context context.Context, req reportReq
 		return nil, fmt.Errorf("httpRequest cannot be null")
 	}
 
-	req.httpRequest.Header.Add(accessTokenHeader, client.accessToken)
 	httpResponse, err := client.client.Do(req.httpRequest.WithContext(context))
 	if err != nil {
 		return nil, err
@@ -162,9 +149,8 @@ func (client *httpCollectorClient) Report(context context.Context, req reportReq
 	return response, nil
 }
 
-func (client *httpCollectorClient) Translate(ctx context.Context, buffer *reportBuffer) (reportRequest, error) {
-
-	httpRequest, err := client.toRequest(ctx, buffer)
+func (client *httpCollectorClient) Translate(protoRequest *collectorpb.ReportRequest) (reportRequest, error) {
+	httpRequest, err := client.toRequest(protoRequest)
 	if err != nil {
 		return reportRequest{}, err
 	}
@@ -174,16 +160,8 @@ func (client *httpCollectorClient) Translate(ctx context.Context, buffer *report
 }
 
 func (client *httpCollectorClient) toRequest(
-	context context.Context,
-	buffer *reportBuffer,
+	protoRequest *collectorpb.ReportRequest,
 ) (*http.Request, error) {
-	protoRequest := client.converter.toReportRequest(
-		client.reporterID,
-		client.attributes,
-		client.accessToken,
-		buffer,
-	)
-
 	buf, err := proto.Marshal(protoRequest)
 	if err != nil {
 		return nil, err
@@ -195,9 +173,9 @@ func (client *httpCollectorClient) toRequest(
 	if err != nil {
 		return nil, err
 	}
-	request = request.WithContext(context)
 	request.Header.Set(contentTypeHeader, protoContentType)
 	request.Header.Set(acceptHeader, protoContentType)
+	request.Header.Set(accessTokenHeader, client.accessToken)
 
 	return request, nil
 }

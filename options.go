@@ -166,9 +166,13 @@ type Options struct {
 
 	// Force the use of a specific transport protocol. If multiple are set to true,
 	// the following order is used to select for the first option: http, grpc.
-	// If none are set to true, GRPC is defaulted to.
+	// If none are set to true, HTTP is defaulted to.
 	UseHttp bool `yaml:"use_http"`
 	UseGRPC bool `yaml:"usegrpc"`
+
+	// CustomCollector allows customizing the Protobuf transport.
+	// This is an advanced feature that avoids reconnect logic.
+	CustomCollector Collector `yaml:"-" json:"-"`
 
 	ReconnectPeriod time.Duration `yaml:"reconnect_period"`
 

@@ -26,10 +26,6 @@ var (
 // grpcCollectorClient specifies how to send reports back to a LightStep
 // collector via grpc.
 type grpcCollectorClient struct {
-	// auth and runtime information
-	attributes map[string]string
-	reporterID uint64
-
 	// accessToken is the access token used for explicit trace collection requests.
 	accessToken        string
 	maxReportingPeriod time.Duration // set by GrpcOptions.MaxReportingPeriod
@@ -42,23 +38,17 @@ type grpcCollectorClient struct {
 	connTimestamp time.Time
 	dialOptions   []grpc.DialOption
 
-	// converters
-	converter *protoConverter
-
 	// For testing purposes only
 	grpcConnectorFactory ConnectorFactory
 }
 
-func newGrpcCollectorClient(opts Options, reporterID uint64, attributes map[string]string) (*grpcCollectorClient, error) {
+func newGrpcCollectorClient(opts Options) (*grpcCollectorClient, error) {
 	rec := &grpcCollectorClient{
-		attributes:           attributes,
-		reporterID:           reporterID,
 		accessToken:          opts.AccessToken,
 		maxReportingPeriod:   opts.ReportingPeriod,
 		reconnectPeriod:      opts.ReconnectPeriod,
 		reportingTimeout:     opts.ReportTimeout,
 		dialOptions:          opts.DialOptions,
-		converter:            newProtoConverter(opts),
 		grpcConnectorFactory: opts.ConnFactory,
 	}
 
@@ -140,16 +130,8 @@ func (client *grpcCollectorClient) Report(ctx context.Context, req reportRequest
 	return protoResponse{ReportResponse: resp}, nil
 }
 
-func (client *grpcCollectorClient) Translate(ctx context.Context, buffer *reportBuffer) (reportRequest, error) {
-	req := client.converter.toReportRequest(
-		client.reporterID,
-		client.attributes,
-		client.accessToken,
-		buffer,
-	)
-	return reportRequest{
-		protoRequest: req,
-	}, nil
+func (client *grpcCollectorClient) Translate(protoRequest *collectorpb.ReportRequest) (reportRequest, error) {
+	return reportRequest{protoRequest: protoRequest}, nil
 }
 
 type protoResponse struct {
