@@ -26,6 +26,8 @@ type Tracer interface {
 	Options() Options
 	// Disable prevents the tracer from recording spans or flushing
 	Disable()
+	// RecordSpan allows you to append a custom made span
+	RecordSpan(raw RawSpan)
 }
 
 // Implements the `Tracer` interface. Buffers spans and forwards to a Lightstep collector.
