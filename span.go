@@ -13,6 +13,7 @@ import (
 type spanImpl struct {
 	tracer     *tracerImpl
 	sync.Mutex // protects the fields below
+	finished   bool
 	raw        RawSpan
 	// The number of logs dropped because of MaxLogsPerSpan.
 	numDroppedLogs int
@@ -91,6 +92,11 @@ ReferencesLoop:
 func (s *spanImpl) SetOperationName(operationName string) opentracing.Span {
 	s.Lock()
 	defer s.Unlock()
+
+	if s.finished {
+		return s
+	}
+
 	s.raw.Operation = operationName
 	return s
 }
@@ -98,6 +104,10 @@ func (s *spanImpl) SetOperationName(operationName string) opentracing.Span {
 func (s *spanImpl) SetTag(key string, value interface{}) opentracing.Span {
 	s.Lock()
 	defer s.Unlock()
+
+	if s.finished {
+		return s
+	}
 
 	if s.raw.Tags == nil {
 		s.raw.Tags = opentracing.Tags{}
@@ -131,13 +141,15 @@ func (s *spanImpl) appendLog(lr opentracing.LogRecord) {
 }
 
 func (s *spanImpl) LogFields(fields ...log.Field) {
-	lr := opentracing.LogRecord{
-		Fields: fields,
-	}
 	s.Lock()
 	defer s.Unlock()
-	if s.tracer.opts.DropSpanLogs {
+
+	if s.finished || s.tracer.opts.DropSpanLogs {
 		return
+	}
+
+	lr := opentracing.LogRecord{
+		Fields: fields,
 	}
 	if lr.Timestamp.IsZero() {
 		lr.Timestamp = time.Now()
@@ -161,7 +173,8 @@ func (s *spanImpl) LogEventWithPayload(event string, payload interface{}) {
 func (s *spanImpl) Log(ld opentracing.LogData) {
 	s.Lock()
 	defer s.Unlock()
-	if s.tracer.opts.DropSpanLogs {
+
+	if s.finished || s.tracer.opts.DropSpanLogs {
 		return
 	}
 
@@ -194,20 +207,20 @@ func rotateLogBuffer(buf []opentracing.LogRecord, pos int) {
 }
 
 func (s *spanImpl) FinishWithOptions(opts opentracing.FinishOptions) {
+	s.Lock()
+	defer s.Unlock()
+
+	if s.finished {
+		return
+	}
+
+	s.finished = true
+
 	finishTime := opts.FinishTime
 	if finishTime.IsZero() {
 		finishTime = time.Now()
 	}
 	duration := finishTime.Sub(s.raw.Start)
-
-	s.Lock()
-	defer s.Unlock()
-
-	// If the duration is already set, this span has already been finished.
-	// Return so we don't double submit the span.
-	if s.raw.Duration >= 0 {
-		return
-	}
 
 	for _, lr := range opts.LogRecords {
 		s.appendLog(lr)
@@ -259,9 +272,13 @@ func (s *spanImpl) Context() opentracing.SpanContext {
 }
 
 func (s *spanImpl) SetBaggageItem(key, val string) opentracing.Span {
-
 	s.Lock()
 	defer s.Unlock()
+
+	if s.finished {
+		return s
+	}
+
 	s.raw.Context = s.raw.Context.WithBaggageItem(key, val)
 	return s
 }

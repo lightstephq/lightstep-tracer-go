@@ -16,6 +16,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/opentracing/opentracing-go"
+	"github.com/opentracing/opentracing-go/log"
 )
 
 var _ = Describe("Tracer", func() {
@@ -113,6 +114,196 @@ var _ = Describe("Tracer", func() {
 					ReferencedContext: otherSpan.Context(),
 				})
 			}).To(Not(Panic()))
+		})
+	})
+
+	Describe("#Log", func() {
+		BeforeEach(func() {
+			opts.AccessToken = accessToken
+			opts.ConnFactory = fakeConn
+		})
+
+		It("logs the data", func() {
+			span := tracer.StartSpan("test")
+			Expect(span).NotTo(BeNil())
+
+			logData := opentracing.LogData{
+				Timestamp: time.Now(),
+				Event:     "event",
+				Payload:   "test",
+			}
+
+			span.Log(logData)
+			span.Finish()
+			tracer.Flush(context.Background())
+
+			Expect(fakeClient.ReportCallCount()).To(Equal(1))
+
+			_, request, _ := fakeClient.ReportArgsForCall(0)
+			Expect(request.Spans).To(HaveLen(1))
+
+			logs := request.Spans[0].Logs
+			Expect(logs).To(HaveLen(1))
+			Expect(logs[0].Fields).To(Equal([]*collectorpb.KeyValue{&collectorpb.KeyValue{
+				Key: "event",
+				Value: &collectorpb.KeyValue_StringValue{
+					StringValue: "event",
+				},
+			}, &collectorpb.KeyValue{
+				Key: "payload",
+				Value: &collectorpb.KeyValue_JsonValue{
+					JsonValue: `"test"`,
+				},
+			}}))
+		})
+
+		It("can happen concurrently with Flush", func() {
+			span := tracer.StartSpan("test")
+			Expect(span).NotTo(BeNil())
+
+			wg := &sync.WaitGroup{}
+			wg.Add(2)
+
+			span.Log(opentracing.LogData{
+				Timestamp: time.Now(),
+				Event:     "event",
+				Payload:   "test",
+			})
+			span.Finish()
+
+			go func() {
+				defer wg.Done()
+
+				span.Log(opentracing.LogData{
+					Timestamp: time.Now(),
+					Event:     "another",
+					Payload:   "abc",
+				})
+			}()
+
+			go func() {
+				defer wg.Done()
+
+				tracer.Flush(context.Background())
+			}()
+
+			wg.Wait()
+
+			Expect(fakeClient.ReportCallCount()).To(Equal(1))
+		})
+	})
+
+	Describe("#LogFields", func() {
+		BeforeEach(func() {
+			opts.AccessToken = accessToken
+			opts.ConnFactory = fakeConn
+		})
+
+		It("logs the fields", func() {
+			span := tracer.StartSpan("test")
+			Expect(span).NotTo(BeNil())
+
+			span.LogFields(log.String("event", "test"))
+			span.Finish()
+			tracer.Flush(context.Background())
+
+			Expect(fakeClient.ReportCallCount()).To(Equal(1))
+
+			_, request, _ := fakeClient.ReportArgsForCall(0)
+			Expect(request.Spans).To(HaveLen(1))
+
+			logs := request.Spans[0].Logs
+			Expect(logs).To(HaveLen(1))
+			Expect(logs[0].Fields).To(Equal([]*collectorpb.KeyValue{&collectorpb.KeyValue{
+				Key: "event",
+				Value: &collectorpb.KeyValue_StringValue{
+					StringValue: "test",
+				},
+			}}))
+		})
+
+		It("can happen concurrently with Flush", func() {
+			span := tracer.StartSpan("test")
+			Expect(span).NotTo(BeNil())
+
+			wg := &sync.WaitGroup{}
+			wg.Add(2)
+
+			span.LogFields(log.String("event", "test"))
+			span.Finish()
+
+			go func() {
+				defer wg.Done()
+
+				span.LogFields(log.String("another event", "abc"))
+			}()
+
+			go func() {
+				defer wg.Done()
+
+				tracer.Flush(context.Background())
+			}()
+
+			wg.Wait()
+
+			Expect(fakeClient.ReportCallCount()).To(Equal(1))
+		})
+	})
+
+	Describe("#SetTag", func() {
+		BeforeEach(func() {
+			opts.AccessToken = accessToken
+			opts.ConnFactory = fakeConn
+		})
+
+		It("applies the tag to the span", func() {
+			span := tracer.StartSpan("test")
+			Expect(span).NotTo(BeNil())
+
+			span.SetTag("a", "bc")
+			span.Finish()
+			tracer.Flush(context.Background())
+
+			Expect(fakeClient.ReportCallCount()).To(Equal(1))
+
+			_, request, _ := fakeClient.ReportArgsForCall(0)
+			Expect(request.Spans).To(HaveLen(1))
+
+			tags := request.Spans[0].Tags
+			Expect(tags).To(HaveLen(1))
+			Expect(tags[0]).To(Equal(&collectorpb.KeyValue{
+				Key: "a",
+				Value: &collectorpb.KeyValue_StringValue{
+					StringValue: "bc",
+				},
+			}))
+		})
+
+		It("can happen concurrently with Flush", func() {
+			span := tracer.StartSpan("test")
+			Expect(span).NotTo(BeNil())
+
+			wg := &sync.WaitGroup{}
+			wg.Add(2)
+
+			span.SetTag("abc", 123)
+			span.Finish()
+
+			go func() {
+				defer wg.Done()
+
+				span.SetTag("a", "bc")
+			}()
+
+			go func() {
+				defer wg.Done()
+
+				tracer.Flush(context.Background())
+			}()
+
+			wg.Wait()
+
+			Expect(fakeClient.ReportCallCount()).To(Equal(1))
 		})
 	})
 
