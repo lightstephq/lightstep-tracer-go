@@ -55,7 +55,9 @@ var _ = Describe("TracerImpl", func() {
 					return reportRequest{}, errors.New("translate failed")
 				}
 
+				tracer.lock.Lock()
 				tracer.client = fakeClient
+				tracer.lock.Unlock()
 			})
 			It("should emit an EventFlushError", func(done Done) {
 				tracer.Flush(context.Background())
