@@ -208,6 +208,28 @@ var _ = Describe("Tracer Transports", func() {
 				})
 			})
 
+			Describe("TextMap Carriers", func() {
+				var knownContext1 = SpanContext{
+					SpanID:  6397081719746291766,
+					TraceID: 506100417967962170,
+					Baggage: map[string]string{"checked": "baggage"},
+				}
+
+				It("should extract SpanContext from carrier", func() {
+					textmap := opentracing.TextMapCarrier{}
+					err := tracer.Inject(knownContext1, opentracing.TextMap, textmap)
+					Expect(err).ToNot(HaveOccurred())
+
+					Expect(textmap["ot-tracer-spanid"]).To(Equal("58c6ffee509f6836"))
+					Expect(textmap["ot-tracer-traceid"]).To(Equal("70607a611a8383a"))
+					Expect(textmap["ot-tracer-sampled"]).To(Equal("true"))
+
+					context, err := tracer.Extract(opentracing.TextMap, textmap)
+					Expect(context).To(BeEquivalentTo(knownContext1))
+					Expect(err).To(BeNil())
+				})
+			})
+
 			Describe("Binary Carriers", func() {
 				const knownCarrier1 = "EigJOjioEaYHBgcRNmifUO7/xlgYASISCgdjaGVja2VkEgdiYWdnYWdl"
 				const knownCarrier2 = "EigJEX+FpwZ/EmYR2gfYQbxCMskYASISCgdjaGVja2VkEgdiYWdnYWdl"
@@ -506,6 +528,71 @@ var _ = Describe("Tracer Transports", func() {
 						Expect(log).To(HaveKeyValues(KeyValue("id", strconv.FormatInt(int64(logCount-len(lastLogs)+i), 10))))
 					}
 				}
+			})
+		})
+		Context("With B3 headers set", func() {
+			var knownCarrier1 opentracing.TextMapCarrier
+
+			var knownContext1 = SpanContext{
+				SpanID:  6397081719746291766,
+				TraceID: 506100417967962170,
+				Baggage: map[string]string{"checked": "baggage"},
+			}
+
+			var knownContext2 = SpanContext{
+				SpanID:  506,
+				TraceID: 18446744073709551615,
+				Baggage: map[string]string{"checked": "baggage"},
+			}
+
+			var knownContext3 = SpanContext{
+				SpanID:  120982392839283799,
+				TraceID: 844674407370955165,
+				Baggage: map[string]string{"checked": "more-baggage"},
+			}
+
+			BeforeEach(func() {
+				options.Propagator = "b3"
+				knownCarrier1 = opentracing.TextMapCarrier{}
+			})
+
+			It("should inject SpanContext into carrier and pad correctly", func() {
+				err := tracer.Inject(knownContext1, opentracing.TextMap, knownCarrier1)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(knownCarrier1["x-b3-spanid"]).To(Equal("58c6ffee509f6836"))
+				Expect(knownCarrier1["x-b3-traceid"]).To(Equal("000000000000000070607a611a8383a"))
+				Expect(knownCarrier1["x-b3-sampled"]).To(Equal("1"))
+				Expect(knownCarrier1["ot-baggage-checked"]).To(Equal("baggage"))
+			})
+
+			It("should extract SpanContext from carrier", func() {
+				knownCarrier1.Set("x-b3-spanid", "1fa")
+				knownCarrier1.Set("x-b3-traceid", "ffffffffffffffff")
+				knownCarrier1.Set("x-b3-sampled", "1")
+				knownCarrier1.Set("ot-baggage-checked", "baggage")
+
+				context, err := tracer.Extract(opentracing.TextMap, knownCarrier1)
+				Expect(err).To(BeNil())
+				Expect(context).To(BeEquivalentTo(knownContext2))
+			})
+
+			It("should drop higher 64 bits of a 128-bit TraceID", func() {
+				knownCarrier1.Set("x-b3-spanid", "1add0d865432457")
+				knownCarrier1.Set("x-b3-traceid", "ffffffffffffffff0bb8e2e5f235999d")
+				knownCarrier1.Set("x-b3-sampled", "1")
+				knownCarrier1.Set("ot-baggage-checked", "more-baggage")
+
+				context, err := tracer.Extract(opentracing.TextMap, knownCarrier1)
+				Expect(err).To(BeNil())
+				Expect(context).To(BeEquivalentTo(knownContext3))
+			})
+
+			It("should drop higher 64 bits of a 128 bit TraceID", func() {
+				knownCarrier1.Set("x-b3-traceid", "fffffffffffffff0bb8e2e5f235999d")
+
+				context, err := tracer.Extract(opentracing.TextMap, knownCarrier1)
+				Expect(err).To(HaveOccurred())
+				Expect(context).To(BeNil())
 			})
 		})
 	}

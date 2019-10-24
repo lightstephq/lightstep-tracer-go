@@ -82,6 +82,11 @@ type tracerImpl struct {
 	// TODO this should use atomic load/store to test disabled
 	// prior to taking the lock, do please.
 	disabled bool
+
+	// Map of propagators used to determine the correct propagator to use
+	// based on the format passed into Inject/Extract. Supports one
+	// propagator for each of the formats: TextMap, HTTPHeaders, Binary
+	propagators map[opentracing.BuiltinFormat]Propagator
 }
 
 // NewTracer creates and starts a new Lightstep Tracer.
@@ -135,6 +140,17 @@ func NewTracer(opts Options) Tracer {
 
 	go impl.reportLoop()
 
+	impl.propagators = map[opentracing.BuiltinFormat]Propagator{
+		opentracing.TextMap:     theLightStepPropagator,
+		opentracing.HTTPHeaders: theLightStepPropagator,
+		opentracing.Binary:      theBinaryPropagator,
+	}
+
+	if opts.Propagator == "b3" {
+		impl.propagators[opentracing.TextMap] = theB3Propagator
+		impl.propagators[opentracing.HTTPHeaders] = theB3Propagator
+	}
+
 	return impl
 }
 
@@ -158,13 +174,12 @@ func (tracer *tracerImpl) Inject(sc opentracing.SpanContext, format interface{},
 			opentracing.Tag{Key: LSMetaEvent_PropagationFormatKey, Value: format}).
 			Finish()
 	}
-	switch format {
-	case opentracing.TextMap, opentracing.HTTPHeaders:
-		return theTextMapPropagator.Inject(sc, carrier)
-	case opentracing.Binary:
-		return theBinaryPropagator.Inject(sc, carrier)
+
+	builtin, ok := format.(opentracing.BuiltinFormat)
+	if !ok {
+		return opentracing.ErrUnsupportedFormat
 	}
-	return opentracing.ErrUnsupportedFormat
+	return tracer.propagators[builtin].Inject(sc, carrier)
 }
 
 func (tracer *tracerImpl) Extract(format interface{}, carrier interface{}) (opentracing.SpanContext, error) {
@@ -174,13 +189,11 @@ func (tracer *tracerImpl) Extract(format interface{}, carrier interface{}) (open
 			opentracing.Tag{Key: LSMetaEvent_PropagationFormatKey, Value: format}).
 			Finish()
 	}
-	switch format {
-	case opentracing.TextMap, opentracing.HTTPHeaders:
-		return theTextMapPropagator.Extract(carrier)
-	case opentracing.Binary:
-		return theBinaryPropagator.Extract(carrier)
+	builtin, ok := format.(opentracing.BuiltinFormat)
+	if !ok {
+		return nil, opentracing.ErrUnsupportedFormat
 	}
-	return nil, opentracing.ErrUnsupportedFormat
+	return tracer.propagators[builtin].Extract(carrier)
 }
 
 func (tracer *tracerImpl) reconnectClient(now time.Time) {

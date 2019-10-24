@@ -170,6 +170,9 @@ type Options struct {
 	UseHttp bool `yaml:"use_http"`
 	UseGRPC bool `yaml:"usegrpc"`
 
+	// Propagator provides support for different types of headers. Supported options: ls, b3
+	Propagator string `yaml:"propagator"`
+
 	// CustomCollector allows customizing the Protobuf transport.
 	// This is an advanced feature that avoids reconnect logic.
 	CustomCollector Collector `yaml:"-" json:"-"`
