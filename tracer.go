@@ -90,11 +90,21 @@ type tracerImpl struct {
 }
 
 // NewTracer creates and starts a new Lightstep Tracer.
+// In case of error, we emit event and return nil.
 func NewTracer(opts Options) Tracer {
-	err := opts.Initialize()
-	if err != nil {
+	tr, err := CreateTracer(opts)
+	if err != nil  {
 		emitEvent(newEventStartError(err))
 		return nil
+	}
+	return tr
+}
+
+// CreateTracer creates and starts a new Lightstep Tracer.
+// It is meant to replace NewTracer which does not propagate the error.
+func CreateTracer(opts Options) (Tracer, error) {
+	if err := opts.Initialize(); err != nil {
+		return nil, fmt.Errorf("init; err: %v", err)
 	}
 
 	attributes := map[string]string{}
@@ -121,16 +131,15 @@ func NewTracer(opts Options) Tracer {
 
 	impl.buffer.setCurrent(now)
 
+	var err error
 	impl.client, err = newCollectorClient(opts)
 	if err != nil {
-		fmt.Println("Failed to create to Collector client!", err)
-		return nil
+		return nil, fmt.Errorf("create collector client; err: %v", err)
 	}
 
 	conn, err := impl.client.ConnectClient()
 	if err != nil {
-		emitEvent(newEventStartError(err))
-		return nil
+		return nil, err
 	}
 	impl.connection = conn
 
@@ -151,7 +160,7 @@ func NewTracer(opts Options) Tracer {
 		impl.propagators[opentracing.HTTPHeaders] = theB3Propagator
 	}
 
-	return impl
+	return impl, nil
 }
 
 func (tracer *tracerImpl) Options() Options {
