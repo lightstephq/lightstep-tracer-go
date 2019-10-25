@@ -12,7 +12,7 @@ jobs:
       - run: git submodule sync
       - run: git submodule update --init
       - run:
-          command: go test -race -v ./...
+          command: go test -timeout 20m -race -v ./...
           no_output_timeout: 20m
 
 workflows:
