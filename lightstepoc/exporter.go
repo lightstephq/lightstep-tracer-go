@@ -27,6 +27,7 @@ type Exporter struct {
 // It returns an error if the underlying tracer could not be created, e.g., due to invalid options
 func NewExporter(opts ...Option) (*Exporter, error) {
 	c := defaultConfig()
+
 	for _, opt := range opts {
 		opt(c)
 	}
@@ -36,6 +37,7 @@ func NewExporter(opts ...Option) (*Exporter, error) {
 		if err := c.tracerOptions.Validate(); err != nil {
 			return nil, err
 		}
+
 		return nil, ErrFailedToCreateExporter
 	}
 
@@ -49,23 +51,13 @@ func NewExporter(opts ...Option) (*Exporter, error) {
 func (e *Exporter) ExportSpan(sd *trace.SpanData) {
 	opts := []opentracing.StartSpanOption{
 		opentracing.StartTime(sd.StartTime),
-	}
-
-	if traceID, ok := conversions.ConvertTraceID(sd.SpanContext.TraceID); ok {
-		opts = append(opts, lightstep.SetTraceID(traceID))
-	}
-
-	if spanID, ok := conversions.ConvertSpanID(sd.SpanContext.SpanID); ok {
-		opts = append(opts, lightstep.SetSpanID(spanID))
-	}
-
-	if parentSpanID, ok := conversions.ConvertSpanID(sd.ParentSpanID); ok {
-		opts = append(opts, lightstep.SetParentSpanID(parentSpanID))
+		lightstep.SetTraceID(conversions.ConvertTraceID(sd.SpanContext.TraceID)),
+		lightstep.SetSpanID(conversions.ConvertSpanID(sd.SpanContext.SpanID)),
+		lightstep.SetParentSpanID(conversions.ConvertSpanID(sd.ParentSpanID)),
 	}
 
 	for _, link := range sd.Links {
-		switch link.Type {
-		case trace.LinkTypeChild:
+		if link.Type == trace.LinkTypeChild {
 			spanContext := conversions.ConvertLinkToSpanContext(link)
 			opts = append(opts, opentracing.ChildOf(spanContext))
 		}
