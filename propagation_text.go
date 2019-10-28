@@ -62,6 +62,7 @@ func (p textMapPropagator) Extract(
 
 	requiredFieldCount := 0
 	var traceID, spanID uint64
+	var sampled string
 	var err error
 	decodedBaggage := map[string]string{}
 	err = carrier.ForeachKey(func(k, v string) error {
@@ -79,6 +80,7 @@ func (p textMapPropagator) Extract(
 			}
 			requiredFieldCount++
 		case p.sampledKey:
+			sampled = v
 			requiredFieldCount++
 		default:
 			lowercaseK := strings.ToLower(k)
@@ -101,6 +103,7 @@ func (p textMapPropagator) Extract(
 	return SpanContext{
 		TraceID: traceID,
 		SpanID:  spanID,
+		Sampled: sampled,
 		Baggage: decodedBaggage,
 	}, nil
 }

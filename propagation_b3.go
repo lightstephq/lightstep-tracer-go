@@ -38,6 +38,10 @@ func (b3Propagator) Inject(
 	if !ok {
 		return opentracing.ErrInvalidSpanContext
 	}
+	sample := "1"
+	if len(sc.Baggage[b3FieldNameSampled]) > 0 {
+		sample = sc.Baggage[b3FieldNameSampled]
+	}
 
 	propagator := textMapPropagator{
 		traceIDKey: b3FieldNameTraceID,
@@ -45,7 +49,7 @@ func (b3Propagator) Inject(
 		spanIDKey:  b3FieldNameSpanID,
 		spanID:     strconv.FormatUint(sc.SpanID, 16),
 		sampledKey: b3FieldNameSampled,
-		sampled:    "1",
+		sampled:    sample,
 	}
 
 	return propagator.Inject(spanContext, opaqueCarrier)

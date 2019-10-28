@@ -212,6 +212,7 @@ var _ = Describe("Tracer Transports", func() {
 				var knownContext1 = SpanContext{
 					SpanID:  6397081719746291766,
 					TraceID: 506100417967962170,
+					Sampled: "true",
 					Baggage: map[string]string{"checked": "baggage"},
 				}
 
@@ -542,12 +543,16 @@ var _ = Describe("Tracer Transports", func() {
 			var knownContext2 = SpanContext{
 				SpanID:  506,
 				TraceID: 18446744073709551615,
-				Baggage: map[string]string{"checked": "baggage"},
+				Sampled: "true",
+				Baggage: map[string]string{
+					"checked": "baggage",
+				},
 			}
 
 			var knownContext3 = SpanContext{
 				SpanID:  120982392839283799,
 				TraceID: 844674407370955165,
+				Sampled: "1",
 				Baggage: map[string]string{"checked": "more-baggage"},
 			}
 
@@ -565,10 +570,10 @@ var _ = Describe("Tracer Transports", func() {
 				Expect(knownCarrier1["ot-baggage-checked"]).To(Equal("baggage"))
 			})
 
-			It("should extract SpanContext from carrier", func() {
+			It("should extract SpanContext from carrier and propagate sampling decision", func() {
 				knownCarrier1.Set("x-b3-spanid", "1fa")
 				knownCarrier1.Set("x-b3-traceid", "ffffffffffffffff")
-				knownCarrier1.Set("x-b3-sampled", "1")
+				knownCarrier1.Set("x-b3-sampled", "true")
 				knownCarrier1.Set("ot-baggage-checked", "baggage")
 
 				context, err := tracer.Extract(opentracing.TextMap, knownCarrier1)
