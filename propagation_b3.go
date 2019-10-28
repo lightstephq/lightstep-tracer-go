@@ -1,6 +1,7 @@
 package lightstep
 
 import (
+	"fmt"
 	"strconv"
 
 	"github.com/opentracing/opentracing-go"
@@ -17,17 +18,24 @@ var theB3Propagator b3Propagator
 
 type b3Propagator struct{}
 
-func b3TraceIDParser(v string) (uint64, error) {
-	// handle 128-bit IDs by dropping higher 64 bits
+func b3TraceIDParser(v string) (uint64, uint64, error) {
+	// handle 128-bit IDs
 	if len(v) == 32 {
-		return strconv.ParseUint(v[16:], 16, 64)
+		traceID, err := strconv.ParseUint(v[:15], 16, 64)
+		var lower uint64
+		if err != nil {
+			return traceID, lower, err
+		}
+		lower, err = strconv.ParseUint(v[16:], 16, 64)
+		return traceID, lower, err
 	}
-	return strconv.ParseUint(v, 16, 64)
+	val, err := strconv.ParseUint(v, 16, 64)
+	return val, 0, err
 }
 
-func padTraceID(id uint64) string {
+func padTraceID(id uint64, lower uint64) string {
 	// pad TraceID to 128 bit
-	return "0000000000000000" + strconv.FormatUint(id, 16)
+	return fmt.Sprintf("%s%016s", strconv.FormatUint(id, 16), strconv.FormatUint(lower, 16))
 }
 
 func (b3Propagator) Inject(
@@ -45,7 +53,7 @@ func (b3Propagator) Inject(
 
 	propagator := textMapPropagator{
 		traceIDKey: b3FieldNameTraceID,
-		traceID:    padTraceID(sc.TraceID),
+		traceID:    padTraceID(sc.TraceID, sc.TraceIDLower),
 		spanIDKey:  b3FieldNameSpanID,
 		spanID:     strconv.FormatUint(sc.SpanID, 16),
 		sampledKey: b3FieldNameSampled,

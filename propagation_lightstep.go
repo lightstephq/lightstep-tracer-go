@@ -17,8 +17,9 @@ var theLightStepPropagator lightstepPropagator
 
 type lightstepPropagator struct{}
 
-func lightstepTraceIDParser(v string) (uint64, error) {
-	return strconv.ParseUint(v, 16, 64)
+func lightstepTraceIDParser(v string) (uint64, uint64, error) {
+	traceID, err := strconv.ParseUint(v, 16, 64)
+	return traceID, 0, err
 }
 
 func (lightstepPropagator) Inject(

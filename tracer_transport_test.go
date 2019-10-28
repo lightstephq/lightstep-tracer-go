@@ -550,10 +550,11 @@ var _ = Describe("Tracer Transports", func() {
 			}
 
 			var knownContext3 = SpanContext{
-				SpanID:  120982392839283799,
-				TraceID: 844674407370955165,
-				Sampled: "1",
-				Baggage: map[string]string{"checked": "more-baggage"},
+				SpanID:       120982392839283799,
+				TraceID:      1152921504606846975,
+				TraceIDLower: 844674407370955165,
+				Sampled:      "1",
+				Baggage:      map[string]string{"checked": "more-baggage"},
 			}
 
 			BeforeEach(func() {
@@ -565,7 +566,7 @@ var _ = Describe("Tracer Transports", func() {
 				err := tracer.Inject(knownContext1, opentracing.TextMap, knownCarrier1)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(knownCarrier1["x-b3-spanid"]).To(Equal("58c6ffee509f6836"))
-				Expect(knownCarrier1["x-b3-traceid"]).To(Equal("000000000000000070607a611a8383a"))
+				Expect(knownCarrier1["x-b3-traceid"]).To(Equal("70607a611a8383a0000000000000000"))
 				Expect(knownCarrier1["x-b3-sampled"]).To(Equal("1"))
 				Expect(knownCarrier1["ot-baggage-checked"]).To(Equal("baggage"))
 			})
@@ -581,7 +582,7 @@ var _ = Describe("Tracer Transports", func() {
 				Expect(context).To(BeEquivalentTo(knownContext2))
 			})
 
-			It("should drop higher 64 bits of a 128-bit TraceID", func() {
+			It("should parse least significant 64 bits of a 128-bit TraceID into TraceIDLower", func() {
 				knownCarrier1.Set("x-b3-spanid", "1add0d865432457")
 				knownCarrier1.Set("x-b3-traceid", "ffffffffffffffff0bb8e2e5f235999d")
 				knownCarrier1.Set("x-b3-sampled", "1")
@@ -592,7 +593,7 @@ var _ = Describe("Tracer Transports", func() {
 				Expect(context).To(BeEquivalentTo(knownContext3))
 			})
 
-			It("should drop higher 64 bits of a 128 bit TraceID", func() {
+			It("should error with an invalid TraceID", func() {
 				knownCarrier1.Set("x-b3-traceid", "fffffffffffffff0bb8e2e5f235999d")
 
 				context, err := tracer.Extract(opentracing.TextMap, knownCarrier1)

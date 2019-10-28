@@ -38,6 +38,9 @@ type SpanContext struct {
 	// A probabilistically unique identifier for a [multi-span] trace.
 	TraceID uint64
 
+	// Least significant bits of TraceID
+	TraceIDLower uint64
+
 	// A probabilistically unique identifier for a span.
 	SpanID uint64
 
@@ -71,5 +74,6 @@ func (c SpanContext) WithBaggageItem(key, val string) SpanContext {
 		newBaggage[key] = val
 	}
 	// Use positional parameters so the compiler will help catch new fields.
-	return SpanContext{c.TraceID, c.SpanID, c.Sampled, newBaggage}
+
+	return SpanContext{c.TraceID, c.TraceIDLower, c.SpanID, c.Sampled, newBaggage}
 }
