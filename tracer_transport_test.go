@@ -593,7 +593,7 @@ var _ = Describe("Tracer Transports", func() {
 				Expect(context).To(BeEquivalentTo(knownContext3))
 			})
 
-			It("should error with an invalid TraceID", func() {
+			It("should error with a 31 character-long Trace ID", func() {
 				knownCarrier1.Set("x-b3-traceid", "fffffffffffffff0bb8e2e5f235999d")
 
 				context, err := tracer.Extract(opentracing.TextMap, knownCarrier1)
