@@ -10,12 +10,12 @@ import (
 )
 
 var (
-	flagAccessToken = flag.String("access_token", "", "Access token to use when reporting spans")
-	flagHost        = flag.String("collector_host", "", "Hostname of the collector to which reports should be sent")
-	flagPort        = flag.Int("collector_port", 0, "Port of the collector to which reports should be sent")
-	flagSecure      = flag.Bool("secure", true, "Whether or not to use TLS")
-	flagTransport   = flag.String("transport", "http", "The transport mechanism to use. Valid values are: http, grpc")
-	flagOperation   = flag.String("operation_name", "test-operation", "The operation to use for the test span")
+	flagAccessToken      = flag.String("access_token", "", "Access token to use when reporting spans")
+	flagHost             = flag.String("collector_host", "", "Hostname of the collector to which reports should be sent")
+	flagPort             = flag.Int("collector_port", 0, "Port of the collector to which reports should be sent")
+	flagSecure           = flag.Bool("secure", true, "Whether or not to use TLS")
+	flagTransport        = flag.String("transport", "http", "The transport mechanism to use. Valid values are: http, grpc")
+	flagOperation        = flag.String("operation_name", "test-operation", "The operation to use for the test span")
 	flagCustomCACertFile = flag.String("custom_ca_cert_file", "", "Path to a custom CA cert file")
 )
 
@@ -44,9 +44,9 @@ func main() {
 		lightstep.Options{
 			AccessToken: *flagAccessToken,
 			Collector: lightstep.Endpoint{
-				Host:      *flagHost,
-				Port:      *flagPort,
-				Plaintext: !*flagSecure,
+				Host:             *flagHost,
+				Port:             *flagPort,
+				Plaintext:        !*flagSecure,
 				CustomCACertFile: *flagCustomCACertFile,
 			},
 			UseHttp: useHTTP,

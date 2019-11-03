@@ -327,6 +327,14 @@ type lightStepStartSpanOption interface {
 	applyLS(*startSpanOptions)
 }
 
+type SetRawSpan RawSpan
+
+func (rs SetRawSpan) Apply(sso *opentracing.StartSpanOptions) {}
+func (rs SetRawSpan) applyLS(sso *startSpanOptions) {
+	r := RawSpan(rs)
+	sso.SetRawSpan = &r
+}
+
 type startSpanOptions struct {
 	Options opentracing.StartSpanOptions
 
@@ -336,6 +344,7 @@ type startSpanOptions struct {
 	SetSpanID       uint64
 	SetParentSpanID uint64
 	SetTraceID      uint64
+	SetRawSpan      *RawSpan
 }
 
 func newStartSpanOptions(sso []opentracing.StartSpanOption) startSpanOptions {

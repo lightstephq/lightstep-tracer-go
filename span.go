@@ -10,7 +10,7 @@ import (
 
 // Implements the `Span` interface. Created via tracerImpl (see
 // `New()`).
-type spanImpl struct {
+type SpanImpl struct {
 	tracer     *tracerImpl
 	sync.Mutex // protects the fields below
 	finished   bool
@@ -19,7 +19,7 @@ type spanImpl struct {
 	numDroppedLogs int
 }
 
-func newSpan(operationName string, tracer *tracerImpl, sso []opentracing.StartSpanOption) *spanImpl {
+func newSpan(operationName string, tracer *tracerImpl, sso []opentracing.StartSpanOption) *SpanImpl {
 	opts := newStartSpanOptions(sso)
 
 	// Start time.
@@ -30,7 +30,7 @@ func newSpan(operationName string, tracer *tracerImpl, sso []opentracing.StartSp
 
 	// Build the new span. This is the only allocation: We'll return this as
 	// an opentracing.Span.
-	sp := &spanImpl{}
+	sp := &SpanImpl{}
 
 	// It's meaningless to provide either SpanID or ParentSpanID
 	// without also providing TraceID, so just test for TraceID.
@@ -38,6 +38,10 @@ func newSpan(operationName string, tracer *tracerImpl, sso []opentracing.StartSp
 		sp.raw.Context.TraceID = opts.SetTraceID
 		sp.raw.Context.SpanID = opts.SetSpanID
 		sp.raw.ParentSpanID = opts.SetParentSpanID
+	}
+
+	if opts.SetRawSpan != nil {
+		sp.raw = *opts.SetRawSpan
 	}
 
 	// Look for a parent in the list of References.
@@ -74,10 +78,12 @@ ReferencesLoop:
 	}
 
 	sp.tracer = tracer
-	sp.raw.Operation = operationName
-	sp.raw.Start = startTime
-	sp.raw.Duration = -1
-	sp.raw.Tags = opts.Options.Tags
+	if opts.SetRawSpan == nil {
+		sp.raw.Operation = operationName
+		sp.raw.Start = startTime
+		sp.raw.Duration = -1
+		sp.raw.Tags = opts.Options.Tags
+	}
 
 	if tracer.opts.MetaEventReportingEnabled && !sp.IsMeta() {
 		opentracing.StartSpan(LSMetaEvent_SpanStartOperation,
@@ -89,7 +95,7 @@ ReferencesLoop:
 	return sp
 }
 
-func (s *spanImpl) SetOperationName(operationName string) opentracing.Span {
+func (s *SpanImpl) SetOperationName(operationName string) opentracing.Span {
 	s.Lock()
 	defer s.Unlock()
 
@@ -101,7 +107,7 @@ func (s *spanImpl) SetOperationName(operationName string) opentracing.Span {
 	return s
 }
 
-func (s *spanImpl) SetTag(key string, value interface{}) opentracing.Span {
+func (s *SpanImpl) SetTag(key string, value interface{}) opentracing.Span {
 	s.Lock()
 	defer s.Unlock()
 
@@ -116,7 +122,7 @@ func (s *spanImpl) SetTag(key string, value interface{}) opentracing.Span {
 	return s
 }
 
-func (s *spanImpl) LogKV(keyValues ...interface{}) {
+func (s *SpanImpl) LogKV(keyValues ...interface{}) {
 	fields, err := log.InterleavedKVToFields(keyValues...)
 	if err != nil {
 		s.LogFields(log.Error(err), log.String("function", "LogKV"))
@@ -125,7 +131,7 @@ func (s *spanImpl) LogKV(keyValues ...interface{}) {
 	s.LogFields(fields...)
 }
 
-func (s *spanImpl) appendLog(lr opentracing.LogRecord) {
+func (s *SpanImpl) appendLog(lr opentracing.LogRecord) {
 	maxLogs := s.tracer.opts.MaxLogsPerSpan
 	if maxLogs == 0 || len(s.raw.Logs) < maxLogs {
 		s.raw.Logs = append(s.raw.Logs, lr)
@@ -140,7 +146,7 @@ func (s *spanImpl) appendLog(lr opentracing.LogRecord) {
 	s.numDroppedLogs++
 }
 
-func (s *spanImpl) LogFields(fields ...log.Field) {
+func (s *SpanImpl) LogFields(fields ...log.Field) {
 	s.Lock()
 	defer s.Unlock()
 
@@ -157,20 +163,20 @@ func (s *spanImpl) LogFields(fields ...log.Field) {
 	s.appendLog(lr)
 }
 
-func (s *spanImpl) LogEvent(event string) {
+func (s *SpanImpl) LogEvent(event string) {
 	s.Log(opentracing.LogData{
 		Event: event,
 	})
 }
 
-func (s *spanImpl) LogEventWithPayload(event string, payload interface{}) {
+func (s *SpanImpl) LogEventWithPayload(event string, payload interface{}) {
 	s.Log(opentracing.LogData{
 		Event:   event,
 		Payload: payload,
 	})
 }
 
-func (s *spanImpl) Log(ld opentracing.LogData) {
+func (s *SpanImpl) Log(ld opentracing.LogData) {
 	s.Lock()
 	defer s.Unlock()
 
@@ -185,7 +191,7 @@ func (s *spanImpl) Log(ld opentracing.LogData) {
 	s.appendLog(ld.ToLogRecord())
 }
 
-func (s *spanImpl) Finish() {
+func (s *SpanImpl) Finish() {
 	s.FinishWithOptions(opentracing.FinishOptions{})
 }
 
@@ -206,7 +212,7 @@ func rotateLogBuffer(buf []opentracing.LogRecord, pos int) {
 	}
 }
 
-func (s *spanImpl) FinishWithOptions(opts opentracing.FinishOptions) {
+func (s *SpanImpl) FinishWithOptions(opts opentracing.FinishOptions) {
 	s.Lock()
 	defer s.Unlock()
 
@@ -263,15 +269,15 @@ func (s *spanImpl) FinishWithOptions(opts opentracing.FinishOptions) {
 	}
 }
 
-func (s *spanImpl) Tracer() opentracing.Tracer {
+func (s *SpanImpl) Tracer() opentracing.Tracer {
 	return s.tracer
 }
 
-func (s *spanImpl) Context() opentracing.SpanContext {
+func (s *SpanImpl) Context() opentracing.SpanContext {
 	return s.raw.Context
 }
 
-func (s *spanImpl) SetBaggageItem(key, val string) opentracing.Span {
+func (s *SpanImpl) SetBaggageItem(key, val string) opentracing.Span {
 	s.Lock()
 	defer s.Unlock()
 
@@ -283,20 +289,24 @@ func (s *spanImpl) SetBaggageItem(key, val string) opentracing.Span {
 	return s
 }
 
-func (s *spanImpl) BaggageItem(key string) string {
+func (s *SpanImpl) BaggageItem(key string) string {
 	s.Lock()
 	defer s.Unlock()
 	return s.raw.Context.Baggage[key]
 }
 
-func (s *spanImpl) Operation() string {
+func (s *SpanImpl) Operation() string {
 	return s.raw.Operation
 }
 
-func (s *spanImpl) Start() time.Time {
+func (s *SpanImpl) Start() time.Time {
 	return s.raw.Start
 }
 
-func (s *spanImpl) IsMeta() bool {
+func (s *SpanImpl) IsMeta() bool {
 	return s.raw.Tags["lightstep.meta_event"] != nil
+}
+
+func (s *SpanImpl) Raw() RawSpan {
+	return s.raw
 }
