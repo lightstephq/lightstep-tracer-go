@@ -8,6 +8,10 @@ import (
 	"github.com/opentracing/opentracing-go/log"
 )
 
+const (
+	selfRefType opentracing.SpanReferenceType = 99
+)
+
 // Implements the `Span` interface. Created via tracerImpl (see
 // `New()`).
 type spanImpl struct {
@@ -61,6 +65,13 @@ ReferencesLoop:
 					sp.raw.Context.Baggage[k] = v
 				}
 			}
+			break ReferencesLoop
+		case selfRefType:
+			refCtx, ok := ref.ReferencedContext.(SpanContext)
+			if !ok {
+				break ReferencesLoop
+			}
+			sp.raw.Context = refCtx
 			break ReferencesLoop
 		}
 	}
@@ -299,4 +310,15 @@ func (s *spanImpl) Start() time.Time {
 
 func (s *spanImpl) IsMeta() bool {
 	return s.raw.Tags["lightstep.meta_event"] != nil
+}
+
+func (s *spanImpl) Tags() opentracing.Tags {
+	return s.raw.Tags
+}
+
+func SelfRef(ctx SpanContext) opentracing.SpanReference {
+	return opentracing.SpanReference{
+		Type:              selfRefType,
+		ReferencedContext: ctx,
+	}
 }

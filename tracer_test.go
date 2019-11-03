@@ -115,6 +115,17 @@ var _ = Describe("Tracer", func() {
 				})
 			}).To(Not(Panic()))
 		})
+
+		It("can start a span with references to an external SpanContext", func() {
+			otherSpan := tracer.StartSpan("span_1")
+
+			span := tracer.StartSpan(
+				"test",
+				SelfRef(otherSpan.Context().(SpanContext)),
+			)
+
+			Expect(span.Context()).To(Equal(otherSpan.Context()))
+		})
 	})
 
 	Describe("#Log", func() {

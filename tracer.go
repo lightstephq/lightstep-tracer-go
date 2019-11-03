@@ -93,7 +93,7 @@ type tracerImpl struct {
 // In case of error, we emit event and return nil.
 func NewTracer(opts Options) Tracer {
 	tr, err := CreateTracer(opts)
-	if err != nil  {
+	if err != nil {
 		emitEvent(newEventStartError(err))
 		return nil
 	}
