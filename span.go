@@ -316,7 +316,7 @@ func (s *spanImpl) Tags() opentracing.Tags {
 	return s.raw.Tags
 }
 
-func SelfRef(ctx SpanContext) opentracing.SpanReference {
+func SelfRef(ctx opentracing.SpanContext) opentracing.SpanReference {
 	return opentracing.SpanReference{
 		Type:              selfRefType,
 		ReferencedContext: ctx,

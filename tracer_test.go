@@ -121,7 +121,7 @@ var _ = Describe("Tracer", func() {
 
 			span := tracer.StartSpan(
 				"test",
-				SelfRef(otherSpan.Context().(SpanContext)),
+				SelfRef(otherSpan.Context()),
 			)
 
 			Expect(span.Context()).To(Equal(otherSpan.Context()))
