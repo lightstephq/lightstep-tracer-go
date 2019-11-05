@@ -21,21 +21,24 @@ type b3Propagator struct{}
 func b3TraceIDParser(v string) (uint64, uint64, error) {
 	// handle 128-bit IDs
 	if len(v) == 32 {
-		traceID, err := strconv.ParseUint(v[:15], 16, 64)
+		upper, err := strconv.ParseUint(v[:15], 16, 64)
 		var lower uint64
 		if err != nil {
-			return traceID, lower, err
+			return lower, upper, err
 		}
 		lower, err = strconv.ParseUint(v[16:], 16, 64)
-		return traceID, lower, err
+		return lower, upper, err
 	}
-	val, err := strconv.ParseUint(v, 16, 64)
-	return val, 0, err
+	id, err := strconv.ParseUint(v, 16, 64)
+	return id, 0, err
 }
 
-func padTraceID(id uint64, lower uint64) string {
-	// pad TraceID to 128 bit
-	return fmt.Sprintf("%s%016s", strconv.FormatUint(id, 16), strconv.FormatUint(lower, 16))
+func formatTraceID(lower uint64, upper uint64) string {
+	// check if 64bit
+	if upper == 0 {
+		return fmt.Sprintf("%s", strconv.FormatUint(lower, 16))
+	}
+	return fmt.Sprintf("%s%s", strconv.FormatUint(upper, 16), strconv.FormatUint(lower, 16))
 }
 
 func (b3Propagator) Inject(
@@ -53,7 +56,7 @@ func (b3Propagator) Inject(
 
 	propagator := textMapPropagator{
 		traceIDKey: b3FieldNameTraceID,
-		traceID:    padTraceID(sc.TraceID, sc.TraceIDLower),
+		traceID:    formatTraceID(sc.TraceID, sc.TraceIDUpper),
 		spanIDKey:  b3FieldNameSpanID,
 		spanID:     strconv.FormatUint(sc.SpanID, 16),
 		sampledKey: b3FieldNameSampled,

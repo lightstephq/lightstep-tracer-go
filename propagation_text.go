@@ -61,14 +61,14 @@ func (p textMapPropagator) Extract(
 	}
 
 	requiredFieldCount := 0
-	var traceID, traceIDLower, spanID uint64
+	var traceIDUpper, traceIDLower, spanID uint64
 	var sampled string
 	var err error
 	decodedBaggage := map[string]string{}
 	err = carrier.ForeachKey(func(k, v string) error {
 		switch strings.ToLower(k) {
 		case p.traceIDKey:
-			traceID, traceIDLower, err = p.parseTraceID(v)
+			traceIDLower, traceIDUpper, err = p.parseTraceID(v)
 			if err != nil {
 				return opentracing.ErrSpanContextCorrupted
 			}
@@ -101,8 +101,8 @@ func (p textMapPropagator) Extract(
 	}
 
 	return SpanContext{
-		TraceID:      traceID,
-		TraceIDLower: traceIDLower,
+		TraceIDUpper: traceIDUpper,
+		TraceID:      traceIDLower,
 		SpanID:       spanID,
 		Sampled:      sampled,
 		Baggage:      decodedBaggage,
