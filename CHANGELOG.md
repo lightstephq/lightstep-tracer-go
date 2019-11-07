@@ -1,6 +1,11 @@
 # Changelog
 
-## [Pending Release](https://github.com/lightstep/lightstep-tracer-go/compare/v0.16.0...HEAD)
+## [Pending Release](https://github.com/lightstep/lightstep-tracer-go/compare/v0.18.0...HEAD)
+
+## [v0.18.0](https://github.com/lightstep/lightstep-tracer-go/compare/v0.17.1...v0.18.0)
+* Adding support for B3 headers [#224](https://github.com/lightstep/lightstep-tracer-go/issues/224)
+* Fix OpenCensus to LighStep ID conversion
+* Added new constructor `CreateTracer` to propagate errors [#226](https://github.com/lightstep/lightstep-tracer-go/issues/226)
 
 ## [v0.17.1](https://github.com/lightstep/lightstep-tracer-go/compare/v0.17.0...v0.17.1)
 * Fixes [#219](https://github.com/lightstep/lightstep-tracer-go/issues/219) so that there is no longer a data race when reading and writing from spans
