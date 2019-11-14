@@ -558,7 +558,10 @@ var _ = Describe("Tracer Transports", func() {
 			}
 
 			BeforeEach(func() {
-				options.Propagator = "b3"
+				options.Propagators = map[opentracing.BuiltinFormat]Propagator{
+					opentracing.HTTPHeaders: B3Propagator,
+					opentracing.TextMap:     B3Propagator,
+				}
 				knownCarrier1 = opentracing.TextMapCarrier{}
 			})
 

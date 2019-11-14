@@ -14,7 +14,8 @@ const (
 	b3FieldNameSampled = b3Prefix + "sampled"
 )
 
-var theB3Propagator b3Propagator
+// B3Propagator propagates context in the b3 format
+var B3Propagator b3Propagator
 
 type b3Propagator struct{}
 

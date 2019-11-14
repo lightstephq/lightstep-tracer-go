@@ -170,8 +170,13 @@ type Options struct {
 	UseHttp bool `yaml:"use_http"`
 	UseGRPC bool `yaml:"usegrpc"`
 
-	// Propagator provides support for different types of headers. Supported options: ls, b3
-	Propagator string `yaml:"propagator"`
+	// Propagators allow inject/extract to use custom propagators for different formats. This
+	// package includes a `B3Propagator` that supports B3 headers on text maps and http headers.
+	// Defaults:
+	//   opentracing.HTTPHeaders: LightStepPropagator
+	//   opentracing.TextMap: LightStepPropagator,
+	//   opentracing.Binary: LightStepPropagator
+	Propagators map[opentracing.BuiltinFormat]Propagator `yaml:"-"`
 
 	// CustomCollector allows customizing the Protobuf transport.
 	// This is an advanced feature that avoids reconnect logic.
