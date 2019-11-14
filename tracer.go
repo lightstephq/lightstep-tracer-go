@@ -154,10 +154,8 @@ func CreateTracer(opts Options) (Tracer, error) {
 		opentracing.HTTPHeaders: theLightStepPropagator,
 		opentracing.Binary:      theBinaryPropagator,
 	}
-	if len(opts.Propagators) > 0 {
-		for builtin, propagator := range opts.Propagators {
-			impl.propagators[builtin] = propagator
-		}
+	for builtin, propagator := range opts.Propagators {
+		impl.propagators[builtin] = propagator
 	}
 
 	return impl, nil
