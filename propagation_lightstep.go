@@ -13,7 +13,8 @@ const (
 	fieldNameSampled  = prefixTracerState + "sampled"
 )
 
-var theLightStepPropagator lightstepPropagator
+// LightStepPropagator propagates context in the LightStep format
+var LightStepPropagator lightstepPropagator
 
 type lightstepPropagator struct{}
 

@@ -13,7 +13,8 @@ import (
 // BinaryCarrier is used as the format parameter in inject/extract for lighstep binary propagation.
 const BinaryCarrier = opentracing.Binary
 
-var theBinaryPropagator binaryPropagator
+// BinaryPropagator propagates context in binary format
+var BinaryPropagator binaryPropagator
 
 type binaryPropagator struct{}
 

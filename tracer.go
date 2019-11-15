@@ -150,9 +150,9 @@ func CreateTracer(opts Options) (Tracer, error) {
 	go impl.reportLoop()
 
 	impl.propagators = map[opentracing.BuiltinFormat]Propagator{
-		opentracing.TextMap:     theLightStepPropagator,
-		opentracing.HTTPHeaders: theLightStepPropagator,
-		opentracing.Binary:      theBinaryPropagator,
+		opentracing.TextMap:     LightStepPropagator,
+		opentracing.HTTPHeaders: LightStepPropagator,
+		opentracing.Binary:      BinaryPropagator,
 	}
 	for builtin, propagator := range opts.Propagators {
 		impl.propagators[builtin] = propagator
