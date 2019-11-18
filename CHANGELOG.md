@@ -1,6 +1,9 @@
 # Changelog
 
-## [Pending Release](https://github.com/lightstep/lightstep-tracer-go/compare/v0.18.0...HEAD)
+## [Pending Release](https://github.com/lightstep/lightstep-tracer-go/compare/v0.18.1...HEAD)
+
+## [v0.18.1](https://github.com/lightstep/lightstep-tracer-go/compare/v0.18.0...v0.18.1)
+* Adding support for configuring custom propagators
 
 ## [v0.18.0](https://github.com/lightstep/lightstep-tracer-go/compare/v0.17.1...v0.18.0)
 * Adding support for B3 headers [#224](https://github.com/lightstep/lightstep-tracer-go/issues/224)
