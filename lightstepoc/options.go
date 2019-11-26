@@ -60,6 +60,15 @@ func WithComponentName(componentName string) Option {
 	}
 }
 
+// WithDefaultTags sets tags that will be appended to every span that is exported to the trace.
+func WithDefaultTags(tags opentracing.Tags) Option {
+	return func(c *config) {
+		for key, value := range tags {
+			c.tracerOptions.Tags[key] = value
+		}
+	}
+}
+
 type config struct {
 	tracerOptions lightstep.Options
 }
