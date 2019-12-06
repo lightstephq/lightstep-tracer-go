@@ -341,6 +341,7 @@ var _ = Describe("Tracer", func() {
 				dropSpanErr, ok := err.(EventStatusReport)
 				Expect(ok).To(BeTrue())
 
+				Expect(dropSpanErr.FlushDuration()).To(BeNumerically(">", 0))
 				Expect(dropSpanErr.DroppedSpans()).To(Equal(ExpectedDroppedSpans))
 				close(done)
 			})

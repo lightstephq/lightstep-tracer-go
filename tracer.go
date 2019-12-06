@@ -268,6 +268,8 @@ func (tracer *tracerImpl) Flush(ctx context.Context) {
 	tracer.flushingLock.Lock()
 	defer tracer.flushingLock.Unlock()
 
+	flushStart := time.Now()
+
 	if errorEvent := tracer.preFlush(); errorEvent != nil {
 		emitEvent(errorEvent)
 		return
@@ -295,7 +297,7 @@ func (tracer *tracerImpl) Flush(ctx context.Context) {
 		errorEvent := newEventFlushError(err, FlushErrorTranslate)
 		emitEvent(errorEvent)
 		// call postflush to prevent the tracer from going into an invalid state.
-		emitEvent(tracer.postFlush(errorEvent))
+		emitEvent(tracer.postFlush(flushStart, errorEvent))
 		return
 	}
 
@@ -310,7 +312,7 @@ func (tracer *tracerImpl) Flush(ctx context.Context) {
 	if reportErrorEvent != nil {
 		emitEvent(reportErrorEvent)
 	}
-	emitEvent(tracer.postFlush(reportErrorEvent))
+	emitEvent(tracer.postFlush(flushStart, reportErrorEvent))
 
 	if err == nil && resp.DevMode() {
 		tracer.metaEventReportingEnabled = true
@@ -348,7 +350,7 @@ func (tracer *tracerImpl) preFlush() *eventFlushError {
 }
 
 // postFlush handles lock-protected data manipulation after flushing
-func (tracer *tracerImpl) postFlush(flushEventError *eventFlushError) *eventStatusReport {
+func (tracer *tracerImpl) postFlush(flushStart time.Time, flushEventError *eventFlushError) *eventStatusReport {
 	tracer.lock.Lock()
 	defer tracer.lock.Unlock()
 
@@ -360,6 +362,7 @@ func (tracer *tracerImpl) postFlush(flushEventError *eventFlushError) *eventStat
 		len(tracer.flushing.rawSpans),
 		int(tracer.flushing.droppedSpanCount+tracer.buffer.droppedSpanCount),
 		int(tracer.flushing.logEncoderErrorCount+tracer.buffer.logEncoderErrorCount),
+		time.Now().Sub(flushStart),
 	)
 
 	if flushEventError == nil {

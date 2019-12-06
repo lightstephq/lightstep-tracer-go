@@ -153,6 +153,7 @@ type EventStatusReport interface {
 	SentSpans() int
 	DroppedSpans() int
 	EncodingErrors() int
+	FlushDuration() time.Duration
 }
 
 type eventStatusReport struct {
@@ -161,11 +162,13 @@ type eventStatusReport struct {
 	sentSpans      int
 	droppedSpans   int
 	encodingErrors int
+	flushDuration  time.Duration
 }
 
 func newEventStatusReport(
 	startTime, finishTime time.Time,
 	sentSpans, droppedSpans, encodingErrors int,
+	flushDuration time.Duration,
 ) *eventStatusReport {
 	return &eventStatusReport{
 		startTime:      startTime,
@@ -173,6 +176,7 @@ func newEventStatusReport(
 		sentSpans:      sentSpans,
 		droppedSpans:   droppedSpans,
 		encodingErrors: encodingErrors,
+		flushDuration:  flushDuration,
 	}
 }
 
@@ -194,6 +198,10 @@ func (s *eventStatusReport) FinishTime() time.Time {
 
 func (s *eventStatusReport) Duration() time.Duration {
 	return s.finishTime.Sub(s.startTime)
+}
+
+func (s *eventStatusReport) FlushDuration() time.Duration {
+	return s.flushDuration
 }
 
 func (s *eventStatusReport) SentSpans() int {
