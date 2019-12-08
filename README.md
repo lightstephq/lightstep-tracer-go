@@ -71,7 +71,7 @@ func shutdown(ctx context.Context) {
 ```
 
 ## Event Handling: Observing the LightStep tracer
-In order to connect diagnostic information from the lightstep tracer into an application's logging and metrics systems, inject an event handler using the `OnEvent` static method. Events may be typecast to check for errors or specific events such as status reports.
+In order to connect diagnostic information from the lightstep tracer into an application's logging and metrics systems, inject an event handler using the `SetGlobalEventHandler` static method. Events may be typecast to check for errors or specific events such as status reports.
 
 ```go
 import (
