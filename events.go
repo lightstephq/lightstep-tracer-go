@@ -147,12 +147,29 @@ func (e *eventConnectionError) Err() error {
 type EventStatusReport interface {
 	Event
 	EventStatusReport()
+
+	// StartTime is the earliest time a span was added to the report buffer.
 	StartTime() time.Time
+
+	// FinishTime is the latest time a span was added to the report buffer.
 	FinishTime() time.Time
+
+	// Duration is time between StartTime and FinishTime.
 	Duration() time.Duration
+
+	// SentSpans is the number of spans sent in the report buffer.
 	SentSpans() int
+
+	// DroppedSpans is the number of spans dropped that did not make it into
+	// the report buffer.
 	DroppedSpans() int
+
+	// EncodingErrors is the number of encoding errors that occurred while
+	// building the report buffer.
 	EncodingErrors() int
+
+	// FlushDuration is the time it took to send the report, including encoding,
+	// buffer rotation, and network time.
 	FlushDuration() time.Duration
 }
 
