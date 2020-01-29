@@ -72,6 +72,15 @@ func WithDefaultAttributes(attrs Attributes) Option {
 	}
 }
 
+// WithMaxBufferedSpans sets the maximum number of spans that will be buffered
+// before sending them to a collector.
+// Should be used to override the `DefaultMaxSpan` value of 1000.
+func WithMaxBufferedSpans(value int) Option {
+	return func(c *config) {
+		c.tracerOptions.MaxBufferedSpans = value
+	}
+}
+
 type config struct {
 	tracerOptions lightstep.Options
 }
