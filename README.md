@@ -117,3 +117,11 @@ There are two options for transport protocols:
 - [Protocol Buffers](https://developers.google.com/protocol-buffers/) over [GRPC](https://grpc.io/) - This is a more advanced solution that might be desirable if you already have gRPC networking configured.
 
 You can configure which transport protocol the tracer uses using the `UseGRPC` and `UseHttp` flags in the options.
+
+## Release
+
+To make a release, do these steps
+1. Run `make ver=X.Y.Z version`
+1. Update CHANGELOG.md
+1. Merge changes
+1. Run `make release_tag`
