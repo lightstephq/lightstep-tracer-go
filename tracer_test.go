@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/lightstep/lightstep-tracer-common/golang/gogo/collectorpb"
 	"github.com/lightstep/lightstep-tracer-common/golang/gogo/collectorpb/collectorpbfakes"
 	. "github.com/lightstep/lightstep-tracer-go"
+	"github.com/lightstep/lightstep-tracer-go/constants"
 	"github.com/lightstep/lightstep-tracer-go/lightstepfakes"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -24,7 +26,7 @@ var _ = Describe("Tracer", func() {
 	var opts Options
 
 	const accessToken = "ACCESS_TOKEN"
-
+	var tags = opentracing.Tags{constants.ComponentNameKey: "test-service"}
 	var fakeClient *collectorpbfakes.FakeCollectorServiceClient
 	var fakeConn ConnectorFactory
 
@@ -55,9 +57,27 @@ var _ = Describe("Tracer", func() {
 		closeTestTracer(tracer)
 	})
 
+	Describe("New Tracer", func() {
+		BeforeEach(func() {
+			opts.AccessToken = accessToken
+			opts.ConnFactory = fakeConn
+		})
+		It("should emit a warning when the service name is unset", func() {
+			event := <-eventChan
+			ems, ok := event.(EventMissingService)
+			Expect(ok).To(BeTrue())
+
+			str := ems.String()
+			// String should contain the default service name which is the name of this test
+			ok = strings.Contains(str, "{lightstep-tracer-go.test}")
+			Expect(ok).To(BeTrue())
+		})
+	})
+
 	Describe("Start Span", func() {
 		BeforeEach(func() {
 			opts.AccessToken = accessToken
+			opts.Tags = tags
 			opts.ConnFactory = fakeConn
 		})
 
@@ -121,6 +141,7 @@ var _ = Describe("Tracer", func() {
 	Describe("#Log", func() {
 		BeforeEach(func() {
 			opts.AccessToken = accessToken
+			opts.Tags = tags
 			opts.ConnFactory = fakeConn
 		})
 
@@ -197,6 +218,7 @@ var _ = Describe("Tracer", func() {
 	Describe("#LogFields", func() {
 		BeforeEach(func() {
 			opts.AccessToken = accessToken
+			opts.Tags = tags
 			opts.ConnFactory = fakeConn
 		})
 
@@ -254,6 +276,7 @@ var _ = Describe("Tracer", func() {
 	Describe("#SetTag", func() {
 		BeforeEach(func() {
 			opts.AccessToken = accessToken
+			opts.Tags = tags
 			opts.ConnFactory = fakeConn
 		})
 
@@ -311,6 +334,7 @@ var _ = Describe("Tracer", func() {
 	Describe("Access Token", func() {
 		BeforeEach(func() {
 			opts.AccessToken = accessToken
+			opts.Tags = tags
 			opts.ConnFactory = fakeConn
 		})
 
@@ -322,6 +346,7 @@ var _ = Describe("Tracer", func() {
 	Describe("Flush", func() {
 		BeforeEach(func() {
 			opts.AccessToken = accessToken
+			opts.Tags = tags
 			opts.ConnFactory = fakeConn
 		})
 
@@ -490,6 +515,7 @@ var _ = Describe("Tracer", func() {
 	Describe("Close", func() {
 		BeforeEach(func() {
 			opts.AccessToken = accessToken
+			opts.Tags = tags
 			opts.ConnFactory = fakeConn
 			opts.MinReportingPeriod = 100 * time.Second
 		})
@@ -507,6 +533,7 @@ var _ = Describe("Tracer", func() {
 	Describe("valid SpanRecorder", func() {
 		BeforeEach(func() {
 			opts.AccessToken = accessToken
+			opts.Tags = tags
 			opts.ConnFactory = fakeConn
 			opts.Recorder = fakeRecorder
 		})
@@ -520,6 +547,7 @@ var _ = Describe("Tracer", func() {
 	Describe("nil SpanRecorder", func() {
 		BeforeEach(func() {
 			opts.AccessToken = accessToken
+			opts.Tags = tags
 			opts.ConnFactory = fakeConn
 			opts.Recorder = nil
 		})
@@ -533,6 +561,7 @@ var _ = Describe("Tracer", func() {
 	Describe("provides its ReporterID", func() {
 		BeforeEach(func() {
 			opts.AccessToken = accessToken
+			opts.Tags = tags
 			opts.ConnFactory = fakeConn
 			opts.Recorder = nil
 		})

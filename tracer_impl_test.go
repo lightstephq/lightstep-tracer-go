@@ -7,6 +7,8 @@ import (
 
 	"github.com/lightstep/lightstep-tracer-common/golang/gogo/collectorpb"
 	"github.com/lightstep/lightstep-tracer-common/golang/gogo/collectorpb/collectorpbfakes"
+	"github.com/lightstep/lightstep-tracer-go/constants"
+	"github.com/opentracing/opentracing-go"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
@@ -16,7 +18,7 @@ var _ = Describe("TracerImpl", func() {
 	var opts Options
 
 	const accessToken = "ACCESS_TOKEN"
-
+	var tags = opentracing.Tags{constants.ComponentNameKey: "test-service"}
 	var fakeClient *collectorpbfakes.FakeCollectorServiceClient
 	var fakeConn ConnectorFactory
 
@@ -34,6 +36,7 @@ var _ = Describe("TracerImpl", func() {
 
 		opts = Options{
 			AccessToken: accessToken,
+			Tags: tags,
 			ConnFactory: fakeConn,
 		}
 	})

@@ -438,3 +438,28 @@ func (e *eventSystemMetricsStatusReport) FinishTime() time.Time {
 func (e *eventSystemMetricsStatusReport) SentMetrics() int {
 	return e.sentMetrics
 }
+
+// A EventMissingService occurs when a tracer is initialized without a service name
+type EventMissingService interface {
+	Event
+	EventMissingService()
+}
+
+type eventMissingService struct {
+	defaultService string
+}
+
+func newEventMissingService(defaultService string) *eventMissingService {
+	return &eventMissingService{defaultService:defaultService}
+}
+
+func (e *eventMissingService) Event() {}
+
+func (e *eventMissingService) EventMissingService() {}
+
+func (e *eventMissingService) String() string {
+	return fmt.Sprint(
+		"Warning: Service name not specified in initialization of Lightstep tracer.",
+		"Using default service {", e.defaultService, "} instead.",
+	)
+}

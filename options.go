@@ -258,7 +258,11 @@ func (opts *Options) Initialize() error {
 
 	// Set some default attributes if not found in options
 	if _, found := opts.Tags[constants.ComponentNameKey]; !found {
-		opts.Tags[constants.ComponentNameKey] = path.Base(os.Args[0])
+		// If not found, use the first command line argument as the default service name
+		defaultService := path.Base(os.Args[0])
+
+		emitEvent(newEventMissingService(defaultService))
+		opts.Tags[constants.ComponentNameKey] = defaultService
 	}
 	if _, found := opts.Tags[constants.HostnameKey]; !found {
 		hostname, _ := os.Hostname()
