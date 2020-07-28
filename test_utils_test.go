@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+    "strconv"
 
 	"github.com/lightstep/lightstep-tracer-common/golang/gogo/collectorpb"
 	cpbfakes "github.com/lightstep/lightstep-tracer-common/golang/gogo/collectorpb/collectorpbfakes"
@@ -24,7 +25,7 @@ func closeTestTracer(tracer opentracing.Tracer) {
 
 func startNSpans(n int, tracer opentracing.Tracer) {
 	for i := 0; i < n; i++ {
-		tracer.StartSpan(string(i)).Finish()
+		tracer.StartSpan(strconv.Itoa(i)).Finish()
 	}
 }
 
