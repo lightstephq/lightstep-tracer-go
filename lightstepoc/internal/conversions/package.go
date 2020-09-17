@@ -8,7 +8,7 @@ import (
 )
 
 func ConvertTraceID(original trace.TraceID) uint64 {
-	return binary.BigEndian.Uint64(original[:8])
+	return binary.BigEndian.Uint64(original[8:])
 }
 
 func ConvertSpanID(original trace.SpanID) uint64 {

@@ -25,7 +25,7 @@ var _ = Describe("#ConvertTraceID", func() {
 			binary.BigEndian.PutUint64(traceID[0:8], a)
 			binary.BigEndian.PutUint64(traceID[8:], b)
 
-			Expect(ConvertTraceID(traceID)).To(Equal(a))
+			Expect(ConvertTraceID(traceID)).To(Equal(b))
 
 			return true
 		}, nil)
