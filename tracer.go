@@ -286,7 +286,7 @@ func (tracer *tracerImpl) RecordSpan(raw RawSpan) {
 	tracer.lock.Lock()
 
 	// Early-out for disabled runtimes
-	if tracer.disabled {
+	if tracer.disabled || raw.Context.Sampled == "false" {
 		tracer.lock.Unlock()
 		return
 	}

@@ -348,6 +348,31 @@ var _ = Describe("Tracer", func() {
 			opts.AccessToken = accessToken
 			opts.Tags = tags
 			opts.ConnFactory = fakeConn
+			opts.Recorder = fakeRecorder
+		})
+
+		Context("when the span context is not sampled", func() {
+			It("the span should not be recorded", func() {
+				span := tracer.StartSpan("parent", SetTraceID(1), SetSampled("false"))
+				span.Finish()
+				Expect(fakeRecorder.RecordSpanCallCount()).To(Equal(0))
+			})
+		})
+
+		Context("when the parent span carries the Sampled flag", func() {
+			It("should propagate flags from parent to child", func() {
+				opentracing.SetGlobalTracer(tracer)
+
+				opentracing_parent_span := tracer.StartSpan("parent", SetTraceID(1), SetSampled("false"))
+				opentracing_parent_context := opentracing.ContextWithSpan(context.Background(), opentracing_parent_span)
+				opentracing_child_span, _ := opentracing.StartSpanFromContext(opentracing_parent_context, "child")
+
+				lightstep_child_spancontext, _ := opentracing_child_span.Context().(SpanContext)
+
+				Expect(lightstep_child_spancontext.Sampled).To(Equal("false"))
+				opentracing_child_span.Finish()
+				opentracing_parent_span.Finish()
+			})
 		})
 
 		Context("when the tracer is dropping spans", func() {

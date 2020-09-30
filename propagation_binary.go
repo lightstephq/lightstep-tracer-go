@@ -30,7 +30,7 @@ func (binaryPropagator) Inject(
 		BasicCtx: &lightstep.BasicTracerCarrier{
 			TraceId:      sc.TraceID,
 			SpanId:       sc.SpanID,
-			Sampled:      true,
+			Sampled:      sc.Sampled == "true" || sc.Sampled == "1",
 			BaggageItems: sc.Baggage,
 		},
 	})

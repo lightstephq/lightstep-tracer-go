@@ -4,3 +4,4 @@
 *.iml
 
 vendor/
+lightstep-tracer-go.test

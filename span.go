@@ -38,6 +38,7 @@ func newSpan(operationName string, tracer *tracerImpl, sso []opentracing.StartSp
 		sp.raw.Context.TraceID = opts.SetTraceID
 		sp.raw.Context.SpanID = opts.SetSpanID
 		sp.raw.ParentSpanID = opts.SetParentSpanID
+		sp.raw.Context.Sampled = opts.SetSampled
 	}
 
 	// Look for a parent in the list of References.
@@ -54,6 +55,7 @@ ReferencesLoop:
 			}
 			sp.raw.Context.TraceID = refCtx.TraceID
 			sp.raw.ParentSpanID = refCtx.SpanID
+			sp.raw.Context.Sampled = refCtx.Sampled
 
 			if l := len(refCtx.Baggage); l > 0 {
 				sp.raw.Context.Baggage = make(map[string]string, l)

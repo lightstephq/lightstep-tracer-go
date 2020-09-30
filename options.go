@@ -374,6 +374,13 @@ type lightStepStartSpanOption interface {
 	applyLS(*startSpanOptions)
 }
 
+type SetSampled string
+func (s SetSampled) Apply(sso *opentracing.StartSpanOptions) {}
+
+func (s SetSampled) applyLS(sso *startSpanOptions) {
+	sso.SetSampled = string(s)
+}
+
 type startSpanOptions struct {
 	Options opentracing.StartSpanOptions
 
@@ -383,6 +390,7 @@ type startSpanOptions struct {
 	SetSpanID       uint64
 	SetParentSpanID uint64
 	SetTraceID      uint64
+	SetSampled	string
 }
 
 func newStartSpanOptions(sso []opentracing.StartSpanOption) startSpanOptions {
