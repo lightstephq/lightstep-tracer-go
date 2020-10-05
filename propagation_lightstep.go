@@ -37,7 +37,7 @@ func (lightstepPropagator) Inject(
 		spanIDKey:  fieldNameSpanID,
 		spanID:     strconv.FormatUint(sc.SpanID, 16),
 		sampledKey: fieldNameSampled,
-		sampled:    "true",
+		sampled:    sc.Sampled,
 	}
 
 	return propagator.Inject(spanContext, opaqueCarrier)
