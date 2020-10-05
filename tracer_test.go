@@ -359,6 +359,18 @@ var _ = Describe("Tracer", func() {
 			})
 		})
 
+		Context("when the span context is sampled", func() {
+			It("the span should be recorded", func() {
+				span := tracer.StartSpan("parent", SetTraceID(1), SetSampled("true"))
+				span.Finish()
+				Expect(fakeRecorder.RecordSpanCallCount()).To(Equal(1))
+
+				span = tracer.StartSpan("parent", SetTraceID(1), SetSampled("fals"))
+				span.Finish()
+				Expect(fakeRecorder.RecordSpanCallCount()).To(Equal(2))
+			})
+		})
+
 		Context("when the parent span carries the Sampled flag", func() {
 			It("should propagate flags from parent to child", func() {
 				opentracing.SetGlobalTracer(tracer)
