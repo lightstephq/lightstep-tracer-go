@@ -81,6 +81,7 @@ var _ = Describe("Propagator Stack", func() {
 			SpanID:  6397081719746291766,
 			TraceID: 506100417967962170,
 			Baggage: map[string]string{"checked": "baggage"},
+			Sampled: "true",
 		}
 		BeforeEach(func() {
 			knownCarrier1 = opentracing.TextMapCarrier{}
@@ -96,7 +97,7 @@ var _ = Describe("Propagator Stack", func() {
 
 			Expect(knownCarrier1["ot-tracer-traceid"]).To(Equal("70607a611a8383a"))
 			Expect(knownCarrier1["ot-tracer-spanid"]).To(Equal("58c6ffee509f6836"))
-			Expect(knownCarrier1["ot-tracer-sampled"]).To(Equal(""))
+			Expect(knownCarrier1["ot-tracer-sampled"]).To(Equal("true"))
 			Expect(knownCarrier1["x-b3-traceid"]).To(Equal("70607a611a8383a"))
 			Expect(knownCarrier1["x-b3-spanid"]).To(Equal("58c6ffee509f6836"))
 			Expect(knownCarrier1["x-b3-sampled"]).To(Equal("1"))
