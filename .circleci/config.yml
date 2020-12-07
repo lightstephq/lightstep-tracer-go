@@ -1,9 +1,48 @@
 version: 2
 
 jobs:
-  test:
+  test-go-1.12:
     docker:
       - image: circleci/golang:1.12
+        environment:
+          GO111MODULE: 'on'
+          GOPROXY: https://proxy.golang.org
+    steps:
+      - checkout
+      - run: git submodule sync
+      - run: git submodule update --init
+      - run:
+          command: go test -timeout 20m -race -v ./...
+          no_output_timeout: 20m
+  test-go-1.13:
+    docker:
+      - image: circleci/golang:1.13
+        environment:
+          GO111MODULE: 'on'
+          GOPROXY: https://proxy.golang.org
+    steps:
+      - checkout
+      - run: git submodule sync
+      - run: git submodule update --init
+      - run:
+          command: go test -timeout 20m -race -v ./...
+          no_output_timeout: 20m
+  test-go-1.14:
+    docker:
+      - image: circleci/golang:1.14
+        environment:
+          GO111MODULE: 'on'
+          GOPROXY: https://proxy.golang.org
+    steps:
+      - checkout
+      - run: git submodule sync
+      - run: git submodule update --init
+      - run:
+          command: go test -timeout 20m -race -v ./...
+          no_output_timeout: 20m
+  test-go-1.15:
+    docker:
+      - image: circleci/golang:1.15
         environment:
           GO111MODULE: 'on'
           GOPROXY: https://proxy.golang.org
@@ -19,4 +58,7 @@ workflows:
   version: 2
   test:
     jobs:
-      - test
+      - test-go-1.12
+      - test-go-1.13
+      - test-go-1.14
+      - test-go-1.15
