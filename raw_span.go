@@ -2,6 +2,7 @@ package lightstep
 
 import (
 	"time"
+	"unsafe"
 
 	"github.com/opentracing/opentracing-go"
 )
@@ -33,6 +34,29 @@ type RawSpan struct {
 	Logs []opentracing.LogRecord
 }
 
+func (r *RawSpan) Len() int {
+	size := r.Context.Len() +
+		3*8 +
+		len(r.Operation) +
+		int(unsafe.Sizeof(r.Start)) +
+		int(unsafe.Sizeof(r.Duration))
+
+	for k, v := range r.Tags {
+		size += len(k)
+		if s, ok := v.(string); ok {
+			size += len(s)
+		}
+	}
+	for _, lr := range r.Logs {
+		size += int(unsafe.Sizeof(lr.Timestamp))
+		for _, f := range lr.Fields {
+			size += int(unsafe.Sizeof(f))
+		}
+	}
+	return size
+
+}
+
 // SpanContext holds lightstep-specific Span metadata.
 type SpanContext struct {
 	// A probabilistically unique identifier for a [multi-span] trace.
@@ -49,6 +73,15 @@ type SpanContext struct {
 
 	// The span's associated baggage.
 	Baggage map[string]string // initialized on first use
+}
+
+// Len returns size in bytes
+func (c SpanContext) Len() int {
+	size := (3 * 8) + len(c.Sampled)
+	for k, v := range c.Baggage {
+		size += len(k) + len(v)
+	}
+	return size
 }
 
 // ForeachBaggageItem belongs to the opentracing.SpanContext interface

@@ -8,9 +8,9 @@ import (
 	"github.com/lightstep/lightstep-tracer-common/golang/gogo/collectorpb"
 	"github.com/lightstep/lightstep-tracer-common/golang/gogo/collectorpb/collectorpbfakes"
 	"github.com/lightstep/lightstep-tracer-go/constants"
-	"github.com/opentracing/opentracing-go"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/opentracing/opentracing-go"
 )
 
 var _ = Describe("TracerImpl", func() {
@@ -36,7 +36,7 @@ var _ = Describe("TracerImpl", func() {
 
 		opts = Options{
 			AccessToken: accessToken,
-			Tags: tags,
+			Tags:        tags,
 			ConnFactory: fakeConn,
 		}
 	})

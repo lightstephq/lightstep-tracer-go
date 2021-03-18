@@ -4,6 +4,7 @@ package lightstep
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"os"
 	"runtime"
 	"strings"
@@ -319,8 +320,29 @@ func (tracer *tracerImpl) Flush(ctx context.Context) {
 		tracer.firstReportHasRun = true
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, tracer.opts.ReportTimeout)
-	defer cancel()
+	parts := 1
+	numOfRawSpans := len(tracer.flushing.rawSpans)
+	if numOfRawSpans > 0 {
+		var heuristicByteSize int
+		if numOfRawSpans == 1 {
+			heuristicByteSize = tracer.flushing.rawSpans[0].Len()
+		} else {
+			for i := 0; i < 2; i++ {
+				pivot := rand.New(rand.NewSource(time.Now().UnixNano())).Int() % numOfRawSpans
+				h := tracer.flushing.rawSpans[pivot].Len() * numOfRawSpans
+				if h > heuristicByteSize {
+					heuristicByteSize = h
+				}
+			}
+		}
+
+		if heuristicByteSize > tracer.opts.GRPCMaxCallSendMsgSizeBytes {
+			parts = heuristicByteSize / tracer.opts.GRPCMaxCallSendMsgSizeBytes
+			if heuristicByteSize%tracer.opts.GRPCMaxCallSendMsgSizeBytes != 0 {
+				parts += 1
+			}
+		}
+	}
 
 	protoReq := tracer.converter.toReportRequest(
 		tracer.reporterID,
@@ -337,30 +359,44 @@ func (tracer *tracerImpl) Flush(ctx context.Context) {
 		return
 	}
 
+	reportRequests := req.SplitByParts(parts)
 	var reportErrorEvent *eventFlushError
-	resp, err := tracer.client.Report(ctx, req)
-	if err != nil {
-		reportErrorEvent = newEventFlushError(err, FlushErrorTransport)
-	} else if len(resp.GetErrors()) > 0 {
-		reportErrorEvent = newEventFlushError(fmt.Errorf(resp.GetErrors()[0]), FlushErrorReport)
+	for i := 0; i < len(reportRequests); i++ {
+		if err, reportErrorEvent = tracer.FlushSingle(ctx, reportRequests[i], flushStart); err != nil || reportErrorEvent != nil {
+			break
+		}
 	}
 
 	if reportErrorEvent != nil {
 		emitEvent(reportErrorEvent)
 	}
 	emitEvent(tracer.postFlush(flushStart, reportErrorEvent))
+}
 
-	if err == nil && resp.DevMode() {
-		tracer.metaEventReportingEnabled = true
+func (tracer *tracerImpl) FlushSingle(ctx context.Context, req reportRequest, flushStart time.Time) (err error, reportErrorEvent *eventFlushError) {
+	ctx, cancel := context.WithTimeout(ctx, tracer.opts.ReportTimeout)
+	defer cancel()
+
+	resp, err := tracer.client.Report(ctx, req)
+	if err != nil {
+		reportErrorEvent = newEventFlushError(err, FlushErrorTransport)
+	} else if len(resp.GetErrors()) > 0 {
+		errEvent := fmt.Errorf(resp.GetErrors()[0])
+		reportErrorEvent = newEventFlushError(errEvent, FlushErrorReport)
 	}
 
-	if err == nil && !resp.DevMode() {
-		tracer.metaEventReportingEnabled = false
+	if err == nil {
+		if resp.DevMode() {
+			tracer.metaEventReportingEnabled = true
+		} else {
+			tracer.metaEventReportingEnabled = false
+		}
+		if resp.Disable() {
+			tracer.Disable()
+		}
 	}
 
-	if err == nil && resp.Disable() {
-		tracer.Disable()
-	}
+	return
 }
 
 // preFlush handles lock-protected data manipulation before flushing

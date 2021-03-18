@@ -35,6 +35,37 @@ type reportRequest struct {
 	httpRequest  *http.Request
 }
 
+// SplitByParts splits reportRequest into given number of parts.
+// Beware, that parts=0 panics.
+func (rr reportRequest) SplitByParts(parts int) []reportRequest {
+
+	if rr.protoRequest == nil || len(rr.protoRequest.Spans) == 0 || parts <= 1 {
+		return []reportRequest{rr}
+	}
+	spans := rr.protoRequest.Spans
+
+	maxSize := len(rr.protoRequest.Spans) / parts
+	if len(rr.protoRequest.Spans)%parts > 0 {
+		maxSize++
+	}
+
+	var rrs []reportRequest
+	for len(spans) > 0 {
+		s := maxSize
+		if len(spans) < s {
+			s = len(spans)
+		}
+
+		r := rr
+		r.protoRequest.Spans = make([]*collectorpb.Span, s)
+		copy(r.protoRequest.Spans, spans[:s])
+		spans = spans[s:]
+		rrs = append(rrs, r)
+	}
+
+	return rrs
+}
+
 // collectorClient encapsulates internal grpc/http transports.
 type collectorClient interface {
 	Report(context.Context, reportRequest) (collectorResponse, error)
