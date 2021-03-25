@@ -1,6 +1,8 @@
 # Changelog
 
 ## [Pending Release](https://github.com/lightstep/lightstep-tracer-go/compare/v0.24.0...HEAD)
+## v0.24.0-gopsutilv3
+* Upgrade gopsutil to gopsutil/v3
 
 ## [v0.24.0](https://github.com/lightstep/lightstep-tracer-go/compare/v0.23.0...v0.24.0)
 * Fix issue where the `ot-tracer-sampled` header was propagated as an empty string if it was not explicitly set [#269]
