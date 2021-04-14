@@ -315,7 +315,7 @@ var _ = Describe("Tracer Transports", func() {
 					It("Should propagate sampled", func() {
 						buf := bytes.NewBuffer(nil)
 						err := tracer.Inject(testContextSampledFalse, opentracing.Binary, io.Writer(buf))
-						Expect(err).To(HaveOccurred())
+						Expect(err).ToNot(HaveOccurred())
 
 						context, err := tracer.Extract(opentracing.Binary, io.Reader(buf))
 						Expect(err).ToNot(HaveOccurred())
