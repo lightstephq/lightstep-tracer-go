@@ -260,7 +260,7 @@ var _ = Describe("Tracer Transports", func() {
 					SpanID:  123000000000,
 					TraceID: 456000000000,
 					Baggage: nil,
-					//Sampled: "false",
+					Sampled: "false",
 				}
 
 				Context("tracer inject", func() {
