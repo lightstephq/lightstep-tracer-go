@@ -101,9 +101,9 @@ func (binaryPropagator) Extract(
 		Baggage: pb.BasicCtx.BaggageItems,
 	}
 
-	if !pb.BasicCtx.Sampled {
-		spanContext.Sampled = "false"
-	}
+	//if !pb.BasicCtx.Sampled {
+	//	spanContext.Sampled = "false"
+	//}
 
 	return spanContext, nil
 }
