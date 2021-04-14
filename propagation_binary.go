@@ -95,17 +95,17 @@ func (binaryPropagator) Extract(
 		return nil, opentracing.ErrInvalidCarrier
 	}
 
-	sampled := "true"
-	if !pb.BasicCtx.Sampled {
-		sampled = "false"
-	}
-
-	return SpanContext{
+	spanContext := SpanContext{
 		TraceID: pb.BasicCtx.TraceId,
 		SpanID:  pb.BasicCtx.SpanId,
 		Baggage: pb.BasicCtx.BaggageItems,
-		Sampled: sampled,
-	}, nil
+	}
+
+	if !pb.BasicCtx.Sampled {
+		spanContext.Sampled = "false"
+	}
+
+	return spanContext, nil
 }
 
 func decodeBase64Bytes(in []byte) ([]byte, error) {
