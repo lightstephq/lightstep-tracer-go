@@ -256,6 +256,12 @@ var _ = Describe("Tracer Transports", func() {
 					TraceID: 456000000000,
 					Baggage: map[string]string{"a": "1", "b": "2", "c": "3"},
 				}
+				var testContextSampledFalse = SpanContext{
+					SpanID:  123000000000,
+					TraceID: 456000000000,
+					Baggage: nil,
+					//Sampled: "false",
+				}
 
 				Context("tracer inject", func() {
 					var carrierString string
@@ -305,6 +311,15 @@ var _ = Describe("Tracer Transports", func() {
 
 						err = tracer.Inject(nil, opentracing.Binary, carrierBytes)
 						Expect(err).To(HaveOccurred())
+					})
+					It("Should propagate sampled", func() {
+						buf := bytes.NewBuffer(nil)
+						err := tracer.Inject(testContextSampledFalse, opentracing.Binary, io.Writer(buf))
+						Expect(err).To(HaveOccurred())
+
+						context, err := tracer.Extract(opentracing.Binary, io.Reader(buf))
+						Expect(err).ToNot(HaveOccurred())
+						Expect(context).To(BeEquivalentTo(testContextSampledFalse))
 					})
 				})
 

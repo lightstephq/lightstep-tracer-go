@@ -95,10 +95,16 @@ func (binaryPropagator) Extract(
 		return nil, opentracing.ErrInvalidCarrier
 	}
 
+	sampled := "true"
+	if !pb.BasicCtx.Sampled {
+		sampled = "false"
+	}
+
 	return SpanContext{
 		TraceID: pb.BasicCtx.TraceId,
 		SpanID:  pb.BasicCtx.SpanId,
 		Baggage: pb.BasicCtx.BaggageItems,
+		Sampled: sampled,
 	}, nil
 }
 
