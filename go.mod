@@ -11,7 +11,7 @@ require (
 	github.com/onsi/ginkgo v1.7.0
 	github.com/onsi/gomega v1.4.3
 	github.com/opentracing/opentracing-go v1.0.2
-	github.com/shirou/gopsutil v2.20.1+incompatible
+	github.com/shirou/gopsutil/v3 v3.21.2
 	go.opencensus.io v0.22.3
 	google.golang.org/grpc v1.21.0
 )
