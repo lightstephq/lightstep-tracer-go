@@ -30,7 +30,7 @@ func (binaryPropagator) Inject(
 		BasicCtx: &lightstep.BasicTracerCarrier{
 			TraceId:      sc.TraceID,
 			SpanId:       sc.SpanID,
-			Sampled:      sc.Sampled == "true" || sc.Sampled == "1",
+			Sampled:      sc.Sampled == "" || sc.Sampled == "true" || sc.Sampled == "1",
 			BaggageItems: sc.Baggage,
 		},
 	})
@@ -95,11 +95,17 @@ func (binaryPropagator) Extract(
 		return nil, opentracing.ErrInvalidCarrier
 	}
 
-	return SpanContext{
+	spanContext := SpanContext{
 		TraceID: pb.BasicCtx.TraceId,
 		SpanID:  pb.BasicCtx.SpanId,
 		Baggage: pb.BasicCtx.BaggageItems,
-	}, nil
+	}
+
+	if !pb.BasicCtx.Sampled {
+		spanContext.Sampled = "false"
+	}
+
+	return spanContext, nil
 }
 
 func decodeBase64Bytes(in []byte) ([]byte, error) {
