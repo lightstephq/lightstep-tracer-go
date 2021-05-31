@@ -1,4 +1,4 @@
 package lightstep
 
 // TracerVersionValue provides the current version of the lightstep-tracer-go release
-const TracerVersionValue = "0.24.0"
+const TracerVersionValue = "0.25.0"
